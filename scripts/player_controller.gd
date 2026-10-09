@@ -13,6 +13,7 @@ extends CharacterBody3D
 @onready var avatar: Variant = $Avatar
 @onready var yaw_pivot: Node3D = $CameraYaw
 @onready var pitch_pivot: Node3D = $CameraYaw/CameraPitch
+@onready var camera_arm: SpringArm3D = $CameraYaw/CameraPitch/CameraArm
 
 var hud: Variant
 var _camera_touch := -1
@@ -29,6 +30,9 @@ func attach_hud(hud_node: CanvasLayer) -> void:
 		hud.jump_tapped.connect(request_jump)
 	if hud.has_signal("camera_reset_tapped"):
 		hud.camera_reset_tapped.connect(reset_camera)
+
+func adjust_camera_distance(delta_distance: float) -> void:
+	camera_arm.spring_length = clampf(camera_arm.spring_length + delta_distance, 2.0, 7.5)
 
 func request_jump() -> void:
 	_jump_requested = true
