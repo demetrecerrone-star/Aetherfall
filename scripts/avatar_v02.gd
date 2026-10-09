@@ -142,30 +142,30 @@ func _build_avatar() -> void:
 	var armor := _material("91a1aa", 0.38, 0.42)
 
 	var hip_attach := _part("Hips")
-	_orb(hip_attach, "HipsCloth", Vector3(0, -0.025, 0), Vector3(0.59 * hips, 0.35, 0.43), fabric)
+	_cone(hip_attach, "TailoredHips", Vector3(0, -0.035, 0), 0.32, 0.26 * hips, 0.28 * hips, fabric)
 	_box(hip_attach, "Belt", Vector3(0, 0.05, -0.207), Vector3(0.61 * hips, 0.10, 0.08), dark)
 	_box(hip_attach, "Buckle", Vector3(0, 0.05, -0.25), Vector3(0.13, 0.09, 0.05), trim)
 
 	var spine_attach := _part("Spine")
-	_orb(spine_attach, "Waist", Vector3(0, 0.065, 0), Vector3(0.56 * hips, 0.54, 0.43), fabric)
+	_cone(spine_attach, "FittedWaist", Vector3(0, 0.06, 0), 0.52, 0.235 * hips, 0.275 * hips, fabric)
 	var chest_attach := _part("Chest")
-	_orb(chest_attach, "ChestCoat", Vector3(0, -0.015, 0), Vector3(0.76 * shoulders, 0.59, 0.49), fabric)
+	_cone(chest_attach, "TailoredJacket", Vector3(0, -0.014, 0), 0.58, 0.35 * shoulders, 0.24 * hips, fabric)
 	_box(chest_attach, "CoatCentralSeam", Vector3(0, -0.08, -0.242), Vector3(0.038, 0.39, 0.024), trim)
-	_orb(chest_attach, "CollarLeft", Vector3(-0.10, 0.24, -0.14), Vector3(0.19, 0.20, 0.22), dark)
-	_orb(chest_attach, "CollarRight", Vector3(0.10, 0.24, -0.14), Vector3(0.19, 0.20, 0.22), dark)
+	_box(chest_attach, "LapelLeft", Vector3(-0.11, 0.13, -0.250), Vector3(0.072, 0.24, 0.045), dark)
+	_box(chest_attach, "LapelRight", Vector3(0.11, 0.13, -0.250), Vector3(0.072, 0.24, 0.045), dark)
 	_cone(_part("Neck"), "NeckSkin", Vector3.ZERO, 0.21, 0.11, 0.12, skin)
 
 	for side_name in ["Left", "Right"]:
 		var upper := _part(side_name + "UpperArm")
-		_orb(upper, side_name + "Sleeve", Vector3(0, -0.16, 0), Vector3(0.265, 0.52, 0.30), fabric)
+		_cone(upper, side_name + "FittedSleeve", Vector3(0, -0.17, 0), 0.39, 0.150, 0.123, fabric)
 		var forearm := _part(side_name + "Forearm")
-		_orb(forearm, side_name + "LowerSleeve", Vector3(0, -0.13, 0), Vector3(0.226, 0.40, 0.26), fabric)
+		_cone(forearm, side_name + "ForearmSleeve", Vector3(0, -0.14, 0), 0.33, 0.132, 0.099, fabric)
 		_orb(forearm, side_name + "Glove", Vector3(0, -0.33, 0), Vector3(0.205, 0.24, 0.23), dark)
 		_box(forearm, side_name + "Cuff", Vector3(0, -0.25, 0), Vector3(0.24, 0.065, 0.28), trim)
 		var thigh := _part(side_name + "Thigh")
-		_orb(thigh, side_name + "TrouserUpper", Vector3(0, -0.21, 0), Vector3(0.30 * hips, 0.55, 0.34), pants)
+		_cone(thigh, side_name + "TrouserUpper", Vector3(0, -0.20, 0), 0.42, 0.160 * hips, 0.134 * hips, pants)
 		var shin := _part(side_name + "Shin")
-		_orb(shin, side_name + "TrouserLower", Vector3(0, -0.17, 0), Vector3(0.24, 0.48, 0.29), pants)
+		_cone(shin, side_name + "TrouserLower", Vector3(0, -0.17, 0), 0.37, 0.125, 0.094, pants)
 		_orb(shin, side_name + "Boot", Vector3(0, -0.36, -0.07), Vector3(0.28, 0.30, 0.43), dark)
 		_box(shin, side_name + "BootBand", Vector3(0, -0.25, 0), Vector3(0.28, 0.08, 0.30), trim)
 
@@ -198,14 +198,14 @@ func _build_avatar() -> void:
 
 func _build_hair(head: Node3D, material: Material) -> void:
 	var style := int(appearance["hair_style"])
-	_orb(head, "HairCap", Vector3(0, 0.20, 0.02), Vector3(0.50, 0.26, 0.47), material)
+	_orb(head, "HairCap", Vector3(0, 0.19, 0.02), Vector3(0.47, 0.19, 0.44), material)
 	if style == 2:
 		for i in range(5):
-			var tuft := _cone(head, "ShortTuft", Vector3(-0.19 + i * 0.095, 0.30, -0.11), 0.18, 0.0, 0.075, material)
+			var tuft := _cone(head, "ShortTuft", Vector3(-0.19 + i * 0.095, 0.23, -0.15), 0.13, 0.075, 0.0, material)
 			tuft.rotation.z = -0.35 + i * 0.20
 	else:
 		for i in range(7):
-			var tuft := _cone(head, "Bangs", Vector3(-0.235 + i * 0.078, 0.245, -0.19), 0.22 + float(i % 2) * 0.04, 0.0, 0.063, material)
+			var tuft := _cone(head, "Bangs", Vector3(-0.235 + i * 0.078, 0.175, -0.19), 0.21 + float(i % 2) * 0.03, 0.065, 0.0, material)
 			tuft.rotation.z = -0.4 + i * 0.135
 			tuft.rotation.x = -0.18
 	if style == 1:
@@ -216,8 +216,8 @@ func _build_hair(head: Node3D, material: Material) -> void:
 		_orb(head, "PonytailAnchor", Vector3(0, 0.21, 0.21), Vector3(0.19, 0.20, 0.20), material)
 		_orb(head, "Ponytail", Vector3(0, -0.10, 0.32), Vector3(0.30, 0.63, 0.29), material)
 	elif style == 0:
-		_orb(head, "SweptBackHair", Vector3(0, -0.02, 0.17), Vector3(0.43, 0.30, 0.26), material)
-		_orb(head, "SideBang", Vector3(-0.19, 0.045, -0.185), Vector3(0.17, 0.30, 0.13), material)
+		_orb(head, "SweptBackHair", Vector3(0, 0.08, 0.16), Vector3(0.40, 0.25, 0.24), material)
+		_orb(head, "SideBang", Vector3(-0.18, 0.075, -0.175), Vector3(0.13, 0.20, 0.105), material)
 
 func set_motion_state(horizontal_speed: float, grounded: bool, delta: float) -> void:
 	if not is_instance_valid(_skeleton):
