@@ -270,6 +270,13 @@ for side in (-1,1):
     ],lambda i,p:smooth_mix("shin_l" if side<0 else "shin_r",
                                    "foot_l" if side<0 else "foot_r",p[1],.20,.10),20)
 
+# V0.3.1 tailored outfit trim.
+loft("Detail_Collar","ClothDark",[
+ ellipse(1.57,.14,.14),ellipse(1.63,.12,.12),ellipse(1.68,.09,.10)
+],lambda i,p:BONE["neck"],20)
+loft("Detail_Belt","Leather",[
+ ellipse(.88,.273,.20),ellipse(.92,.278,.20)
+],lambda i,p:BONE["hips"],24)
 # Slim torso overlayer accessories: role-specific visibility at runtime.
 loft("Outfit_Adventurer","Leather",[
  ellipse(.83,.258,.197,z=.0),ellipse(.86,.269,.20,z=.0),
