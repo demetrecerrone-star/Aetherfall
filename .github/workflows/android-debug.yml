@@ -79,7 +79,7 @@ jobs:
       - name: Import and validate project
         run: godot --headless --editor --path . --quit
 
-      - name: Check procedural humanoid rig spacing and appearance regeneration
+      - name: Check imported skinned anime humanoid rig and animation
         run: godot --headless --path . --script res://tests/model_asset_test.gd
 
       - name: Test character studio live preview and local save
@@ -89,7 +89,7 @@ jobs:
         run: |
           mkdir -p builds
           godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.0-debug.apk"
-          test -s builds/Aetherfall-v0.2.2-debug.apk
+          test -s builds/Aetherfall-v0.3.0-debug.apk
 
       - name: Publish source model glTF for inspection
         uses: actions/upload-artifact@v4
@@ -103,6 +103,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Aetherfall-v0.3.0-Android-Debug
-          path: builds/Aetherfall-v0.2.2-debug.apk
+          path: builds/Aetherfall-v0.3.0-debug.apk
           if-no-files-found: error
           retention-days: 30
