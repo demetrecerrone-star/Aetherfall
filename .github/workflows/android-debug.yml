@@ -40,14 +40,14 @@ jobs:
 
       - name: Require persistent Aetherfall signing key
         env:
-          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 }}
+          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 || secrets.AETHERFALL_KEYSTORE_BASE64 }}
           KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           MISSING=0
           if [[ -z "$KEYSTORE_B64" ]]; then
-            echo "::error::Missing Actions secret: AETHERFALL_KEYSTORE_B64"
+            echo "::error::Missing Actions secret: AETHERFALL_KEYSTORE_B64 (also accepts AETHERFALL_KEYSTORE_BASE64)"
             MISSING=1
           fi
           if [[ -z "$KEYSTORE_ALIAS" ]]; then
