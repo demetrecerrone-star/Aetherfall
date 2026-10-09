@@ -1,0 +1,16 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="Script" path="res://scripts/touch_hud.gd" id="3_hud"]
+
+[node name="AetherfallMovementLab" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="World" type="Node3D" parent="."]
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+position = Vector3(0, 0.16, 8)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("3_hud")
