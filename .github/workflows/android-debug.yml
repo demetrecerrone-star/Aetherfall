@@ -12,19 +12,17 @@ jobs:
   build-android:
     name: Export Android ARM64 APK
     runs-on: ubuntu-24.04
-    container:
-      image: barichello/godot-ci:4.6.3
     timeout-minutes: 35
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Verify Godot and Android environment
-        run: |
-          godot --version
-          test -f /root/.local/share/godot/export_templates/4.6.3.stable/version.txt
-          test -f /root/.config/godot/editor_settings-4.6.tres
-          test -f /root/debug.keystore
+      - name: Install Godot and templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: true
 
       - name: Import and validate project
         run: godot --headless --editor --path . --quit
