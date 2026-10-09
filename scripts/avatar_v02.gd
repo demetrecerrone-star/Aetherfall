@@ -119,6 +119,12 @@ func _build_avatar() -> void:
 	_add_bone("RightThigh", "Hips", Vector3(0.16, -0.055, 0))
 	_add_bone("RightShin", "RightThigh", Vector3(0, -0.43, 0))
 
+	# CRITICAL: Skeleton3D's initial pose does not automatically inherit the
+	# rest translations assigned to bones created at runtime. Without resetting
+	# pose to rest, every BoneAttachment3D piles up at (0,0,0). This produced
+	# the tiny pile of heads/limbs visible in the v0.2 phone screenshot.
+	_skeleton.reset_bone_poses()
+
 	var body_frame := int(appearance["frame"])
 	var broad := body_frame == 0
 	var shoulders := 1.06 if broad else 0.91
