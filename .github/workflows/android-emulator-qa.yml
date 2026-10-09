@@ -57,6 +57,15 @@ jobs:
           contents=contents.replace('architectures/arm64-v8a=true','architectures/arm64-v8a=false')
           contents=contents.replace('architectures/x86_64=false','architectures/x86_64=true')
           path.write_text(contents)
+          # The emulator's GLES3 software driver only exposes 261 fragment uniforms;
+          # Godot 4.6 Compatibility shaders exceed this limit and produce a black
+          # screen. Use the Vulkan Mobile renderer in this x86_64 TEST BUILD ONLY.
+          project=Path('project.godot')
+          config=project.read_text()
+          config=config.replace('renderer/rendering_method="gl_compatibility"', 'renderer/rendering_method="mobile"')
+          config=config.replace('renderer/rendering_method.mobile="gl_compatibility"', 'renderer/rendering_method.mobile="mobile"')
+          config=config.replace('"GL Compatibility"', '"Mobile"')
+          project.write_text(config)
           PY
           godot --headless --editor --path . --quit
           mkdir -p builds
@@ -80,7 +89,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           heap-size: 512M
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader -feature Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: bash tools/android_emulator_smoke.sh
 
