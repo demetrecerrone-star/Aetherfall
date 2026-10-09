@@ -449,3 +449,9 @@ OUT.write_text(json.dumps(gltf,separators=(',',':')),encoding="utf-8")
 print("Generated",OUT,len(gltf["meshes"]),"original skinned meshes",
       len(gltf["animations"]),"animation clips",len(buffer),"bytes of vertex/animation data")
 assert len(gltf["meshes"])>80 and len(gltf["skins"])==1
+
+# Direct generator calls from emulator QA receive the same polished asset.
+# runpy.run_path sets a different __name__, avoiding recursive generation.
+if __name__ == "__main__":
+    import runpy
+    runpy.run_path("tools/generate_avatar_v031.py")
