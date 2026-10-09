@@ -19,7 +19,11 @@ adb shell wm density 240
 adb shell input keyevent KEYCODE_HOME
 adb logcat -c
 adb shell monkey -p com.demetrecerrone.aetherfall -c android.intent.category.LAUNCHER 1
-sleep 12
+sleep 10
+# Fresh emulator launches display Android's "Viewing full screen" onboarding
+# modal, which previously covered ALL the screenshots, video and touch input.
+adb shell input touchscreen tap 1160 285
+sleep 7
 
 function cap() {
   local name="$1"
@@ -66,5 +70,9 @@ if ! adb shell pidof com.demetrecerrone.aetherfall >/dev/null; then
   echo "QA_FAILED: game process is no longer running." | tee -a qa-results/test-summary.txt
   exit 1
 fi
-echo "QA_OK: Android emulator game process survived movement/jump/studio smoke test." | tee -a qa-results/test-summary.txt
+if grep -Eq 'SceneShaderGLES3: Program linking failed|Fragment shader active uniforms exceed GL_MAX_FRAGMENT_UNIFORM_VECTORS|Vulkan:.*Failed' qa-results/full-logcat.txt; then
+  echo "QA_RENDER_FAILED: emulator shaders failed, scene is not visually testable." | tee -a qa-results/test-summary.txt
+  exit 1
+fi
+echo "QA_OK: game remained open during emulator movement/jump/studio capture; check frames for true visibility." | tee -a qa-results/test-summary.txt
 ls -lh qa-results/ | tee -a qa-results/test-summary.txt
