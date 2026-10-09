@@ -7,7 +7,7 @@ import sys
 import zlib
 
 
-def visible_ratio(path: Path) -> float:
+def visible_ratio(path: Path) -> tuple[float, str, tuple[int, int, int]]:
     data = path.read_bytes()
     if not data.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError(f"{path} is not a PNG")
@@ -33,6 +33,8 @@ def visible_ratio(path: Path) -> float:
     row_size = width * channels
     last = bytearray(row_size)
     bright = sampled = offset = 0
+    hairstyle_digest = hashlib.sha256()
+    panel_rgb = (0, 0, 0)
     step_x, step_y = max(1, width // 80), max(1, height // 45)
     for y in range(height):
         filter_type = pixels[offset]
@@ -62,8 +64,15 @@ def visible_ratio(path: Path) -> float:
                 start = x * channels
                 bright += max(row[start:start + 3]) > 35
                 sampled += 1
+        # Observe the static hairstyle label (not the animated character behind it).
+        if 405 <= y < 440:
+            hairstyle_digest.update(row[1165 * channels:1320 * channels])
+        # The dark panel is replaced by the world when the studio closes.
+        if y == 650:
+            panel_rgb = tuple(row[1100 * channels:1100 * channels + 3])
         last = row
-    return bright / sampled if sampled else 0.0
+    ratio = bright / sampled if sampled else 0.0
+    return ratio, hairstyle_digest.hexdigest(), panel_rgb
 
 
 def main(folder: str) -> int:
@@ -71,10 +80,10 @@ def main(folder: str) -> int:
     if any(not any(p.name.startswith(f"{n:02d}_") for p in files) for n in range(1, 8)):
         print("QA_RENDER_FAILED: missing one or more of seven gameplay screenshots", file=sys.stderr)
         return 1
-    ratios = {}
-    for path in files:
-        ratios[path.name] = visible_ratio(path)
-        print(f"{path.name}: visible pixels {ratios[path.name]:.1%}")
+    results = {path.name: visible_ratio(path) for path in files}
+    ratios = {name: summary[0] for name, summary in results.items()}
+    for name, ratio in ratios.items():
+        print(f"{name}: visible pixels {ratio:.1%}")
     for prefix in ("01_", "05_"):
         name = next(path.name for path in files if path.name.startswith(prefix))
         if ratios[name] < 0.04:
@@ -83,7 +92,18 @@ def main(folder: str) -> int:
     if len({hashlib.sha256(f.read_bytes()).digest() for f in files}) < 3:
         print("QA_RENDER_FAILED: emulator screenshots are frozen", file=sys.stderr)
         return 1
-    print("QA_VISUAL_OK: visible gameplay and changing frames")
+    studio_before = next(x for x in files if x.name.startswith("05_")).name
+    studio_changed = next(x for x in files if x.name.startswith("06_")).name
+    studio_closed = next(x for x in files if x.name.startswith("07_")).name
+    if results[studio_before][1] == results[studio_changed][1]:
+        print("QA_INTERACTION_FAILED: hairstyle did not change when its button was tapped", file=sys.stderr)
+        return 1
+    before_rgb = results[studio_before][2]
+    after_rgb = results[studio_closed][2]
+    if sum(abs(a - b) for a, b in zip(before_rgb, after_rgb)) < 100:
+        print("QA_INTERACTION_FAILED: Character Studio stayed open after the close tap", file=sys.stderr)
+        return 1
+    print("QA_VISUAL_OK: visible gameplay, hairstyle changed, and studio closed")
     return 0
 
 
