@@ -7,6 +7,9 @@ on:
       - ".github/workflows/android-emulator-qa.yml"
       - "tools/android_emulator_smoke.sh"
       - "tools/verify_emulator_frames.py"
+      - "tools/generate_avatar.py"
+      - "tools/generate_avatar_v031.py"
+      - "scripts/avatar_v03.gd"
 
 permissions:
   contents: read
@@ -48,7 +51,7 @@ jobs:
       - name: Build x86_64 Compatibility renderer APK for emulator
         run: |
           set -euxo pipefail
-          python3 tools/generate_avatar.py
+          python3 tools/generate_avatar_v031.py
           python3 - <<'PY'
           from pathlib import Path
           path=Path('export_presets.cfg')
@@ -61,8 +64,8 @@ jobs:
           PY
           godot --headless --editor --path . --quit
           mkdir -p builds
-          godot --headless --path . --export-debug Android builds/Aetherfall-v0.3-emulator-x86_64-debug.apk
-          test -s builds/Aetherfall-v0.3-emulator-x86_64-debug.apk
+          godot --headless --path . --export-debug Android builds/Aetherfall-v0.3.1-emulator-x86_64-debug.apk
+          test -s builds/Aetherfall-v0.3.1-emulator-x86_64-debug.apk
 
       - name: Enable hardware virtualization for Android emulator
         run: |
@@ -89,7 +92,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3-Emulator-Visual-QA
+          name: Aetherfall-v0.3.1-Emulator-Visual-QA
           path: qa-results/
           if-no-files-found: warn
           retention-days: 14

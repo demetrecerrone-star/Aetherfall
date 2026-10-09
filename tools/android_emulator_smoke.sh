@@ -2,7 +2,25 @@
 # Aetherfall Android emulator QA for v0.3.1 rig, gait and visual silhouette.
 set -euo pipefail
 mkdir -p qa-results
-APK="${APK:-builds/Aetherfall-v0.3-emulator-x86_64-debug.apk}"
+
+# Keep logs even if a foreground check fails before the final capture.
+function save_diagnostics() {
+  adb logcat -d -v threadtime > qa-results/full-logcat.txt 2>/dev/null || true
+  adb shell dumpsys activity activities > qa-results/activity.txt 2>/dev/null || true
+}
+trap save_diagnostics EXIT
+
+function verify_foreground() {
+  if ! adb shell pidof com.demetrecerrone.aetherfall >/dev/null 2>&1; then
+    echo "QA_APP_EXITED: Aetherfall process is not running." | tee -a qa-results/test-summary.txt
+    return 1
+  fi
+  if ! adb shell dumpsys activity activities | grep -Eq "topResumedActivity=.*com[.]demetrecerrone[.]aetherfall/"; then
+    echo "QA_NOT_FOREGROUND: Aetherfall is not the Android foreground activity." | tee -a qa-results/test-summary.txt
+    return 1
+  fi
+}
+APK="${APK:-builds/Aetherfall-v0.3.1-emulator-x86_64-debug.apk}"
 test -s "$APK"
 adb wait-for-device
 echo "=== Android device ===" | tee qa-results/test-summary.txt
@@ -11,22 +29,22 @@ adb shell getprop ro.product.cpu.abi | tee -a qa-results/test-summary.txt
 adb shell getprop ro.hardware | tee -a qa-results/test-summary.txt
 adb install -r "$APK"
 
-# Force consistent landscape 1600x900 frame geometry for reproducible touches.
+# Configure display *before* starting Godot; changing rotation during startup
+# caused emulator GodotActivity destruction and a SIGKILL in an earlier run.
 adb shell settings put system accelerometer_rotation 0
-adb shell settings put system user_rotation 1
 adb shell wm size 1600x900
 adb shell wm density 240
-adb shell input keyevent KEYCODE_HOME
+adb shell settings put secure immersive_mode_confirmations confirmed || true
+sleep 9
 adb logcat -c
-adb shell monkey -p com.demetrecerrone.aetherfall -c android.intent.category.LAUNCHER 1
-sleep 10
-# Fresh emulator launches display Android's "Viewing full screen" onboarding
-# modal, which previously covered ALL the screenshots, video and touch input.
-adb shell input touchscreen tap 1160 285
-sleep 7
+adb shell am force-stop com.demetrecerrone.aetherfall || true
+adb shell am start -n com.demetrecerrone.aetherfall/com.godot.game.GodotAppLauncher
+sleep 25
+verify_foreground
 
 function cap() {
   local name="$1"
+  verify_foreground
   adb exec-out screencap -p > "qa-results/$name.png"
   test -s "qa-results/$name.png"
   echo "captured $name" | tee -a qa-results/test-summary.txt

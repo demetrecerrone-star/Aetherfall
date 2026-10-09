@@ -40,13 +40,26 @@ jobs:
 
       - name: Require persistent Aetherfall signing key
         env:
-          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 }}
+          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 || secrets.AETHERFALL_KEYSTORE_BASE64 }}
           KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -z "$KEYSTORE_B64" || -z "$KEYSTORE_ALIAS" || -z "$KEYSTORE_PASSWORD" ]]; then
-            echo "::error::Aetherfall permanent signing is not available. Configure AETHERFALL_KEYSTORE_B64, AETHERFALL_KEY_ALIAS and AETHERFALL_KEY_PASSWORD as Actions secrets for THIS repository (or an organization secret explicitly shared with THIS repository). Refusing to export an APK signed with a throwaway key."
+          MISSING=0
+          if [[ -z "$KEYSTORE_B64" ]]; then
+            echo "::error::Missing Actions secret: AETHERFALL_KEYSTORE_B64 (also accepts AETHERFALL_KEYSTORE_BASE64)"
+            MISSING=1
+          fi
+          if [[ -z "$KEYSTORE_ALIAS" ]]; then
+            echo "::error::Missing Actions secret: AETHERFALL_KEY_ALIAS"
+            MISSING=1
+          fi
+          if [[ -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "::error::Missing Actions secret: AETHERFALL_KEY_PASSWORD"
+            MISSING=1
+          fi
+          if [[ "$MISSING" -ne 0 ]]; then
+            echo "::error::Release stopped to prevent installation of an APK signed with a different identity. Confirm secrets are in Settings > Secrets and variables > Actions for the Aetherfall repository, not an unrelated repository or environment."
             exit 1
           fi
           umask 077
