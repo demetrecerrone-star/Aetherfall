@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Aetherfall Android emulator QA. Runs inside reactivecircus/android-emulator-runner.
+# Aetherfall Android emulator QA for v0.3.1 rig, gait and visual silhouette.
 set -euo pipefail
 mkdir -p qa-results
 APK="${APK:-builds/Aetherfall-v0.3-emulator-x86_64-debug.apk}"

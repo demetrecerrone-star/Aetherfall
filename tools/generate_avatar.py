@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aetherfall original v0.3 full-mesh anime adventurer source generator.
+"""Aetherfall v0.3.1 original anime adventurer: organic skin weights and motion.
 
 Uses only Python's standard library. Produces a real, skinned glTF 2.0 scene
 with original smooth, hand-designed ring loft geometry, skeleton, materials,
@@ -36,7 +36,7 @@ mesh_defs = []
 buffer = bytearray()
 views = []
 accessors = []
-gltf = {"asset":{"version":"2.0","generator":"Aetherfall Original Character Generator v0.3"},
+gltf = {"asset":{"version":"2.0","generator":"Aetherfall Original Character Generator v0.3.1"},
         "extensionsUsed": [], "scene":0, "scenes":[{"nodes":[]}],
         "nodes":[],"meshes":[],"skins":[],"animations":[],"materials":[],
         "bufferViews":views,"accessors":accessors,"buffers":[]}
@@ -70,6 +70,8 @@ for args in [
  ("MetalSilver","9ca8b7",.55,.4), ("TrimLight","becbd1",0,.76),
  ("Trouser","2b3147",0,.9), ("Boot","2d2a36",0,.8),
  ("Cheek","d18b7f",0,.91), ("Blush","c98786",0,.9),
+ ("HairSheen","565b78",0,.57), ("Brow","31364c",0,.66),
+ ("ArmorBlue","425e7b",.18,.71), ("ArmorEdge","a9a7a2",.36,.47),
 ]: material(*args)
 
 def align(b, n=4):
@@ -99,6 +101,29 @@ def weights(spec):
     return ((a,b,0,0),(1.-t,t,0.,0.))
 
 def skin_spec(*args): return tuple(args)
+
+def smooth_mix(upper_bone, lower_bone, y, start_y, finish_y):
+    """Blend between adjacent bones at a real joint rather than rigid shells."""
+    t = max(0., min(1., (start_y-y)/(start_y-finish_y)))
+    t = t*t*(3.-2.*t)
+    return (BONE[upper_bone], BONE[lower_bone], t)
+
+def ribbon(name, matname, coords, width, joint):
+    """Two-sided narrow tailored fabric or armor trim along a contoured path."""
+    pos=[]; uv=[]; bones=[]; faces=[]
+    for i,point in enumerate(coords):
+        a=coords[max(i-1,0)]
+        b=coords[min(i+1,len(coords)-1)]
+        tangent=norm(vsub(b,a))
+        side=norm((-tangent[1],tangent[0],0))
+        for edge in (-1,1):
+            pos.append(vadd(point,vmul(side,width*edge*.5)))
+            uv.append(((edge+1)/2,i/max(1,len(coords)-1)))
+            bones.append(joint if isinstance(joint,int) else joint(point))
+    for i in range(len(coords)-1):
+        k=i*2
+        faces.extend(((k,k+2,k+1),(k+1,k+2,k+3)))
+    finalize_mesh(name,matname,pos,uv,bones,faces)
 
 def finalize_mesh(name, matname, positions, uv, bones, tris, extras=None):
     if not positions:return
@@ -212,12 +237,14 @@ for side in (-1,1):
        ellipse(1.535,.130,.134,.32*x),ellipse(1.49,.142,.125,.342*x),
        ellipse(1.37,.114,.111,.36*x),ellipse(1.25,.101,.104,.367*x),
        ellipse(1.165,.111,.105,.38*x)
-    ],lambda i,p:upper,16)
+    ],lambda i,p:smooth_mix("upper_l" if side<0 else "upper_r",
+                                    "lower_l" if side<0 else "lower_r",p[1],1.35,1.16),20)
     loft("Body_%sForearm"%label,"ClothMain",[
        ellipse(1.19,.106,.106,.38*x),ellipse(1.13,.108,.105,.384*x),
        ellipse(1.03,.091,.091,.39*x),ellipse(.93,.077,.079,.40*x),
        ellipse(.88,.077,.08,.405*x)
-    ],lambda i,p:fore,16)
+    ],lambda i,p:smooth_mix("lower_l" if side<0 else "lower_r",
+                                   "hand_l" if side<0 else "hand_r",p[1],.99,.87),18)
     loft("Skin_%sHand"%label,"SkinMain",[
        ellipse(.887,.083,.082,.405*x),ellipse(.85,.081,.078,.405*x),
        ellipse(.79,.071,.073,.405*x),ellipse(.765,.026,.037,.41*x)
@@ -226,12 +253,13 @@ for side in (-1,1):
        ellipse(.87,.16,.167,.16*x),ellipse(.78,.16,.165,.164*x),
        ellipse(.67,.137,.139,.165*x),ellipse(.56,.124,.126,.162*x),
        ellipse(.46,.124,.120,.155*x)
-    ],lambda i,p:thigh,18)
+    ],lambda i,p:smooth_mix("hips", "thigh_l" if side<0 else "thigh_r",p[1],.90,.76),20)
     loft("Body_%sShin"%label,"Trouser",[
        ellipse(.49,.126,.12,.155*x),ellipse(.43,.126,.122,.155*x),
        ellipse(.33,.100,.111,.153*x),ellipse(.21,.084,.087,.153*x),
        ellipse(.16,.083,.09,.153*x)
-    ],lambda i,p:shin,18)
+    ],lambda i,p:smooth_mix("thigh_l" if side<0 else "thigh_r",
+                                   "shin_l" if side<0 else "shin_r",p[1],.57,.43),20)
     # Side-facing boot instep custom profile, slopes forward (-Z).
     loft("Body_%sBoot"%label,"Boot",[
        ellipse(.185,.116,.124,.153*x,-.011),
@@ -239,8 +267,28 @@ for side in (-1,1):
        ellipse(.098,.119,.160,.153*x,-.057),
        ellipse(.068,.120,.178,.153*x,-.082),
        ellipse(.054,.111,.143,.153*x,-.087)
-    ],lambda i,p:foot,20)
+    ],lambda i,p:smooth_mix("shin_l" if side<0 else "shin_r",
+                                   "foot_l" if side<0 else "foot_r",p[1],.20,.10),20)
 
+# V0.3.1 tailored outfit trim.
+loft("Detail_Collar","ClothDark",[
+ ellipse(1.57,.14,.14),ellipse(1.63,.12,.12),ellipse(1.68,.09,.10)
+],lambda i,p:BONE["neck"],20)
+loft("Detail_Belt","Leather",[
+ ellipse(.88,.273,.20),ellipse(.92,.278,.20)
+],lambda i,p:BONE["hips"],24)
+# Raised shoulder guards and sleeve cuffs preserve the skin rig.
+for side in (-1,1):
+    label="L" if side<0 else "R"
+    x=.34*side
+    loft("Detail_Shoulder"+label,"ArmorBlue",[
+      ellipse(1.49,.14,.13,x),ellipse(1.53,.16,.14,x),
+      ellipse(1.56,.135,.13,x),ellipse(1.585,.045,.06,x)
+    ],lambda i,p:BONE["upper_l" if side<0 else "upper_r"],20)
+    loft("Detail_Cuff"+label,"Leather",[
+      ellipse(.935,.084,.088,.405*side),ellipse(.96,.099,.10,.405*side),
+      ellipse(.98,.095,.09,.40*side)
+    ],lambda i,p:BONE["lower_l" if side<0 else "lower_r"],18)
 # Slim torso overlayer accessories: role-specific visibility at runtime.
 loft("Outfit_Adventurer","Leather",[
  ellipse(.83,.258,.197,z=.0),ellipse(.86,.269,.20,z=.0),
@@ -401,3 +449,9 @@ OUT.write_text(json.dumps(gltf,separators=(',',':')),encoding="utf-8")
 print("Generated",OUT,len(gltf["meshes"]),"original skinned meshes",
       len(gltf["animations"]),"animation clips",len(buffer),"bytes of vertex/animation data")
 assert len(gltf["meshes"])>80 and len(gltf["skins"])==1
+
+# Direct generator calls from emulator QA receive the same polished asset.
+# runpy.run_path sets a different __name__, avoiding recursive generation.
+if __name__ == "__main__":
+    import runpy
+    runpy.run_path("tools/generate_avatar_v031.py")
