@@ -1,161 +1,215 @@
 extends CanvasLayer
-## In-world character creation panel for v0.2; touch and mouse compatible.
-## Appearance is saved automatically on every change in the avatar script.
+## Aetherfall v0.2.2: unobstructed, right-docked character studio.
+## The real-time 3D player remains visible on the left while edits persist.
 
 const FIELDS := [
-	["frame", "BODY FRAME"],
-	["skin", "SKIN TONE"],
+	["frame", "BUILD"],
+	["skin", "SKIN"],
 	["hair_style", "HAIRSTYLE"],
 	["hair", "HAIR COLOR"],
 	["eyes", "EYE COLOR"],
-	["outfit_style", "OUTFIT TYPE"],
-	["outfit", "OUTFIT COLOR"]
+	["outfit_style", "OUTFIT"],
+	["outfit", "FABRIC"]
 ]
-const FIELD_COUNTS := {"frame": 2, "skin": 6, "hair_style": 4, "hair": 6, "eyes": 5, "outfit_style": 3, "outfit": 6}
+const VALUES := {
+	"frame": ["Broad", "Slender"],
+	"skin": ["Light warm", "Honey", "Tan", "Bronze", "Deep brown", "Fair"],
+	"hair_style": ["Windswept", "Long", "Short", "Ponytail"],
+	"hair": ["Midnight", "Chestnut", "Blonde", "Silver", "Rose", "White"],
+	"eyes": ["Azure", "Emerald", "Amber", "Violet", "Slate"],
+	"outfit_style": ["Adventurer", "Spellweaver", "Vanguard"],
+	"outfit": ["Navy", "Plum", "Jade", "Copper", "Indigo", "Olive"]
+}
+const COLOR_PALETTES := {
+	"skin": ["f1c6ad", "dba687", "b78269", "95644e", "65483b", "f5d9c8"],
+	"hair": ["202338", "6e4b40", "d6a568", "a7b7ce", "ab627a", "e2ded0"],
+	"eyes": ["3c93b3", "5b6e4b", "9c6b3d", "8270b5", "4e4e5c"],
+	"outfit": ["33486a", "704b66", "36645e", "9d6650", "54516f", "82794e"]
+}
+
 var avatar: Node3D
 var player: CharacterBody3D
 var _panel: PanelContainer
+var _entry_labels: Dictionary = {}
+var _swatches: Dictionary = {}
+var _toggle_button: Button
 var _description: Label
-var _choice_buttons: Dictionary = {}
-var _start_button: Button
+var _open := false
 
 func attach(avatar_node: Node3D, player_node: CharacterBody3D) -> void:
 	avatar = avatar_node
 	player = player_node
 	if avatar.has_signal("appearance_changed"):
 		avatar.appearance_changed.connect(_on_changed)
-	if _description != null:
-		_update_labels()
+	_refresh_values()
 
-func _style(base: String, edge: String) -> StyleBoxFlat:
+func _box_style(bg: String, line_color: String) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(base)
-	style.border_color = Color(edge)
+	style.bg_color = Color(bg)
+	style.border_color = Color(line_color)
 	style.set_border_width_all(2)
-	style.set_corner_radius_all(15)
-	style.set_content_margin_all(9)
+	style.set_corner_radius_all(14)
+	style.set_content_margin_all(12)
 	return style
 
-func _btn(label: String, w: float, h: float, font_size: int = 18) -> Button:
-	var node := Button.new()
-	node.text = label
-	node.custom_minimum_size = Vector2(w, h)
-	node.add_theme_font_size_override("font_size", font_size)
-	node.add_theme_stylebox_override("normal", _style("172b49ed", "739dbd"))
-	node.add_theme_stylebox_override("pressed", _style("44658dee", "e6c781"))
-	node.add_theme_stylebox_override("hover", _style("27446bdd", "9bdcf2"))
-	node.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	node.add_theme_color_override("font_color", Color("f3f1df"))
-	return node
+func _button(title: String, min_width: float, min_height: float, font_size: int = 16) -> Button:
+	var item := Button.new()
+	item.text = title
+	item.custom_minimum_size = Vector2(min_width, min_height)
+	item.add_theme_font_size_override("font_size", font_size)
+	item.add_theme_color_override("font_color", Color("f4f4ea"))
+	item.add_theme_stylebox_override("normal", _box_style("193353ee", "6dabc4"))
+	item.add_theme_stylebox_override("hover", _box_style("265678f2", "c1edfa"))
+	item.add_theme_stylebox_override("pressed", _box_style("397291f2", "f3d58c"))
+	item.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	return item
 
 func _label(text_value: String, size_value: int, color_value: Color) -> Label:
-	var lbl := Label.new()
-	lbl.text = text_value
-	lbl.add_theme_font_size_override("font_size", size_value)
-	lbl.add_theme_color_override("font_color", color_value)
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return lbl
+	var node := Label.new()
+	node.text = text_value
+	node.add_theme_font_size_override("font_size", size_value)
+	node.add_theme_color_override("font_color", color_value)
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return node
 
 func _ready() -> void:
-	var canvas := Control.new()
-	canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(canvas)
+	var root := Control.new()
+	root.name = "StudioOverlay"
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(root)
 
-	_start_button = _btn("✦ LOOKS", 130, 50)
-	_start_button.anchor_left = 0.82
-	_start_button.anchor_right = 0.82
-	_start_button.anchor_top = 0.065
-	_start_button.anchor_bottom = 0.065
-	_start_button.offset_right = 130
-	_start_button.offset_bottom = 50
-	_start_button.pressed.connect(_toggle)
-	canvas.add_child(_start_button)
+	_toggle_button = _button("✦ LOOKS", 130, 48)
+	_toggle_button.anchor_left = 0.825
+	_toggle_button.anchor_right = 0.825
+	_toggle_button.anchor_top = 0.068
+	_toggle_button.anchor_bottom = 0.068
+	_toggle_button.offset_right = 130
+	_toggle_button.offset_bottom = 48
+	_toggle_button.pressed.connect(_toggle)
+	root.add_child(_toggle_button)
 
 	_panel = PanelContainer.new()
-	_panel.name = "CharacterCreator"
-	_panel.anchor_left = 0.32
-	_panel.anchor_right = 0.79
-	_panel.anchor_top = 0.075
-	_panel.anchor_bottom = 0.94
-	_panel.offset_left = 0
-	_panel.offset_right = 0
-	_panel.offset_top = 0
-	_panel.offset_bottom = 0
-	_panel.add_theme_stylebox_override("panel", _style("101c35f6", "cbb783"))
+	_panel.name = "RightDockedCreator"
+	_panel.anchor_left = 0.615
+	_panel.anchor_right = 0.98
+	_panel.anchor_top = 0.07
+	_panel.anchor_bottom = 0.975
+	_panel.add_theme_stylebox_override("panel", _box_style("101d32f2", "b6a777"))
 	_panel.visible = false
-	canvas.add_child(_panel)
+	root.add_child(_panel)
 
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 8)
+	stack.add_theme_constant_override("separation", 10)
 	_panel.add_child(stack)
-	stack.add_child(_label("AETHERFALL   /   CHARACTER STUDIO", 20, Color("f6d795")))
-	_description = _label("Preparing appearance...", 15, Color("bfe1f2"))
+
+	var banner := HBoxContainer.new()
+	banner.add_theme_constant_override("separation", 8)
+	stack.add_child(banner)
+	banner.add_child(_label("CHARACTER STUDIO", 23, Color("f4d695")))
+	var close := _button("✕", 43, 39, 21)
+	close.pressed.connect(_toggle)
+	banner.add_spacer(false)
+	banner.add_child(close)
+
+	_description = _label("Choose your adventurer's appearance", 14, Color("b9d8e9"))
 	stack.add_child(_description)
-	stack.add_child(_label("Changes save automatically on this device.", 13, Color("b4b6bd")))
+	stack.add_child(_label("LIVE PREVIEW  •  CHANGES SAVE AUTOMATICALLY", 12, Color("b2bcbf")))
 
 	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 6)
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 7)
+	grid.add_theme_constant_override("v_separation", 9)
 	stack.add_child(grid)
-	for field in FIELDS:
-		var key: String = field[0]
-		var caption: String = field[1]
-		grid.add_child(_label(caption, 15, Color("e2d9c5")))
-		var change_button := _btn("CHANGE", 184, 39, 15)
-		change_button.pressed.connect(_cycle.bind(key))
-		grid.add_child(change_button)
-		_choice_buttons[key] = change_button
+
+	for item in FIELDS:
+		var key: String = item[0]
+		var caption: String = item[1]
+		grid.add_child(_label(caption, 14, Color("e1dbc7")))
+		var previous := _button("‹", 38, 40, 22)
+		previous.pressed.connect(_cycle.bind(key, -1))
+		grid.add_child(previous)
+
+		var value_container := HBoxContainer.new()
+		value_container.custom_minimum_size = Vector2(154, 40)
+		value_container.add_theme_constant_override("separation", 5)
+		grid.add_child(value_container)
+		if COLOR_PALETTES.has(key):
+			var chip := ColorRect.new()
+			chip.custom_minimum_size = Vector2(17, 17)
+			chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			value_container.add_child(chip)
+			_swatches[key] = chip
+		var value := _label("", 14, Color("f1f4f1"))
+		value_container.add_child(value)
+		_entry_labels[key] = value
+
+		var next := _button("›", 38, 40, 22)
+		next.pressed.connect(_cycle.bind(key, 1))
+		grid.add_child(next)
 
 	var actions := HBoxContainer.new()
-	actions.add_theme_constant_override("separation", 10)
+	actions.add_theme_constant_override("separation", 7)
 	stack.add_child(actions)
-	var wave := _btn("WAVE 👋", 130, 48, 16)
+	var wave := _button("WAVE", 87, 43, 15)
 	wave.pressed.connect(_wave)
 	actions.add_child(wave)
-	var zoom_near := _btn("ZOOM +", 100, 48, 15)
-	zoom_near.pressed.connect(func() -> void: _zoom(-0.6))
-	actions.add_child(zoom_near)
-	var zoom_far := _btn("ZOOM −", 100, 48, 15)
-	zoom_far.pressed.connect(func() -> void: _zoom(0.6))
-	actions.add_child(zoom_far)
-	var closer := _btn("DONE", 105, 48, 16)
-	closer.pressed.connect(_toggle)
-	actions.add_child(closer)
+	var zoom_in := _button("ZOOM +", 99, 43, 14)
+	zoom_in.pressed.connect(_zoom.bind(-0.5))
+	actions.add_child(zoom_in)
+	var zoom_out := _button("ZOOM −", 99, 43, 14)
+	zoom_out.pressed.connect(_zoom.bind(0.5))
+	actions.add_child(zoom_out)
+	var done := _button("DONE", 82, 43, 15)
+	done.pressed.connect(_toggle)
+	actions.add_child(done)
 
-	var hint := _label("Move with the left stick • Swipe right half to orbit the camera", 12, Color("c1d5e2"))
+	var hint := _label("Your adventurer is shown on the left. Tap the arrows to preview options.", 12, Color("bbd3df"))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stack.add_child(hint)
-	_update_labels()
+	_refresh_values()
 
 func _toggle() -> void:
-	_panel.visible = not _panel.visible
-	_start_button.text = "CLOSE LOOKS" if _panel.visible else "✦ LOOKS"
-	_update_labels()
+	_set_open(not _open)
 
-func _cycle(key: String) -> void:
+func _set_open(value: bool) -> void:
+	_open = value
+	_panel.visible = _open
+	_toggle_button.visible = not _open
+	if player != null and player.has_method("set_studio_open"):
+		player.set_studio_open(_open)
+	var hud := get_parent().get_node_or_null("HUD")
+	if hud != null and hud.has_method("set_character_studio_active"):
+		hud.set_character_studio_active(_open)
+	_refresh_values()
+
+func _cycle(key: String, amount: int) -> void:
 	if avatar != null and avatar.has_method("cycle_option"):
-		avatar.cycle_option(key)
-	_update_labels()
+		avatar.cycle_option(key, amount)
+	_refresh_values()
 
 func _on_changed(_summary: String) -> void:
-	_update_labels()
+	_refresh_values()
 
-func _update_labels() -> void:
+func _refresh_values() -> void:
 	if avatar == null or _description == null:
 		return
 	if avatar.has_method("appearance_description"):
 		_description.text = avatar.appearance_description()
-	for key in _choice_buttons.keys():
-		var number: int = int(avatar.appearance.get(key, 0)) + 1
-		_choice_buttons[key].text = "%d / %d    ↻" % [number, int(FIELD_COUNTS[key])]
+	var chosen: Dictionary = avatar.get("appearance")
+	for key in _entry_labels.keys():
+		var options: Array = VALUES.get(key, [])
+		var idx := clampi(int(chosen.get(key, 0)), 0, options.size() - 1)
+		var label: Label = _entry_labels[key]
+		label.text = str(options[idx])
+		if _swatches.has(key):
+			var swatch: ColorRect = _swatches[key]
+			var palette: Array = COLOR_PALETTES.get(key, [])
+			swatch.color = Color(str(palette[idx]))
 
 func _wave() -> void:
 	if avatar != null and avatar.has_method("wave"):
 		avatar.wave()
-	_panel.visible = false
-	_start_button.text = "✦ LOOKS"
 
 func _zoom(change: float) -> void:
 	if player != null and player.has_method("adjust_camera_distance"):
