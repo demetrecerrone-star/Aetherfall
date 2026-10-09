@@ -1,30 +1,31 @@
-# v0.1 Character / Camera QA Checklist
+# Aetherfall v0.2 Character Lab — test checklist
 
-## Desktop editor tests
-- [ ] Main scene loads without parser errors.
-- [ ] Spawn points toward the plaza; avatar and sky render correctly.
-- [ ] WASD and arrows move in camera-relative directions.
-- [ ] Character turns in direction of travel.
-- [ ] Shift accelerates movement; releasing decelerates.
-- [ ] Space jumps and gravity returns to ground.
-- [ ] Jump is not repeatable infinitely in midair.
-- [ ] Mouse right-drag orbits around avatar; pitch clamps at floor and sky extremes.
-- [ ] R recenters behind avatar.
-- [ ] Collisions stop movement through houses, tree trunks and fountain.
-- [ ] Camera is kept outside obstructing house walls via SpringArm3D.
-- [ ] HAIR and OUTFIT buttons change visible colors without breaking movement.
+## CI gate
+- [x] Repository initializes with Godot 4.6.3 headlessly once pipeline reports green.
+- [x] Runtime smoke test (when green) catches GDScript parse and first-scene setup errors.
+- [x] Android arm64 build export is uploaded as an artifact on successful run.
 
-## Android-device tests
-- [ ] Scene starts and runs in landscape on device.
-- [ ] Joystick drag works while a separate finger swipes camera.
-- [ ] Simultaneous joystick + JUMP does not cancel input.
-- [ ] RUN toggle increases speed; tap again to walk.
-- [ ] Releasing joystick returns to neutral without drift.
-- [ ] Releasing camera finger stops camera rotation.
-- [ ] HUD stays accessible with 16:9 and wider phone aspect ratios.
-- [ ] No camera clipping into geometry while near the fountain and buildings.
-- [ ] Device can sustain acceptable FPS without overheating.
-- [ ] Touchscreen buttons remain comfortably reachable in landscape.
+## First launch — Samsung Galaxy S23 FE (or equivalent)
+- [ ] Installed in **landscape**.
+- [ ] Third-person humanoid rendered with moving face and hair; not flat sprites.
+- [ ] Walk, run, jump and camera rotation all work without errors.
+- [ ] Main camera pulls in front of blocking houses correctly.
+- [ ] Tap **✦ LOOKS** to display character studio overlay.
+- [ ] Change **BODY FRAME**, **SKIN**, **HAIRSTYLE**, **HAIR COLOR**, **EYE COLOR**, **OUTFIT TYPE**, **OUTFIT COLOR**; character visibly updates.
+- [ ] Close the studio, continue moving; no lost controls.
+- [ ] Tap **WAVE** and verify right arm raises for the emote.
+- [ ] Tap **ZOOM +** and **ZOOM −** and observe camera distance change with collision safety.
+- [ ] Tap HAIR and OUTFIT quick buttons; same appearance settings update.
+- [ ] Quit and relaunch the app; choices persist.
+- [ ] Check 20:9 and 16:9 layout for touch button overlaps or text clipping.
+- [ ] No unusual lag when rotating the camera while running.
+- [ ] Collision capsule, floor, house walls and fountain behave normally.
 
-## Exit criteria
-The first movement milestone passes when Android build and touch tests are complete, and character controls feel natural. Multiplayer/online status is NOT an exit criterion for this particular movement-only package.
+## Update signing
+- [ ] Configure GitHub Actions repository signing secrets before expecting update-in-place APKs.
+- [ ] Archive keystore securely offline; do not commit it.
+- [ ] Confirm identical signer and increased version code between consecutive debug builds.
+
+## Scope boundaries
+- No multiplayer, character accounts, server sync, quests, combat or inventory in v0.2.
+- Character art is procedurally assembled on a Skeleton3D using bone attachments; it is a functional avatar and animation prototype, not a final sculpted/skinned commercial character mesh.
