@@ -150,7 +150,6 @@ func _build_avatar() -> void:
 	_cone(_part("Neck"), "NeckSkin", Vector3.ZERO, 0.21, 0.11, 0.12, skin)
 
 	for side_name in ["Left", "Right"]:
-		var is_left := side_name == "Left"
 		var upper := _part(side_name + "UpperArm")
 		_orb(upper, side_name + "Sleeve", Vector3(0, -0.16, 0), Vector3(0.265, 0.52, 0.30), fabric)
 		var forearm := _part(side_name + "Forearm")
