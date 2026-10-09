@@ -69,7 +69,7 @@ func _ready() -> void:
 	header_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(header_stack)
 	header_stack.add_child(_make_label("AETHERFALL  /  CHARACTER LAB", 20, Color("d9c188")))
-	header_stack.add_child(_make_label("Avatar studio + animations  •  v0.2", 13, Color("acc6d9")))
+	header_stack.add_child(_make_label("Avatar rig patch  •  v0.2.1", 13, Color("acc6d9")))
 
 	_status_label = _make_label("MOVE  0.0 m/s", 15, Color("d5f4ff"))
 	_status_label.anchor_left = 0.015
@@ -78,6 +78,7 @@ func _ready() -> void:
 	_status_label.anchor_bottom = 0.145
 	_status_label.offset_bottom = 40
 	root.add_child(_status_label)
+	_status_label.visible = not OS.has_feature("mobile") and not OS.has_feature("android")
 
 	var tip := _make_label("LEFT STICK  MOVE   •   RIGHT SWIPE  CAMERA", 13, Color("e5f1f8"))
 	tip.anchor_left = 0.44
@@ -86,6 +87,7 @@ func _ready() -> void:
 	tip.offset_bottom = 28
 	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	root.add_child(tip)
+	tip.visible = not OS.has_feature("mobile") and not OS.has_feature("android")
 
 	_joystick = Control.new()
 	_joystick.name = "VirtualJoystick"
@@ -147,6 +149,7 @@ func _ready() -> void:
 	desktop_help.offset_bottom = -10
 	desktop_help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(desktop_help)
+	desktop_help.visible = not OS.has_feature("mobile") and not OS.has_feature("android")
 
 func _on_run_pressed() -> void:
 	_run = not _run
