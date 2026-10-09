@@ -38,13 +38,34 @@ jobs:
           printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platform-tools" "build-tools;35.0.1" "platforms;android-35"
 
-      - name: Create Android test signing key
+      - name: Configure signing (repository secrets optional for stable updates)
+        env:
+          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 }}
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           mkdir -p "$HOME/.android"
-          keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 9999
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_ALIAS" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            printf '%s' "$KEYSTORE_B64" | base64 --decode > "$HOME/.android/aetherfall-upload.keystore"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/aetherfall-upload.keystore" >> "$GITHUB_ENV"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$KEYSTORE_ALIAS" >> "$GITHUB_ENV"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "Using repository-managed signing key (private key never committed)."
+          else
+            keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 9999
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "::warning::Temporary test signer: the next APK may require uninstall. Configure repository signing secrets for in-place updates."
+          fi
+
+      - name: Smoke-test first scene for runtime errors
+        run: |
+          set -o pipefail
+          godot --headless --path . --quit-after 10 2>&1 | tee smoke.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Invalid|Cannot|Failed)' smoke.log; then
+            exit 1
+          fi
 
       - name: Import and validate project
         run: godot --headless --editor --path . --quit
@@ -52,13 +73,13 @@ jobs:
       - name: Export signed Android debug APK
         run: |
           mkdir -p builds
-          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.1-debug.apk"
-          test -s builds/Aetherfall-v0.1-debug.apk
+          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.2-debug.apk"
+          test -s builds/Aetherfall-v0.2-debug.apk
 
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.1-Android-Debug
-          path: builds/Aetherfall-v0.1-debug.apk
+          name: Aetherfall-v0.2-Android-Debug
+          path: builds/Aetherfall-v0.2-debug.apk
           if-no-files-found: error
           retention-days: 30
