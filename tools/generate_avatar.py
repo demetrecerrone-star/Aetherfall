@@ -277,6 +277,18 @@ loft("Detail_Collar","ClothDark",[
 loft("Detail_Belt","Leather",[
  ellipse(.88,.273,.20),ellipse(.92,.278,.20)
 ],lambda i,p:BONE["hips"],24)
+# Raised shoulder guards and sleeve cuffs preserve the skin rig.
+for side in (-1,1):
+    label="L" if side<0 else "R"
+    x=.34*side
+    loft("Detail_Shoulder"+label,"ArmorBlue",[
+      ellipse(1.49,.14,.13,x),ellipse(1.53,.16,.14,x),
+      ellipse(1.56,.135,.13,x),ellipse(1.585,.045,.06,x)
+    ],lambda i,p:BONE["upper_l" if side<0 else "upper_r"],20)
+    loft("Detail_Cuff"+label,"Leather",[
+      ellipse(.935,.084,.088,.405*side),ellipse(.96,.099,.10,.405*side),
+      ellipse(.98,.095,.09,.40*side)
+    ],lambda i,p:BONE["lower_l" if side<0 else "lower_r"],18)
 # Slim torso overlayer accessories: role-specific visibility at runtime.
 loft("Outfit_Adventurer","Leather",[
  ellipse(.83,.258,.197,z=.0),ellipse(.86,.269,.20,z=.0),
