@@ -40,8 +40,8 @@ RECORD_PID=$!
 sleep 2
 adb shell input touchscreen swipe 130 770 130 665 3600
 cap 02_after_walk
-adb shell input touchscreen tap 1430 690
-sleep 2
+adb shell input touchscreen tap 1310 690
+sleep 0.35
 cap 03_jump
 # Capture camera orbit (right half of the display).
 adb shell input touchscreen swipe 1130 355 1400 365 1750
@@ -55,10 +55,10 @@ adb shell input touchscreen tap 1380 85
 sleep 3
 cap 05_studio_open
 # Cycle a hairstyle with the right arrow, then compare screenshots.
-adb shell input touchscreen tap 1340 310
+adb shell input touchscreen tap 1395 420
 sleep 2
 cap 06_studio_hairstyle_changed
-adb shell input touchscreen tap 1480 91
+adb shell input touchscreen tap 1525 110
 sleep 1
 cap 07_studio_closed
 
