@@ -70,9 +70,10 @@ if ! adb shell pidof com.demetrecerrone.aetherfall >/dev/null; then
   echo "QA_FAILED: game process is no longer running." | tee -a qa-results/test-summary.txt
   exit 1
 fi
-if grep -Eq 'SceneShaderGLES3: Program linking failed|Fragment shader active uniforms exceed GL_MAX_FRAGMENT_UNIFORM_VECTORS|Vulkan:.*Failed' qa-results/full-logcat.txt; then
+if grep -Eq 'SceneShaderGLES3: Program linking failed|Fragment shader active uniforms exceed GL_MAX_FRAGMENT_UNIFORM_VECTORS|QueuePresentKHR failed|Vulkan:.*Failed' qa-results/full-logcat.txt; then
   echo "QA_RENDER_FAILED: emulator shaders failed, scene is not visually testable." | tee -a qa-results/test-summary.txt
   exit 1
 fi
-echo "QA_OK: game remained open during emulator movement/jump/studio capture; check frames for true visibility." | tee -a qa-results/test-summary.txt
+python3 tools/verify_emulator_frames.py qa-results 2>&1 | tee -a qa-results/test-summary.txt
+echo "QA_OK: game remained open and captured visible changing scenes." | tee -a qa-results/test-summary.txt
 ls -lh qa-results/ | tee -a qa-results/test-summary.txt
