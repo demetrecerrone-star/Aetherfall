@@ -22,16 +22,16 @@ func _run() -> void:
 	var arm: SpringArm3D = player.get_node("CameraYaw/CameraPitch/CameraArm")
 	var old_length: float = arm.spring_length
 
-	creator._set_open(true)
+	creator.call("_set_open", true)
 	await process_frame
 	var open_ok := panel.visible and not overlay.visible and not button.visible
 	var yaw: float = player.get_node("CameraYaw").rotation.y
 	var faces_front := absf(wrapf(yaw - avatar.rotation.y - PI, -PI, PI)) < 0.02
 	var zoom_ok := arm.spring_length < old_length
-	creator._cycle("hair", 1)
+	creator.call("_cycle", "hair", 1)
 	await process_frame
 	var has_save := FileAccess.file_exists("user://aetherfall_appearance_v02.json")
-	creator._set_open(false)
+	creator.call("_set_open", false)
 	await process_frame
 	var closed_ok := not panel.visible and overlay.visible and button.visible
 	print("STUDIO_TEST: open=%s front=%s zoom=%s saved=%s closed=%s" % [open_ok, faces_front, zoom_ok, has_save, closed_ok])
