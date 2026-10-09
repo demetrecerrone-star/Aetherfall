@@ -9,7 +9,7 @@ const SAVE_PATH := "user://aetherfall_appearance_v02.json"
 const SKIN_COLORS := ["f1c6ad", "dba687", "b78269", "95644e", "65483b", "f5d9c8"]
 const HAIR_COLORS := ["202338", "6e4b40", "d6a568", "a7b7ce", "ab627a", "e2ded0"]
 const EYE_COLORS := ["3c93b3", "5b6e4b", "9c6b3d", "8270b5", "4e4e5c"]
-const OUTFIT_COLORS := ["33486a", "704b66", "36645e", "54516f", "82794e"]
+const OUTFIT_COLORS := ["33486a", "704b66", "36645e", "9d6650", "54516f", "82794e"]
 const STYLE_NAMES := ["Adventurer", "Spellweaver", "Vanguard"]
 const HAIR_NAMES := ["Windswept", "Long", "Short", "Ponytail"]
 
