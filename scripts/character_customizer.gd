@@ -114,7 +114,13 @@ func _ready() -> void:
 	var wave := _btn("WAVE 👋", 130, 48, 16)
 	wave.pressed.connect(_wave)
 	actions.add_child(wave)
-	var closer := _btn("DONE", 130, 48, 16)
+	var zoom_near := _btn("ZOOM +", 100, 48, 15)
+	zoom_near.pressed.connect(func() -> void: _zoom(-0.6))
+	actions.add_child(zoom_near)
+	var zoom_far := _btn("ZOOM −", 100, 48, 15)
+	zoom_far.pressed.connect(func() -> void: _zoom(0.6))
+	actions.add_child(zoom_far)
+	var closer := _btn("DONE", 105, 48, 16)
 	closer.pressed.connect(_toggle)
 	actions.add_child(closer)
 
@@ -150,3 +156,7 @@ func _wave() -> void:
 		avatar.wave()
 	_panel.visible = false
 	_start_button.text = "✦ LOOKS"
+
+func _zoom(change: float) -> void:
+	if player != null and player.has_method("adjust_camera_distance"):
+		player.adjust_camera_distance(change)
