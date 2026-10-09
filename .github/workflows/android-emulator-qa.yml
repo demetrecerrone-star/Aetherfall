@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/android-emulator-qa.yml"
       - "tools/android_emulator_smoke.sh"
+      - "tools/verify_emulator_frames.py"
 
 permissions:
   contents: read
@@ -89,7 +90,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           heap-size: 512M
-          emulator-options: -no-window -gpu swiftshader -feature Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu lavapipe -feature Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: bash tools/android_emulator_smoke.sh
 
