@@ -38,7 +38,7 @@ func _check() -> void:
 	if imported_root != null:
 		nodes.append(imported_root)
 	while not nodes.is_empty():
-		var n := nodes.pop_back()
+		var n: Node = nodes.pop_back()
 		if n is MeshInstance3D and str(n.name).begins_with("Hair_"):
 			if n.visible:
 				count_visible_hair += 1
