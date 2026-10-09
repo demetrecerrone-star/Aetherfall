@@ -61,7 +61,7 @@ jobs:
 
       - name: Generate original skinned anime glTF character
         run: |
-          python3 tools/generate_avatar.py
+          python3 tools/generate_avatar_v031.py
           test -s assets/characters/aetherfall_adventurer.gltf
           ls -lh assets/characters/aetherfall_adventurer.gltf
 
@@ -88,13 +88,13 @@ jobs:
       - name: Export signed Android debug APK
         run: |
           mkdir -p builds
-          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.0-debug.apk"
-          test -s builds/Aetherfall-v0.3.0-debug.apk
+          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.1-debug.apk"
+          test -s builds/Aetherfall-v0.3.1-debug.apk
 
       - name: Publish source model glTF for inspection
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3-Source-Rigged-Model
+          name: Aetherfall-v0.3.1-Source-Rigged-Model
           path: assets/characters/aetherfall_adventurer.gltf
           if-no-files-found: error
           retention-days: 30
@@ -102,7 +102,7 @@ jobs:
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3.0-Android-Debug
-          path: builds/Aetherfall-v0.3.0-debug.apk
+          name: Aetherfall-v0.3.1-Android-Debug
+          path: builds/Aetherfall-v0.3.1-debug.apk
           if-no-files-found: error
           retention-days: 30
