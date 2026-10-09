@@ -8,12 +8,14 @@ var _materials: Dictionary = {}
 @onready var world: Node3D = $World
 @onready var player: Variant = $Player
 @onready var hud: Variant = $HUD
+@onready var character_studio: Variant = $Customizer
 
 func _ready() -> void:
 	_rng.seed = 348921
 	_build_lighting()
 	_build_environment()
 	player.attach_hud(hud)
+	character_studio.attach(player.get_node("Avatar"), player)
 	hud.hair_tapped.connect(func() -> void: player.get_node("Avatar").cycle_hair())
 	hud.outfit_tapped.connect(func() -> void: player.get_node("Avatar").cycle_outfit())
 
