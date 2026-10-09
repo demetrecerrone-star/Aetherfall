@@ -12,6 +12,7 @@ var _run := false
 var _run_button: Button
 var _status_label: Label
 var _last_status := ""
+var _root_overlay: Control
 
 func _style(base: Color, border: Color) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
@@ -51,6 +52,7 @@ func _make_button(text_value: String, width: float, height: float) -> Button:
 func _ready() -> void:
 	var root := Control.new()
 	root.name = "Overlay"
+	_root_overlay = root
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
@@ -69,7 +71,7 @@ func _ready() -> void:
 	header_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(header_stack)
 	header_stack.add_child(_make_label("AETHERFALL  /  CHARACTER LAB", 20, Color("d9c188")))
-	header_stack.add_child(_make_label("Avatar rig patch  •  v0.2.1", 13, Color("acc6d9")))
+	header_stack.add_child(_make_label("Character studio refresh  •  v0.2.2", 13, Color("acc6d9")))
 
 	_status_label = _make_label("MOVE  0.0 m/s", 15, Color("d5f4ff"))
 	_status_label.anchor_left = 0.015
@@ -166,3 +168,7 @@ func set_debug_state(speed: float, sprinting: bool) -> void:
 	if state != _last_status and _status_label != null:
 		_last_status = state
 		_status_label.text = state
+
+func set_character_studio_active(enabled: bool) -> void:
+	if _root_overlay != null:
+		_root_overlay.visible = not enabled
