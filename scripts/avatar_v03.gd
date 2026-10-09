@@ -91,6 +91,14 @@ func get_model_stats() -> Dictionary:
 		"animation_clips": animation_count, "skinned_model": _skeleton != null}
 
 func set_motion_state(horizontal_speed: float, grounded: bool, delta: float) -> void:
+	# Match gait playback to the actual horizontal velocity; avoid foot sliding.
+	if _animation_player != null and _wave_remaining <= 0.0:
+		if grounded and horizontal_speed > 5.05:
+			_animation_player.speed_scale = clampf(horizontal_speed / 7.8, 0.88, 1.32)
+		elif grounded and horizontal_speed > 0.12:
+			_animation_player.speed_scale = clampf(horizontal_speed / 4.3, 0.72, 1.25)
+		else:
+			_animation_player.speed_scale = 1.0
 	if _wave_remaining > 0.0:
 		_wave_remaining -= delta
 		_start_animation("Wave")
