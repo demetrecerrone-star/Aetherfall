@@ -53,8 +53,8 @@ func _tint(hex_color: String, source: Material = null) -> StandardMaterial3D:
 	return result
 
 func _apply_appearance() -> void:
-	var chosen_hair := HAIR_NAMES[int(appearance["hair_style"])]
-	var chosen_style := STYLE_NAMES[int(appearance["outfit_style"])]
+	var chosen_hair: String = HAIR_NAMES[int(appearance["hair_style"])]
+	var chosen_style: String = STYLE_NAMES[int(appearance["outfit_style"])]
 	for item in _meshes:
 		var name_value := item.name
 		# Imported node names keep their authored prefix; names may receive
