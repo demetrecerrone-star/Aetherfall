@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/android-emulator-qa.yml"
       - "tools/android_emulator_smoke.sh"
+      - "tools/verify_emulator_frames.py"
 
 permissions:
   contents: read
@@ -44,7 +45,7 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platform-tools" "build-tools;35.0.1" "platforms;android-35"
 
-      - name: Build x86_64-only test APK for emulator
+      - name: Build x86_64 Compatibility renderer APK for emulator
         run: |
           set -euxo pipefail
           python3 tools/generate_avatar.py
@@ -57,15 +58,6 @@ jobs:
           contents=contents.replace('architectures/arm64-v8a=true','architectures/arm64-v8a=false')
           contents=contents.replace('architectures/x86_64=false','architectures/x86_64=true')
           path.write_text(contents)
-          # The emulator's GLES3 software driver only exposes 261 fragment uniforms;
-          # Godot 4.6 Compatibility shaders exceed this limit and produce a black
-          # screen. Use the Vulkan Mobile renderer in this x86_64 TEST BUILD ONLY.
-          project=Path('project.godot')
-          config=project.read_text()
-          config=config.replace('renderer/rendering_method="gl_compatibility"', 'renderer/rendering_method="mobile"')
-          config=config.replace('renderer/rendering_method.mobile="gl_compatibility"', 'renderer/rendering_method.mobile="mobile"')
-          config=config.replace('"GL Compatibility"', '"Mobile"')
-          project.write_text(config)
           PY
           godot --headless --editor --path . --quit
           mkdir -p builds
@@ -89,7 +81,7 @@ jobs:
           cores: 4
           ram-size: 4096M
           heap-size: 512M
-          emulator-options: -no-window -gpu swiftshader -feature Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu lavapipe -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: bash tools/android_emulator_smoke.sh
 
