@@ -336,7 +336,7 @@ for i,(name,key) in enumerate(zip(J_NAMES,KEYS)):
 for i,p in enumerate(PARENTS):
     if p>=0:gltf["nodes"][joint_nodes[p]]["children"].append(joint_nodes[i])
 gltf["scenes"][0]["nodes"].append(joint_nodes[0])
-for joint_id,hand in ((7,"Right"),(10,"Left")):
+for joint_id,hand in ((7,"Left"),(10,"Right")):
     sock_id=len(gltf["nodes"])
     gltf["nodes"].append({"name":"EquipmentSocket_%sHand"%hand,
                           "translation":[0,-.07,-.10]})
