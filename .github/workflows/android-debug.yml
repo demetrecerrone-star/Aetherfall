@@ -2,7 +2,7 @@ name: Aetherfall Android Debug APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, "fix/**"]
   workflow_dispatch:
 
 permissions:
@@ -70,16 +70,19 @@ jobs:
       - name: Import and validate project
         run: godot --headless --editor --path . --quit
 
+      - name: Check procedural humanoid rig spacing and appearance regeneration
+        run: godot --headless --path . --script res://tests/avatar_rig_test.gd
+
       - name: Export signed Android debug APK
         run: |
           mkdir -p builds
-          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.2-debug.apk"
+          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.2.1-debug.apk"
           test -s builds/Aetherfall-v0.2-debug.apk
 
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.2-Android-Debug
+          name: Aetherfall-v0.2.1-Android-Debug
           path: builds/Aetherfall-v0.2-debug.apk
           if-no-files-found: error
           retention-days: 30
