@@ -2,7 +2,7 @@ name: Aetherfall Android Debug APK
 
 on:
   push:
-    branches: [main, "fix/**"]
+    branches: [main, "fix/**", "feature/**"]
   workflow_dispatch:
 
 permissions:
@@ -59,6 +59,15 @@ jobs:
             echo "::warning::Temporary test signer: the next APK may require uninstall. Configure repository signing secrets for in-place updates."
           fi
 
+      - name: Generate original skinned anime glTF character
+        run: |
+          python3 tools/generate_avatar.py
+          test -s assets/characters/aetherfall_adventurer.gltf
+          ls -lh assets/characters/aetherfall_adventurer.gltf
+
+      - name: Godot import all generated 3D assets
+        run: godot --headless --editor --path . --quit
+
       - name: Smoke-test first scene for runtime errors
         run: |
           set -o pipefail
@@ -70,8 +79,8 @@ jobs:
       - name: Import and validate project
         run: godot --headless --editor --path . --quit
 
-      - name: Check procedural humanoid rig spacing and appearance regeneration
-        run: godot --headless --path . --script res://tests/avatar_rig_test.gd
+      - name: Check imported skinned anime humanoid rig and animation
+        run: godot --headless --path . --script res://tests/model_asset_test.gd
 
       - name: Test character studio live preview and local save
         run: godot --headless --path . --script res://tests/studio_preview_test.gd
@@ -79,13 +88,21 @@ jobs:
       - name: Export signed Android debug APK
         run: |
           mkdir -p builds
-          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.2.2-debug.apk"
-          test -s builds/Aetherfall-v0.2.2-debug.apk
+          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.0-debug.apk"
+          test -s builds/Aetherfall-v0.3.0-debug.apk
+
+      - name: Publish source model glTF for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-v0.3-Source-Rigged-Model
+          path: assets/characters/aetherfall_adventurer.gltf
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.2.2-Android-Debug
-          path: builds/Aetherfall-v0.2.2-debug.apk
+          name: Aetherfall-v0.3.0-Android-Debug
+          path: builds/Aetherfall-v0.3.0-debug.apk
           if-no-files-found: error
           retention-days: 30

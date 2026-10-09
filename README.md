@@ -2,20 +2,26 @@
 
 **Aetherfall** is an original Android-first anime-style 3D RPG, designed for shared online zones and solo-friendly quests/dungeons. It is not an Iruna Online clone: all generated art and code here are original.
 
-## Current milestone — v0.2 Character Lab
+## Current milestone — v0.3 Original Rigged Character
 
-This is a **local/offline foundation prototype**, not yet an MMO. On a successful Android build, the game provides:
+v0.3 remains an **offline RPG prototype**. Multiplayer/server systems have not yet been implemented. The character is no longer made from assembled Godot spheres and boxes.
 
-- Procedural **Skeleton3D** humanoid prototype with reusable named bones, attached outfit geometry and smooth, bone-driven idle / walk / run / jump / wave states.
-- In-world **LOOKS** studio with two body frames, six skin tones, four hairstyles, six hair shades, five eye shades, three outfit types and six outfit palettes.
-- Appearance saved locally to `user://aetherfall_appearance_v02.json` and loaded when reopened.
-- Third-person camera, mobile joystick, sprint/jump/recenter and small collision-enabled outdoor test village.
-- Unique Android package identifier `com.demetrecerrone.aetherfall`; version code **2**.
-- GitHub Actions builds the arm64 **APK** from the Godot 4.6.3 project. CI smoke tests the scene to detect parse/runtime errors.
+- **Original skinned glTF model:** a genuine 3D mesh asset built using a portable, self-contained Python generator (`tools/generate_avatar.py`). The asset has **92 original skinned meshes**, one **17-bone humanoid armature**, and hand-authored looping **Idle, Walk, Run, Jump, Wave** skeletal animation clips.
+- Smooth joined loft geometry for torso, jawline, limbs, face, hair, boots and outfit layers. The generated character is an **independently imported glTF asset** with skeletal skinning, not the old 3D procedural Node3D doll. Artwork is an original stylized prototype and **not yet a professionally sculpted commercial-quality anime model**.
+- Four separate hairstyle geometries, three outfit variants, wearable materials and saved customization (frame, skin, eye shade, hair, outfit).
+- Equipment sockets included on both hand bones to prepare for weapon attachments. First actual equipment objects are deferred to a later update.
+- Existing mobile-friendly third-person camera, controls and right-docked character studio remain intact.
+- GitHub CI regenerates the deterministic glTF, checks model import and animation, then exports a **v0.3** ARM64 debug APK.
 
-### Artwork status
+### Building locally with Godot 4.6.3
 
-The v0.2 avatar is a **procedural, skeleton-driven prototype**, not a finished artist-designed or imported skinned anime character. It is deliberately modular so high-quality licensed/original rigged GLB art can replace it later without rewriting controls or the save format.
+Generate the actual mesh asset **before** launching Godot:
+
+```bash
+python3 tools/generate_avatar.py
+```
+
+The generator needs only standard Python 3 and emits `assets/characters/aetherfall_adventurer.gltf`. Godot automatically imports it as a scene once the project is opened. The CI build also uploads the generated **source model artifact** separately so artists can work with the character outside Godot.
 
 ### Running locally
 
