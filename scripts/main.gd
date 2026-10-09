@@ -83,40 +83,41 @@ func _build_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "LateAfternoonSun"
 	sun.rotation_degrees = Vector3(-42, -28, 0)
-	sun.light_energy = 1.25
-	sun.light_color = Color("ffecd4")
+	sun.light_energy = 0.85
+	sun.light_color = Color("f3e3ce")
 	sun.shadow_enabled = true
 	add_child(sun)
 	var env_root := WorldEnvironment.new()
 	var env := Environment.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("5f98c6")
-	sky_mat.sky_horizon_color = Color("c3e0de")
-	sky_mat.ground_bottom_color = Color("98ab8b")
-	sky_mat.ground_horizon_color = Color("d4d4aa")
+	sky_mat.sky_top_color = Color("477a9b")
+	sky_mat.sky_horizon_color = Color("9ebbc0")
+	sky_mat.ground_bottom_color = Color("77937b")
+	sky_mat.ground_horizon_color = Color("a6a995")
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.48
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_BG
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env_root.environment = env
 	add_child(env_root)
 
 func _build_environment() -> void:
-	_mesh_box("GrassMeadow", Vector3(0, -0.32, -16), Vector3(MAP_SIZE, 0.64, MAP_SIZE), _mat("709e67"))
+	_mesh_box("GrassMeadow", Vector3(0, -0.32, -16), Vector3(MAP_SIZE, 0.64, MAP_SIZE), _mat("527f62"))
 	_obstacle("Ground", Vector3(0, -0.32, -16), Vector3(MAP_SIZE, 0.64, MAP_SIZE))
 	# Stone footpath winds from spawn, through the village, to the northern field.
 	for index in range(57):
 		var z := 11.0 - index * 0.88
 		var wiggle := sin(float(index) * 0.16) * 0.95
-		_mesh_box("StonePath%02d" % index, Vector3(wiggle, 0.025, z), Vector3(5.2, 0.05, 0.79), _mat("c6baa0"))
+		_mesh_box("StonePath%02d" % index, Vector3(wiggle, 0.025, z), Vector3(5.2, 0.05, 0.79), _mat("91897e"))
 		if index % 3 == 0:
 			_mesh_box("PathMoss%02d" % index, Vector3(wiggle - 1.55, 0.06, z - 0.19), Vector3(0.65, 0.035, 0.12), _mat("879e79"))
 
 	# A little arrival plaza; the path and nearby walls make camera collision easy to test.
-	_mesh_box("VillagePlaza", Vector3(0, 0.045, -10.4), Vector3(15.5, 0.09, 11), _mat("afa994"))
+	_mesh_box("VillagePlaza", Vector3(0, 0.045, -10.4), Vector3(15.5, 0.09, 11), _mat("868680"))
 	_build_fountain(Vector3(0, 0, -10.0))
 	_build_house(Vector3(-11, 0, -4), "56778b", "6a4d52")
 	_build_house(Vector3(11, 0, -5), "ae987b", "557b7b")
@@ -164,7 +165,7 @@ func _build_house(at: Vector3, stone_hex: String, roof_hex: String) -> void:
 	_mesh_box("FrontDoor", at + Vector3(0, 1.03, 2.16), Vector3(1.28, 2.05, 0.10), _mat("4e3e42"))
 	_mesh_ball("DoorHandle", at + Vector3(0.41, 1.05, 2.25), Vector3(0.11, 0.11, 0.07), _mat("e2c287"))
 	for sign_side in [-1.0, 1.0]:
-		_mesh_box("GlowingWindow", at + Vector3(sign_side * 1.67, 1.85, 2.21), Vector3(0.87, 0.92, 0.10), _mat("f3db9d"))
+		_mesh_box("GlowingWindow", at + Vector3(sign_side * 1.67, 1.85, 2.21), Vector3(0.87, 0.92, 0.10), _mat("c9ae7b"))
 		_mesh_box("WindowCrossVertical", at + Vector3(sign_side * 1.67, 1.85, 2.29), Vector3(0.08, 0.98, 0.09), _mat("725852"))
 		_mesh_box("WindowCrossHorizontal", at + Vector3(sign_side * 1.67, 1.85, 2.29), Vector3(0.93, 0.08, 0.09), _mat("725852"))
 
