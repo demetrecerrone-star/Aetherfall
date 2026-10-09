@@ -38,26 +38,32 @@ jobs:
           printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platform-tools" "build-tools;35.0.1" "platforms;android-35"
 
-      - name: Configure signing (repository secrets optional for stable updates)
+      - name: Require persistent Aetherfall signing key
         env:
           KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 }}
           KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
-          mkdir -p "$HOME/.android"
-          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_ALIAS" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
-            printf '%s' "$KEYSTORE_B64" | base64 --decode > "$HOME/.android/aetherfall-upload.keystore"
-            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/aetherfall-upload.keystore" >> "$GITHUB_ENV"
-            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$KEYSTORE_ALIAS" >> "$GITHUB_ENV"
-            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "Using repository-managed signing key (private key never committed)."
-          else
-            keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 9999
-            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
-            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
-            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
-            echo "::warning::Temporary test signer: the next APK may require uninstall. Configure repository signing secrets for in-place updates."
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_B64" || -z "$KEYSTORE_ALIAS" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "::error::Aetherfall permanent signing is not available. Configure AETHERFALL_KEYSTORE_B64, AETHERFALL_KEY_ALIAS and AETHERFALL_KEY_PASSWORD as Actions secrets for THIS repository (or an organization secret explicitly shared with THIS repository). Refusing to export an APK signed with a throwaway key."
+            exit 1
           fi
+          umask 077
+          KEYSTORE_PATH="$RUNNER_TEMP/aetherfall-upload.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          if [[ ! -s "$KEYSTORE_PATH" ]]; then
+            echo "::error::AETHERFALL_KEYSTORE_B64 decoded to an empty keystore."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -alias "$KEYSTORE_ALIAS" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
+            echo "::error::The Aetherfall keystore cannot be opened with the provided password and alias. Check the 3 Actions secrets."
+            exit 1
+          fi
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$KEYSTORE_ALIAS" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "Aetherfall reusable signing identity verified. Build may proceed."
 
       - name: Generate original skinned anime glTF character
         run: |
@@ -90,6 +96,23 @@ jobs:
           mkdir -p builds
           godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.1-debug.apk"
           test -s builds/Aetherfall-v0.3.1-debug.apk
+
+      - name: Verify release APK carries the configured signing certificate
+        env:
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          APK="builds/Aetherfall-v0.3.1-debug.apk"
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
+          ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
+          EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
+          if [[ -z "$ACTUAL" || "$ACTUAL" != "$EXPECTED" ]]; then
+            echo "::error::Exported APK signature does not match the persistent keystore. Refusing to publish the APK."
+            exit 1
+          fi
+          echo "Signing certificate SHA-256: $ACTUAL"
+          echo "### Aetherfall v0.3.1 APK uses the configured persistent signing identity." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish source model glTF for inspection
         uses: actions/upload-artifact@v4
