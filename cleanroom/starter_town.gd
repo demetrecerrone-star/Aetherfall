@@ -3,7 +3,9 @@ extends Node3D
 ## Loads the supplied GLB directly and adds game-ready preview behavior:
 ## gameplay locomotion test: touch movement, camera orbit, auto animation states, grounding.
 
-const MODEL_PATH := "res://models/tripo_adventurer.glb"
+# Same verified Mixamo/Tripo skin and rig, now with seven authored clips.
+const MODEL_PATH := "res://models/anime+adventurer+3d+model (1).glb"
+const IDLE_OPTIONS := ["standing_relax", "idle", "look_around"]
 const MOTION_BLEND_TIME := 0.24
 const WALK_SPEED := 0.92
 const RUN_SPEED := 1.06
@@ -13,10 +15,6 @@ const ACTOR_SCALE := 1.70
 const FOOT_TO_SOLE_SOURCE_Y := 0.067
 const TOE_TO_SOLE_SOURCE_Y := 0.017
 const SOLE_CLEARANCE_WORLD := 0.010
-# Adjust idle stance separately from the already-calibrated sole-height offsets.
-const IDLE_ARM_LOWER_DEGREES := 86.0
-const IDLE_ELBOW_BEND_DEGREES := 12.0
-const IDLE_WRIST_ROLL_DEGREES := 92.0
 const WALK_WORLD_SPEED := 1.75
 const RUN_WORLD_SPEED := 4.15
 const MOVE_ACCEL := 7.5
@@ -39,7 +37,6 @@ var _model: Node3D
 var _skeleton: Skeleton3D
 var _animation: AnimationPlayer
 var _neutral_pose: Array[Transform3D] = []
-var _idle_pose: Array[Transform3D] = []
 var _transition_from: Array[Transform3D] = []
 var _transition_elapsed := 0.0
 var _transitioning := false
@@ -70,7 +67,6 @@ var _status: Label
 var _detail: Label
 var _motion := "IDLE"
 var _paused := false
-var _idle_time := 0.0
 var _loaded := false
 
 # Gameplay locomotion harness.
@@ -87,6 +83,8 @@ var _drag_mouse := false
 var _joystick_base: Panel
 var _joystick_knob: Panel
 var _sprint_button: Button
+var _pose_button: Button
+var _idle_option_index := 0
 var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
 var _boundary_flash := 0.0
@@ -1035,6 +1033,21 @@ func _build_ui() -> void:
     _sprint_button.toggled.connect(_on_sprint_toggled)
     ui.add_child(_sprint_button)
 
+    # Compare all three authored idle clips without another rebuild.
+    _pose_button = Button.new()
+    _pose_button.text = "POSE: RELAX"
+    _pose_button.anchor_left = 1.0
+    _pose_button.anchor_right = 1.0
+    _pose_button.anchor_top = 1.0
+    _pose_button.anchor_bottom = 1.0
+    _pose_button.offset_left = -226.0
+    _pose_button.offset_right = -34.0
+    _pose_button.offset_top = -215.0
+    _pose_button.offset_bottom = -150.0
+    _pose_button.add_theme_font_size_override("font_size", 17)
+    _pose_button.pressed.connect(_cycle_idle_pose)
+    ui.add_child(_pose_button)
+
     var pause_button := Button.new()
     pause_button.text = "PAUSE"
     pause_button.anchor_left = 1.0
@@ -1059,7 +1072,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2O  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2P  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1130,6 +1143,10 @@ func _load_runtime_glb() -> void:
     if walk_clip.is_empty() or run_clip.is_empty():
         _fail("Walk/Run clips were not found. Imported: %s" % [str(_animation.get_animation_list())])
         return
+    for idle_option in IDLE_OPTIONS:
+        if _clip_for(idle_option).is_empty():
+            _fail("Missing authored pose %s in: %s" % [idle_option, str(_animation.get_animation_list())])
+            return
 
     _neutral_pose.clear()
     for i in range(_skeleton.get_bone_count()):
@@ -1157,13 +1174,20 @@ func _load_runtime_glb() -> void:
 
     _neutral_hips_origin = _skeleton.get_bone_pose(_hips_index).origin
     _neutral_model_position = _model.position
-    _diag_stage("AF-PLAYER-320", "Rig ready. Building relaxed idle and sole grounding.")
-    _build_relaxed_idle_pose()
+    _diag_stage("AF-PLAYER-320", "Rig ready. Applying authored Standing Relax pose and sole grounding.")
+    # Advance to the real animation pose BEFORE measuring the shoe sole. Unlike
+    # the previous hand-rotated bind pose, this is exactly what the user sees.
+    var starting_idle := _selected_idle_clip()
+    var initial_anim := _animation.get_animation(starting_idle)
+    if initial_anim != null:
+        initial_anim.loop_mode = Animation.LOOP_LINEAR
+    _animation.play(starting_idle)
+    _animation.advance(0.0)
     _align_neutral_feet_to_floor()
 
     _loaded = true
     _set_motion("IDLE")
-    _set_status("READY", "Visual Pass 1 • object collision + wall boundary • Tap SPRINT • drag right side to look")
+    _set_status("READY", "Authored Mixamo idle poses • Tap POSE to compare • Joystick moves • Tap SPRINT to run")
     _diag_stage("AF-READY-900", "Starter Town, character, rig, animations and controls initialized successfully.")
 
 func _polish_actor_materials(node: Node) -> void:
@@ -1233,34 +1257,6 @@ func _collect_finger_bones(hand_prefix: String) -> Array[int]:
             result.append(i)
     return result
 
-func _apply_relaxed_fingers() -> void:
-    if _skeleton == null:
-        return
-    # Keep finger joints loose, with a softer thumb bend. Only used in idle;
-    # Walk and Run continue to use the original Mixamo animation clips.
-    for i in range(_left_finger_bones.size()):
-        var bone_index := _left_finger_bones[i]
-        var name := String(_skeleton.get_bone_name(bone_index)).to_lower()
-        var amount := 11.0
-        if name.contains("thumb"):
-            amount = 6.0
-        elif name.ends_with("2"):
-            amount = 16.0
-        elif name.ends_with("3"):
-            amount = 19.0
-        _apply_local_rotation(bone_index, Vector3.FORWARD, amount)
-    for i in range(_right_finger_bones.size()):
-        var bone_index := _right_finger_bones[i]
-        var name := String(_skeleton.get_bone_name(bone_index)).to_lower()
-        var amount := -11.0
-        if name.contains("thumb"):
-            amount = -6.0
-        elif name.ends_with("2"):
-            amount = -16.0
-        elif name.ends_with("3"):
-            amount = -19.0
-        _apply_local_rotation(bone_index, Vector3.FORWARD, amount)
-
 func _clip_for(mode: String) -> String:
     if _animation == null:
         return ""
@@ -1281,40 +1277,71 @@ func _capture_transition_pose() -> void:
     _transition_elapsed = 0.0
     _transitioning = _transition_from.size() == _neutral_pose.size()
 
+func _selected_idle_clip() -> String:
+    return _clip_for(String(IDLE_OPTIONS[_idle_option_index]))
+
+
+func _idle_label() -> String:
+    match String(IDLE_OPTIONS[_idle_option_index]):
+        "standing_relax":
+            return "Standing Relax"
+        "idle":
+            return "Idle"
+        "look_around":
+            return "Look Around"
+    return "Idle"
+
+
+func _cycle_idle_pose() -> void:
+    if not _loaded or _paused:
+        return
+    _idle_option_index = (_idle_option_index + 1) % IDLE_OPTIONS.size()
+    if _pose_button != null:
+        _pose_button.text = "POSE: " + _idle_label().to_upper()
+    if _motion == "IDLE":
+        # Smooth transition from the current frame into the selected full-body
+        # authored pose, preserving the world actor's position and sole offset.
+        _set_motion("IDLE")
+    else:
+        _set_status(_motion, _motion_detail())
+
+
 func _set_motion(mode: String) -> void:
     if not _loaded or _animation == null:
         _motion = mode
         return
 
+    var clip_name := _selected_idle_clip() if mode == "IDLE" else _clip_for(mode)
+    if clip_name.is_empty():
+        _fail("Missing animation clip for " + mode)
+        return
+
     _capture_transition_pose()
     _paused = false
     _motion = mode
+    var clip := _animation.get_animation(clip_name)
+    if clip != null:
+        clip.loop_mode = Animation.LOOP_LINEAR
 
-    if mode == "IDLE":
-        # Preserve the current gait frame. _process blends it smoothly into the
-        # living neutral pose instead of snapping straight to bind pose.
-        _animation.stop(true)
-        _idle_time = 0.0
-    else:
-        var clip_name := _clip_for(mode)
-        if clip_name.is_empty():
-            _fail("Missing animation clip for " + mode)
-            return
-        var clip := _animation.get_animation(clip_name)
-        if clip != null:
-            clip.loop_mode = Animation.LOOP_LINEAR
-        var speed := WALK_SPEED if mode == "WALK" else RUN_SPEED
-        _animation.speed_scale = 1.0
-        # Manual skeleton blending below works even when coming from procedural idle.
-        _animation.play(clip_name, 0.0, speed)
-
+    var speed := 1.0
+    if mode == "WALK":
+        speed = WALK_SPEED
+    elif mode == "RUN":
+        speed = RUN_SPEED
+    _animation.speed_scale = 1.0
+    # Never stop() into a hand-twisted bind pose. All three idle modes are
+    # genuine animations driving every joint from the verified model.
+    _animation.play(clip_name, 0.0, speed)
     _set_status(mode, _motion_detail())
+
 
 func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Natural Idle Pose • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    var clip_label := _idle_label() if _motion == "IDLE" else _motion.capitalize()
+    return "%s (authored) • %s • %.2f m/s • %s" % [clip_label, _motion, _move_speed, sprint_state]
+
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
@@ -1365,57 +1392,6 @@ func _release_joystick() -> void:
     _move_input = Vector2.ZERO
     _move_touch = -1
     _set_joystick_visual(Vector2.ZERO)
-
-func _build_relaxed_idle_pose() -> void:
-    _idle_pose.clear()
-    if _skeleton == null or _neutral_pose.size() != _skeleton.get_bone_count():
-        return
-    # Start from the imported bind pose, then lower the T-pose arms into a
-    # relaxed game-ready stance. These signs are measured for this Mixamo rig.
-    for i in range(_neutral_pose.size()):
-        _skeleton.set_bone_pose(i, _neutral_pose[i])
-    # Relax both shoulders toward the thighs, add a small natural elbow bend,
-    # and remove the nearly 180-degree wrist twist visible in the 0.2N test.
-    _apply_local_rotation(_left_arm_index, Vector3.RIGHT, -IDLE_ARM_LOWER_DEGREES)
-    _apply_local_rotation(_right_arm_index, Vector3.RIGHT, IDLE_ARM_LOWER_DEGREES)
-    _apply_local_rotation(_left_forearm_index, Vector3.BACK, IDLE_ELBOW_BEND_DEGREES)
-    _apply_local_rotation(_right_forearm_index, Vector3.BACK, -IDLE_ELBOW_BEND_DEGREES)
-    _apply_local_rotation(_left_hand_index, Vector3.RIGHT, IDLE_WRIST_ROLL_DEGREES)
-    _apply_local_rotation(_right_hand_index, Vector3.RIGHT, IDLE_WRIST_ROLL_DEGREES)
-    _apply_relaxed_fingers()
-    for i in range(_skeleton.get_bone_count()):
-        _idle_pose.append(_skeleton.get_bone_pose(i))
-
-func _reset_idle_target() -> void:
-    if _skeleton == null or _idle_pose.size() != _skeleton.get_bone_count():
-        return
-    for i in range(_idle_pose.size()):
-        _skeleton.set_bone_pose(i, _idle_pose[i])
-
-func _apply_idle_offsets(delta: float) -> void:
-    _idle_time += delta
-    var breath := sin(_idle_time * TAU / 4.4)
-    var sway := sin(_idle_time * TAU / 6.8 + 0.7)
-
-    if _hips_index >= 0:
-        var hips := _skeleton.get_bone_pose(_hips_index)
-        hips.origin.y += breath * 0.0018
-        _skeleton.set_bone_pose(_hips_index, hips)
-    _apply_local_rotation(_spine_index, Vector3.RIGHT, breath * 0.55 + sway * 0.18)
-    _apply_local_rotation(_spine1_index, Vector3.RIGHT, breath * 0.75)
-    _apply_local_rotation(_spine1_index, Vector3.FORWARD, sway * 0.32)
-    _apply_local_rotation(_head_index, Vector3.UP, sway * 0.45)
-    _apply_local_rotation(_head_index, Vector3.RIGHT, -breath * 0.20)
-    # Breathing moves the upper arms subtly, never the knees or feet.
-    _apply_local_rotation(_left_arm_index, Vector3.FORWARD, breath * 0.32)
-    _apply_local_rotation(_right_arm_index, Vector3.FORWARD, -breath * 0.32)
-
-func _apply_local_rotation(index: int, axis: Vector3, degrees: float) -> void:
-    if index < 0 or index >= _neutral_pose.size():
-        return
-    var base := _skeleton.get_bone_pose(index)
-    var delta_basis := Basis(Quaternion(axis.normalized(), deg_to_rad(degrees)))
-    _skeleton.set_bone_pose(index, base * Transform3D(delta_basis, Vector3.ZERO))
 
 func _apply_transition(delta: float) -> void:
     if not _transitioning or _skeleton == null:
@@ -1663,9 +1639,6 @@ func _process(delta: float) -> void:
     _boundary_flash = maxf(0.0, _boundary_flash - delta)
     _update_gameplay_movement(delta)
     if _loaded and not _paused:
-        if _motion == "IDLE":
-            _reset_idle_target()
-            _apply_idle_offsets(delta)
         _apply_transition(delta)
         _lock_root_motion()
         _correct_foot_ground(delta)
