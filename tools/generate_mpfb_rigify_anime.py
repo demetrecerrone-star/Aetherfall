@@ -88,21 +88,54 @@ deform=[b.name for b in rig.data.bones if b.use_deform]
 assert len(deform)>15, "Rigify has no usable deform skeleton"
 assert any(m.type=="ARMATURE" for m in human.modifiers), "MPFB lost its armature modifier"
 
-# Export only body and generated rig; hide Rigify widgets and rig internals.
-bpy.ops.object.select_all(action="DESELECT")
-rig.select_set(True)
-human.select_set(True)
-bpy.context.view_layer.objects.active=rig
+# Build genuine volumetric hairstyle options and a fantasy outfit, skinned to
+# Rigify's underlying deformation bones via transferred MPFB vertex weights.
+import sys,struct
+sys.path.insert(0,str(Path("tools").absolute()))
+from style_mpfb_anime import build_character
+accessories=build_character(human,rig)
+hair_styles=("Windswept","Long","Short","Ponytail")
+assert sum(o.name.startswith("Hair_") for o in accessories)>=40
+assert sum(o.name.startswith("Outfit_Adventurer") for o in accessories)>=10
+
+# Save all hairstyles and the editable 930-bone Rigify *control* rig in Blender.
+# The separate Android GLBs contain only deform bones (no control widgets).
 bpy.ops.wm.save_as_mainfile(filepath=str(BLEND))
-bpy.ops.export_scene.gltf(filepath=str(GLB),export_format="GLB",
-    use_selection=True,export_animations=True,export_skins=True,
-    export_materials="EXPORT")
-assert BLEND.is_file() and BLEND.stat().st_size>100000
-assert GLB.is_file() and GLB.stat().st_size>100000
-stats={"generator":"MPFB", "rigging":"Rigify", "blender":bpy.app.version_string,
-    "vertices":len(human.data.vertices),"bones":len(rig.data.bones),
+exported={}
+for style in hair_styles:
+    bpy.ops.object.select_all(action="DESELECT")
+    rig.select_set(True)
+    human.select_set(True)
+    for obj in accessories:
+        if obj.name.startswith("Hair_"):
+            obj.select_set(obj.name.startswith("Hair_"+style+"_"))
+        else:
+            obj.select_set(True)
+    bpy.context.view_layer.objects.active=rig
+    output=GLB if style=="Windswept" else OUT/("Aetherfall-MPFB-Rigify-Anime-%s.glb"%style)
+    bpy.ops.export_scene.gltf(filepath=str(output),export_format="GLB",
+        use_selection=True,export_animations=False,export_skins=True,
+        export_def_bones=True,export_materials="EXPORT")
+    assert output.is_file() and output.stat().st_size>100000
+    payload=output.read_bytes()
+    assert payload[:4]==b"glTF"
+    json_len=struct.unpack_from("<I",payload,12)[0]
+    gltf=json.loads(payload[20:20+json_len])
+    joints=max((len(s["joints"]) for s in gltf.get("skins",[])),default=0)
+    assert 30<=joints<270, "Exported Rigify controllers instead of deform rig: %d"%joints
+    mesh_names=[m.get("name","") for m in gltf.get("meshes",[])]
+    assert any(x.startswith("Outfit_Adventurer") for x in mesh_names),mesh_names
+    assert any(x.startswith("Hair_"+style) for x in mesh_names),mesh_names
+    assert not any(x.startswith("Hair_"+other) for x in mesh_names for other in hair_styles if other!=style)
+    exported[style]={"file":output.name,"bytes":output.stat().st_size,
+                     "game_skin_joints":joints,"meshes":len(mesh_names)}
+assert BLEND.stat().st_size>100000
+stats={"generator":"MPFB","rigging":"Rigify","blender":bpy.app.version_string,
+    "vertices":len(human.data.vertices),"authoring_control_bones":len(rig.data.bones),
     "deform_bones":len(deform),"height_model_units":round(height,3),
-    "export_glb_bytes":GLB.stat().st_size,
+    "outfit_parts":sum(o.name.startswith("Outfit_") for o in accessories),
+    "hair_parts":{style:sum(o.name.startswith("Hair_"+style) for o in accessories)
+                  for style in hair_styles},"styles":exported,
     "release_integration":False}
 INFO.write_text(json.dumps(stats,indent=2))
-print("AETHERFALL_MPFBRIGIFY_PROTOTYPE_OK "+json.dumps(stats))
+print("AETHERFALL_MPFBRIGIFY_STYLED_OK "+json.dumps(stats))
