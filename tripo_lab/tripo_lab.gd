@@ -142,7 +142,7 @@ func _clip_for(mode: String) -> String:
         return ""
     for entry in _animation.get_animation_list():
         var label := String(entry).to_lower()
-        if label == mode.to_lower() or label.ends_with("/" + mode.to_lower()):
+        if label == mode.to_lower() or label.ends_with("/" + mode.to_lower()) or label.ends_with("|" + mode.to_lower()):
             return String(entry)
     return ""
 
