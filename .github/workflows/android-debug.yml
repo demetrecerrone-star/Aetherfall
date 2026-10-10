@@ -81,7 +81,8 @@ jobs:
       - name: Generate original skinned anime glTF character
         run: |
           python3 tools/generate_avatar_v032.py
-          test -s assets/characters/aetherfall_adventurer.gltf\n          python3 tests/test_gait_v032.py
+          test -s assets/characters/aetherfall_adventurer.gltf
+          python3 tests/test_gait_v032.py
           ls -lh assets/characters/aetherfall_adventurer.gltf
 
       - name: Godot import all generated 3D assets
