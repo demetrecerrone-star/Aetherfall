@@ -1,0 +1,42 @@
+name: Blender Character Pipeline (experimental)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/blender-character.yml"
+      - "tools/blender_character_pipeline.py"
+
+permissions:
+  contents: read
+
+jobs:
+  blender-original-avatar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender
+          blender --version
+      - name: Generate Aetherfall original rigged character
+        run: |
+          python3 tools/generate_avatar_v033.py
+          python3 tests/test_avatar_v033.py
+      - name: Build editable Blender asset and export GLB
+        run: |
+          blender -b -t 2 --python tools/blender_character_pipeline.py
+          test -s builds/Aetherfall-Anime-Character-Editable.blend
+          test -s builds/Aetherfall-Anime-Character-Blender.glb
+      - name: Upload Blender working file and GLB
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-Blender-Character-Prototype
+          path: |
+            builds/Aetherfall-Anime-Character-Editable.blend
+            builds/Aetherfall-Anime-Character-Blender.glb
+          retention-days: 21
+          if-no-files-found: error
