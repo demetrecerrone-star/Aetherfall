@@ -6,6 +6,7 @@ on:
       - ".github/workflows/mpfb-rigify.yml"
       - "tools/check_mpfb_rigify.py"
       - "tools/generate_mpfb_rigify_anime.py"
+      - "tests/mpfb_prototype_model_test.gd"
   workflow_dispatch:
 
 permissions:
@@ -69,6 +70,25 @@ jobs:
           assert data["vertices"]>10000 and data["deform_bones"]>15, data
           print("MPFB_RIGIFY_MODEL_VALID",data)
           PY
+      - name: Set up Godot 4.6.3 for independent GLB import test
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Verify MPFB Rigify prototype GLB imports with skeleton and skin
+        run: |
+          set -euo pipefail
+          mkdir -p builds/mpfb-godot-probe
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb builds/mpfb-godot-probe/prototype.glb
+          cp tests/mpfb_prototype_model_test.gd builds/mpfb-godot-probe/check.gd
+          printf 'config_version=5\n\n[application]\nconfig/name="Aetherfall MPFB Asset Probe"\n' > builds/mpfb-godot-probe/project.godot
+          timeout 90s godot --headless --editor --path builds/mpfb-godot-probe --import --quit 2>&1 | tee builds/mpfb-godot-import.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid)' builds/mpfb-godot-import.log; then
+            exit 1
+          fi
+          timeout 60s godot --headless --path builds/mpfb-godot-probe --script res://check.gd 2>&1 | tee builds/mpfb-godot-test.log
+          grep -q 'MPFB_GODOT_IMPORT_OK' builds/mpfb-godot-test.log
       - name: Upload anime character prototype
         uses: actions/upload-artifact@v4
         with:
