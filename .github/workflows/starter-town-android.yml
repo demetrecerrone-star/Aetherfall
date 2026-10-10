@@ -115,7 +115,7 @@ jobs:
       - name: Export signed Aetherfall Starter Town APK
         run: |
           mkdir -p cleanroom/builds
-          godot --headless --path cleanroom --export-debug Android builds/Aetherfall-StarterTown-v0.2O.apk
+          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-v0.2O.apk)
           test -s cleanroom/builds/Aetherfall-StarterTown-v0.2O.apk
 
       - name: Verify APK signing certificate
