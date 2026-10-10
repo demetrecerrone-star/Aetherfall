@@ -7,6 +7,7 @@ on:
       - "tools/check_mpfb_rigify.py"
       - "tools/generate_mpfb_rigify_anime.py"
       - "tests/mpfb_prototype_model_test.gd"
+      - "tools/style_mpfb_anime.py"
   workflow_dispatch:
 
 permissions:
@@ -68,6 +69,8 @@ jobs:
           from pathlib import Path
           data=json.loads(Path("builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json").read_text())
           assert data["vertices"]>10000 and data["deform_bones"]>15, data
+          assert data["outfit_parts"]>=10 and len(data["styles"])==4, data
+          assert all(35<=style["game_skin_joints"]<270 for style in data["styles"].values()),data
           print("MPFB_RIGIFY_MODEL_VALID",data)
           PY
       - name: Set up Godot 4.6.3 for independent GLB import test
@@ -81,6 +84,9 @@ jobs:
           set -euo pipefail
           mkdir -p builds/mpfb-godot-probe
           cp builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb builds/mpfb-godot-probe/prototype.glb
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Long.glb builds/mpfb-godot-probe/long.glb
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Short.glb builds/mpfb-godot-probe/short.glb
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Ponytail.glb builds/mpfb-godot-probe/ponytail.glb
           cp tests/mpfb_prototype_model_test.gd builds/mpfb-godot-probe/check.gd
           printf 'config_version=5\n\n[application]\nconfig/name="Aetherfall MPFB Asset Probe"\n' > builds/mpfb-godot-probe/project.godot
           timeout 90s godot --headless --editor --path builds/mpfb-godot-probe --import --quit 2>&1 | tee builds/mpfb-godot-import.log
@@ -97,6 +103,9 @@ jobs:
             builds/Aetherfall-MPFB-Rigify-Anime-Prototype.blend
             builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb
             builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json
+            builds/Aetherfall-MPFB-Rigify-Anime-Long.glb
+            builds/Aetherfall-MPFB-Rigify-Anime-Short.glb
+            builds/Aetherfall-MPFB-Rigify-Anime-Ponytail.glb
           if-no-files-found: error
           retention-days: 21
       - name: Upload installation verification
