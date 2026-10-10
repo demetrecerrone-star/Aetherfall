@@ -51,21 +51,40 @@ def build_character(human,rig):
             face.material_index=base_index
     objects=[]
 
-    # Blender KD tree ties new geometry to *real MPFB skinned vertices*;
-    # deform weights remain valid when Rigify control bones are stripped.
-    valid={b.name for b in rig.data.bones if b.use_deform}
-    # Body includes mask/helper verts with no deform weights (notably around
-    # the feet). Index ONLY properly rigged source vertices, so nearby
-    # unweighted helpers cannot strip the accessory's skinning.
-    weighted_indices=[]
-    for v in human.data.vertices:
-        if any(g.weight>0 and human.vertex_groups[g.group].name in valid for g in v.groups):
-            weighted_indices.append(v.index)
-    assert len(weighted_indices)>1000, "Rigify weight transfer has too few source vertices"
-    kd=kdtree.KDTree(len(weighted_indices))
-    for idx in weighted_indices:
-        kd.insert(human.data.vertices[idx].co,idx)
-    kd.balance()
+    # Only MPFB vertices with real Rigify deformation weights can donate.
+    # Mask and detailed-helper vertices are deliberately excluded: those
+    # were the source of the original "Unweighted accessory vertex" failure.
+    valid={bone.name for bone in rig.data.bones if bone.use_deform}
+    donor_weights={}
+    for source in human.data.vertices:
+        weights=sorted((
+            (human.vertex_groups[group.group].name,group.weight)
+            for group in source.groups
+            if group.weight>0
+            and human.vertex_groups[group.group].name in valid
+        ),key=lambda entry:entry[1],reverse=True)[:4]
+        total=sum(weight for _,weight in weights)
+        if total>1e-8:
+            donor_weights[source.index]=tuple((name,weight/total) for name,weight in weights)
+    assert len(donor_weights)>1000,"Too few fully weighted MPFB donor vertices"
+
+    def make_tree(indices):
+        tree=kdtree.KDTree(len(indices))
+        for index in indices:
+            tree.insert(human.data.vertices[index].co,index)
+        tree.balance()
+        return tree
+
+    all_indices=list(donor_weights)
+    kd=make_tree(all_indices)
+    # An accessory belonging to one leg/arm must never borrow weights from
+    # its opposite side when donor geometry is close to the body midline.
+    side_trees={
+        side:make_tree([i for i in all_indices
+                        if side*human.data.vertices[i].co.x>.025])
+        for side in (-1,1)
+    }
+
     def bind(obj,weight_anchor=None):
         obj.parent=None
         for mod in tuple(obj.modifiers):
@@ -73,27 +92,37 @@ def build_character(human,rig):
                 obj.modifiers.remove(mod)
         arm=obj.modifiers.new("Rigify deformation","ARMATURE")
         arm.object=rig
+        left="_Left" in obj.name
+        right="_Right" in obj.name
+        donor_tree=side_trees[-1] if left else side_trees[1] if right else kd
         groups={}
         for v in obj.data.vertices:
-            # Optional common anchor for ponytails and bangs: follows head,
-            # not the nearest shoulder/neck when hair tips swing out.
-            p=Vector(weight_anchor) if weight_anchor else v.co
-            _,index,_=kd.find(p)
-            source=human.data.vertices[index]
-            assigned=[]
-            for g in source.groups:
-                name=human.vertex_groups[g.group].name
-                if name in valid and g.weight>0:
-                    assigned.append((name,g.weight))
-            assigned=sorted(assigned,key=lambda item:item[1],reverse=True)[:4]
-            assert assigned,"Unweighted accessory vertex at %r"%(tuple(p),)
-            norm=sum(w for _,w in assigned)
-            for name,w in assigned:
-                vg=groups.get(name)
-                if vg is None:
-                    vg=obj.vertex_groups.new(name=name)
-                    groups[name]=vg
-                vg.add([v.index],w/norm,"REPLACE")
+            # Bangs and ponytails bind to the head even when their tips
+            # approach shoulders. Armor, trousers and boots sample each
+            # mesh vertex, retaining smooth deformation over joints.
+            p=Vector(weight_anchor) if weight_anchor is not None else v.co
+            samples=donor_tree.find_n(p,1 if weight_anchor is not None else 4)
+            assert samples, "No weighted MPFB donor for %s"%obj.name
+            blend={}
+            for _,index,distance in samples:
+                # Every entry was prevalidated above; no unweighted helper
+                # can participate in the interpolation or normalization.
+                importance=1.0/max(distance,0.0005)**2
+                for name,weight in donor_weights[index]:
+                    blend[name]=blend.get(name,0.0)+importance*weight
+            assigned=sorted(blend.items(),key=lambda item:item[1],reverse=True)[:4]
+            total=sum(weight for _,weight in assigned)
+            assert total>1e-8, "Unweighted accessory vertex: %s[%d]"%(obj.name,v.index)
+            for name,weight in assigned:
+                if name not in groups:
+                    groups[name]=obj.vertex_groups.new(name=name)
+                groups[name].add([v.index],weight/total,"REPLACE")
+        # Validation is explicit, so a future helper-geometry regression
+        # fails here rather than silently exporting rigid accessories.
+        for v in obj.data.vertices:
+            total=sum(g.weight for g in v.groups
+                      if obj.vertex_groups[g.group].name in valid)
+            assert abs(total-1.0)<1e-3, "Bad accessory skin weights: %s[%d] %.4f"%(obj.name,v.index,total)
         objects.append(obj)
         return obj
 
