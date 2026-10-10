@@ -259,7 +259,7 @@ func _crystal_mat(color: Color) -> StandardMaterial3D:
     material.metallic = 0.05
     material.emission_enabled = true
     material.emission = color.lightened(0.12)
-    material.emission_energy_multiplier = 1.05
+    material.emission_energy_multiplier = 0.66
     return material
 
 func _box(parent: Node, name: String, size: Vector3, position: Vector3, color: Color, rotation_degrees: Vector3 = Vector3.ZERO, roughness: float = 0.9) -> MeshInstance3D:
@@ -687,18 +687,18 @@ func _configure_hdri_environment(env: Environment) -> bool:
         return false
     var panorama := PanoramaSkyMaterial.new()
     panorama.panorama = sky_texture
-    panorama.energy_multiplier = 0.64
+    panorama.energy_multiplier = 0.82
     panorama.filter = true
     var sky := Sky.new()
     sky.radiance_size = Sky.RADIANCE_SIZE_64
     sky.sky_material = panorama
     env.sky = sky
     env.background_mode = Environment.BG_SKY
-    env.background_energy_multiplier = 0.72
+    env.background_energy_multiplier = 0.90
     env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-    env.ambient_light_sky_contribution = 0.72
-    env.ambient_light_color = Color("#cbd7df")
-    env.ambient_light_energy = 0.46
+    env.ambient_light_sky_contribution = 0.90
+    env.ambient_light_color = Color("#d7e0e5")
+    env.ambient_light_energy = 0.70
     env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
     return true
 
@@ -708,17 +708,17 @@ func _configure_fallback_environment(env: Environment) -> void:
     fallback.sky_horizon_color = Color("#a9bac6")
     fallback.ground_horizon_color = Color("#87937f")
     fallback.ground_bottom_color = Color("#404b3c")
-    fallback.energy_multiplier = 0.74
+    fallback.energy_multiplier = 0.86
     var sky := Sky.new()
     sky.radiance_size = Sky.RADIANCE_SIZE_64
     sky.sky_material = fallback
     env.sky = sky
     env.background_mode = Environment.BG_SKY
-    env.background_energy_multiplier = 0.74
+    env.background_energy_multiplier = 0.86
     env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-    env.ambient_light_sky_contribution = 0.62
-    env.ambient_light_color = Color("#c9d6df")
-    env.ambient_light_energy = 0.44
+    env.ambient_light_sky_contribution = 0.82
+    env.ambient_light_color = Color("#d6e0e5")
+    env.ambient_light_energy = 0.66
     env.reflected_light_source = Environment.REFLECTION_SOURCE_BG
 
 func _build_stage() -> void:
@@ -736,39 +736,39 @@ func _build_stage() -> void:
         _diag_stage("AF-LIGHT-224", "Poly Haven HDRI loaded successfully.")
 
     env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-    env.tonemap_exposure = 0.66
-    env.tonemap_white = 4.0
+    env.tonemap_exposure = 0.88
+    env.tonemap_white = 4.6
     env.adjustment_enabled = true
-    env.adjustment_brightness = 0.98
-    env.adjustment_contrast = 1.05
-    env.adjustment_saturation = 0.94
+    env.adjustment_brightness = 1.03
+    env.adjustment_contrast = 1.01
+    env.adjustment_saturation = 0.97
 
     # Lightweight depth fog adds distance separation without Forward+ volumetrics.
     env.fog_enabled = true
     env.fog_mode = Environment.FOG_MODE_DEPTH
     env.fog_light_color = Color("#a8b8c3")
-    env.fog_light_energy = 0.56
-    env.fog_depth_begin = 30.0
-    env.fog_depth_end = 78.0
-    env.fog_depth_curve = 1.18
-    env.fog_sky_affect = 0.16
-    env.fog_sun_scatter = 0.05
+    env.fog_light_energy = 0.34
+    env.fog_depth_begin = 38.0
+    env.fog_depth_end = 92.0
+    env.fog_depth_curve = 1.08
+    env.fog_sky_affect = 0.09
+    env.fog_sun_scatter = 0.03
 
     world.environment = env
     add_child(world)
 
     var sun := DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-43, -36, 0)
-    sun.light_color = Color("#ffd7a7")
-    sun.light_energy = 0.68
+    sun.rotation_degrees = Vector3(-39, -28, 0)
+    sun.light_color = Color("#ffe0b9")
+    sun.light_energy = 0.86
     sun.shadow_enabled = true
     sun.shadow_bias = 0.04
     add_child(sun)
 
     var fill := DirectionalLight3D.new()
     fill.rotation_degrees = Vector3(-22, 148, 0)
-    fill.light_color = Color("#a9c6d8")
-    fill.light_energy = 0.10
+    fill.light_color = Color("#c2d6e2")
+    fill.light_energy = 0.24
     fill.shadow_enabled = false
     add_child(fill)
 
@@ -860,7 +860,7 @@ func _build_stage() -> void:
     _fountain_glow = OmniLight3D.new()
     _fountain_glow.position = Vector3(0, 2.68, -4.0)
     _fountain_glow.light_color = Color("#72d8e8")
-    _fountain_glow.light_energy = 0.46
+    _fountain_glow.light_energy = 0.36
     _fountain_glow.omni_range = 3.8
     _fountain_glow.shadow_enabled = false
     add_child(_fountain_glow)
@@ -1033,7 +1033,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2J  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2K  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1215,7 +1215,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Lighting & Atmosphere • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Lighting Balance • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
@@ -1481,7 +1481,7 @@ func _update_fountain(delta: float) -> void:
         _fountain_crystal.position.y = 2.68 + sin(_fountain_time * 1.6) * 0.035
         _fountain_crystal.rotation.y += delta * 0.48
     if _fountain_glow != null:
-        _fountain_glow.light_energy = 0.43 + (sin(_fountain_time * 1.8) + 1.0) * 0.065
+        _fountain_glow.light_energy = 0.34 + (sin(_fountain_time * 1.8) + 1.0) * 0.045
     for i in range(_fountain_jets.size()):
         var jet := _fountain_jets[i]
         if jet != null:
