@@ -13,6 +13,10 @@ const ACTOR_SCALE := 1.70
 const FOOT_TO_SOLE_SOURCE_Y := 0.067
 const TOE_TO_SOLE_SOURCE_Y := 0.017
 const SOLE_CLEARANCE_WORLD := 0.010
+# Adjust idle stance separately from the already-calibrated sole-height offsets.
+const IDLE_ARM_LOWER_DEGREES := 86.0
+const IDLE_ELBOW_BEND_DEGREES := 12.0
+const IDLE_WRIST_ROLL_DEGREES := 92.0
 const WALK_WORLD_SPEED := 1.75
 const RUN_WORLD_SPEED := 4.15
 const MOVE_ACCEL := 7.5
@@ -60,6 +64,7 @@ var _neutral_hips_origin := Vector3.ZERO
 var _neutral_model_position := Vector3.ZERO
 var _base_actor_y := 0.0
 
+var _ground_contact_shadow: MeshInstance3D
 var _camera: Camera3D
 var _status: Label
 var _detail: Label
@@ -123,6 +128,7 @@ func _ready() -> void:
     _actor.scale = Vector3.ONE * ACTOR_SCALE
     _actor.position = Vector3(0.0, 0.0, 18.0)
     add_child(_actor)
+    _build_ground_contact_shadow()
 
     _diag_stage("AF-CAMERA-240", "Creating third-person camera.")
     _camera = Camera3D.new()
@@ -729,11 +735,9 @@ func _build_stage() -> void:
     _world_blockers.clear()
     _circle_blockers.clear()
 
-    # Directional shadow tuning for the third-person Android camera. Keep the
-    # atlas concentrated near the player instead of spending resolution far
-    # beyond the starter-town footprint.
+    # Concentrate mobile shadow resolution near the player.
     RenderingServer.directional_shadow_atlas_set_size(4096, true)
-    RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM)
+    RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH)
 
     var world := WorldEnvironment.new()
     var env := Environment.new()
@@ -772,22 +776,19 @@ func _build_stage() -> void:
     sun.light_color = Color("#ffe0b9")
     sun.light_energy = 0.86
     sun.shadow_enabled = true
-    # Four tighter PSSM cascades give the character and nearby town props far
-    # more shadow-map texels than the default 100 m coverage. Split blending
-    # hides cascade transitions while moderate filtering removes stair-step
-    # edges without the cost of Forward+-only contact/PCSS shadows.
+    # Tight blended cascades plus softer contrast reduce blocky road shadows.
     sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-    sun.directional_shadow_max_distance = 46.0
-    sun.directional_shadow_split_1 = 0.08
-    sun.directional_shadow_split_2 = 0.20
-    sun.directional_shadow_split_3 = 0.46
+    sun.directional_shadow_max_distance = 38.0
+    sun.directional_shadow_split_1 = 0.10
+    sun.directional_shadow_split_2 = 0.26
+    sun.directional_shadow_split_3 = 0.52
     sun.directional_shadow_blend_splits = true
-    sun.directional_shadow_fade_start = 0.88
-    sun.directional_shadow_pancake_size = 12.0
-    sun.shadow_bias = 0.025
-    sun.shadow_normal_bias = 0.85
-    sun.shadow_blur = 1.18
-    sun.shadow_opacity = 0.88
+    sun.directional_shadow_fade_start = 0.84
+    sun.directional_shadow_pancake_size = 9.0
+    sun.shadow_bias = 0.035
+    sun.shadow_normal_bias = 0.55
+    sun.shadow_blur = 2.0
+    sun.shadow_opacity = 0.72
     add_child(sun)
 
     var fill := DirectionalLight3D.new()
@@ -1106,6 +1107,7 @@ func _load_runtime_glb() -> void:
     # Tripo visual forward is opposite the controller's actor forward.
     # Rotate only the generated model, not gameplay/world motion.
     _model.rotation.y = PI
+    _polish_actor_materials(_model)
     _skeleton = _find_skeleton(_model)
     _animation = _find_animation_player(_model)
 
@@ -1163,6 +1165,33 @@ func _load_runtime_glb() -> void:
     _set_motion("IDLE")
     _set_status("READY", "Visual Pass 1 • object collision + wall boundary • Tap SPRINT • drag right side to look")
     _diag_stage("AF-READY-900", "Starter Town, character, rig, animations and controls initialized successfully.")
+
+func _polish_actor_materials(node: Node) -> void:
+    # Restrict changes to recognizable hair and garment materials; retain
+    # imported textured skin and unknown materials unchanged.
+    if node is MeshInstance3D:
+        var mesh_instance := node as MeshInstance3D
+        if mesh_instance.mesh != null:
+            for surface_index in range(mesh_instance.mesh.get_surface_count()):
+                var source := mesh_instance.get_active_material(surface_index)
+                if not (source is StandardMaterial3D):
+                    continue
+                var surface_name := (String(source.resource_name) + " " + mesh_instance.name).to_lower()
+                var roughness_target := -1.0
+                if surface_name.contains("hair"):
+                    roughness_target = 0.67
+                elif surface_name.contains("leather") or surface_name.contains("coat") or surface_name.contains("jacket"):
+                    roughness_target = 0.74
+                elif surface_name.contains("boot"):
+                    roughness_target = 0.79
+                if roughness_target < 0.0:
+                    continue
+                var polished := source.duplicate() as StandardMaterial3D
+                polished.roughness = lerpf(source.roughness, roughness_target, 0.45)
+                mesh_instance.set_surface_override_material(surface_index, polished)
+    for child in node.get_children():
+        _polish_actor_materials(child)
+
 
 func _find_skeleton(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
@@ -1435,6 +1464,42 @@ func _sole_floor_y() -> float:
                            _bone_world_y(_right_toe_index) - toe_offset)
     return minf(left_sole, right_sole)
 
+func _build_ground_contact_shadow() -> void:
+    # Tiny procedurally generated alpha texture creates soft boot contact on
+    # Android without screen-space effects or an extra shadow-casting light.
+    var image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+    for y in range(64):
+        for x in range(64):
+            var p := Vector2((float(x) + 0.5) / 32.0 - 1.0, (float(y) + 0.5) / 32.0 - 1.0)
+            var falloff := pow(clampf(1.0 - p.length_squared(), 0.0, 1.0), 2.2)
+            image.set_pixel(x, y, Color(0.035, 0.044, 0.054, falloff * 0.23))
+    var shadow_material := StandardMaterial3D.new()
+    shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    shadow_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    shadow_material.albedo_texture = ImageTexture.create_from_image(image)
+    _ground_contact_shadow = MeshInstance3D.new()
+    _ground_contact_shadow.name = "SoftBootContactShadow"
+    var plane := PlaneMesh.new()
+    plane.size = Vector2(1.24, 0.96)
+    _ground_contact_shadow.mesh = plane
+    _ground_contact_shadow.material_override = shadow_material
+    _ground_contact_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    _ground_contact_shadow.visible = false
+    add_child(_ground_contact_shadow)
+
+
+func _update_ground_contact_shadow() -> void:
+    if _ground_contact_shadow == null or _actor == null:
+        return
+    _ground_contact_shadow.visible = _loaded
+    if not _loaded:
+        return
+    var surface_y := _ground_surface_y(_actor.global_position)
+    _ground_contact_shadow.global_position = Vector3(_actor.global_position.x, surface_y + 0.018, _actor.global_position.z)
+    _ground_contact_shadow.rotation.y = _actor.rotation.y
+
+
 func _ground_surface_y(world_position: Vector3) -> float:
     var x := world_position.x
     var z := world_position.z
@@ -1606,6 +1671,7 @@ func _process(delta: float) -> void:
         _lock_root_motion()
         _correct_foot_ground(delta)
     _update_fountain(delta)
+    _update_ground_contact_shadow()
     _update_camera(delta)
     if _loaded and not _paused:
         _set_status(_motion, _motion_detail())
