@@ -303,6 +303,30 @@ func _window_frame(parent: Node, center: Vector3, width: float, height: float) -
     _box(parent, "WindowCrossV", Vector3(0.055, height * 0.92, 0.14), center + Vector3(0, 0, 0.03), frame)
     _box(parent, "WindowCrossH", Vector3(width * 0.92, 0.055, 0.14), center + Vector3(0, 0, 0.03), frame)
 
+func _window_frame_side(parent: Node, center: Vector3, width: float, height: float) -> void:
+    var frame := Color("#3a2a22")
+    _box(parent, "SideWindowGlass", Vector3(0.09, height, width), center, Color("#8cc8d8"), Vector3.ZERO, 0.22)
+    _box(parent, "SideWindowTrimT", Vector3(0.13, 0.10, width + 0.18), center + Vector3(0.02, height * 0.5 + 0.05, 0), frame)
+    _box(parent, "SideWindowTrimB", Vector3(0.13, 0.10, width + 0.18), center + Vector3(0.02, -height * 0.5 - 0.05, 0), frame)
+    _box(parent, "SideWindowTrimL", Vector3(0.13, height, 0.10), center + Vector3(0.02, 0, -width * 0.5 - 0.05), frame)
+    _box(parent, "SideWindowTrimR", Vector3(0.13, height, 0.10), center + Vector3(0.02, 0, width * 0.5 + 0.05), frame)
+    _box(parent, "SideWindowCrossV", Vector3(0.14, height * 0.92, 0.055), center + Vector3(0.03, 0, 0), frame)
+    _box(parent, "SideWindowCrossH", Vector3(0.14, 0.055, width * 0.92), center + Vector3(0.03, 0, 0), frame)
+
+func _front_shutters(parent: Node, center: Vector3, width: float, height: float) -> void:
+    var wood := Color("#5b3b2d")
+    var offset := width * 0.5 + 0.18
+    _box(parent, "ShutterL", Vector3(0.25, height * 0.92, 0.10), center + Vector3(-offset, 0, 0.08), wood, Vector3.ZERO, 0.84)
+    _box(parent, "ShutterR", Vector3(0.25, height * 0.92, 0.10), center + Vector3(offset, 0, 0.08), wood, Vector3.ZERO, 0.84)
+    _box(parent, "ShutterBarL", Vector3(0.29, 0.07, 0.12), center + Vector3(-offset, 0, 0.10), Color("#34251f"))
+    _box(parent, "ShutterBarR", Vector3(0.29, 0.07, 0.12), center + Vector3(offset, 0, 0.10), Color("#34251f"))
+
+func _flower_box(parent: Node, center: Vector3, width: float) -> void:
+    _box(parent, "FlowerBox", Vector3(width, 0.24, 0.28), center, Color("#5b3b2d"), Vector3.ZERO, 0.90)
+    for i in range(3):
+        var fx := -width * 0.28 + float(i) * width * 0.28
+        _sphere(parent, "Flower", 0.11, center + Vector3(fx, 0.20, 0.02), [Color("#c85d64"), Color("#d9a84d"), Color("#7c79c9")][i % 3], 0.9)
+
 func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_color: Color, title: String = "") -> Node3D:
     var house := Node3D.new()
     house.name = title if not title.is_empty() else "House"
@@ -334,14 +358,45 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _box(house, "DoorThreshold", Vector3(1.35, 0.12, 0.55), Vector3(0, 0.62, depth * 0.60), stone_light)
     _box(house, "DoorHood", Vector3(1.65, 0.14, 0.88), Vector3(0, 2.52, depth * 0.60), roof_color, Vector3(-10, 0, 0))
 
-    _window_frame(house, Vector3(-width * 0.27, 2.10, depth * 0.518), 0.72, 0.82)
-    _window_frame(house, Vector3(width * 0.27, 2.10, depth * 0.518), 0.72, 0.82)
+    var left_front_window := Vector3(-width * 0.27, 2.10, depth * 0.518)
+    var right_front_window := Vector3(width * 0.27, 2.10, depth * 0.518)
+    _window_frame(house, left_front_window, 0.72, 0.82)
+    _window_frame(house, right_front_window, 0.72, 0.82)
+    _front_shutters(house, left_front_window, 0.72, 0.82)
+    _front_shutters(house, right_front_window, 0.72, 0.82)
+    _flower_box(house, left_front_window + Vector3(0, -0.58, 0.14), 0.84)
+    _flower_box(house, right_front_window + Vector3(0, -0.58, 0.14), 0.84)
+
+    # Side elevations: timber posts/bands and one framed window per side prevent blank box walls.
+    for side in [-1.0, 1.0]:
+        var sx := side * width * 0.505
+        for z in [-depth * 0.34, 0.0, depth * 0.34]:
+            _box(house, "SidePost", Vector3(0.17, body_size.y + 0.08, 0.15), Vector3(sx, body_center_y, z), beam)
+        _box(house, "SideBandLow", Vector3(0.17, 0.14, depth * 0.92), Vector3(sx, 1.42, 0), beam)
+        _box(house, "SideBandHigh", Vector3(0.17, 0.14, depth * 0.92), Vector3(sx, body_size.y + 0.26, 0), beam)
+        _window_frame_side(house, Vector3(sx + side * 0.012, 2.05, -depth * 0.08), 0.74, 0.80)
+
+    # Stone quoins at the four corners break up the foundation/plaster transition.
+    for sx in [-1.0, 1.0]:
+        for sz in [-1.0, 1.0]:
+            var corner := Vector3(sx * width * 0.505, 1.02, sz * depth * 0.505)
+            _box(house, "CornerStoneLow", Vector3(0.30, 0.32, 0.30), corner, stone_light)
+            _box(house, "CornerStoneHigh", Vector3(0.26, 0.28, 0.26), corner + Vector3(0, 0.36, 0), stone)
+
+    # Door frame, lintel and visible handle add scale cues at character eye level.
+    _box(house, "DoorFrameL", Vector3(0.12, 2.08, 0.20), Vector3(-0.60, 1.50, depth * 0.526), beam)
+    _box(house, "DoorFrameR", Vector3(0.12, 2.08, 0.20), Vector3(0.60, 1.50, depth * 0.526), beam)
+    _box(house, "DoorLintel", Vector3(1.32, 0.13, 0.20), Vector3(0, 2.49, depth * 0.526), beam)
+    _sphere(house, "DoorHandle", 0.07, Vector3(0.32, 1.48, depth * 0.615), Color("#b58a45"), 0.38)
 
     # Deep eaves, ridge cap, and fascia make the simple roof read as an intentional stylized asset.
     _box(house, "RoofLeft", Vector3(width * 0.64, 0.34, depth + 1.05), Vector3(-width * 0.245, body_size.y + 1.08, 0), roof_color, Vector3(0, 0, 25), 0.82)
     _box(house, "RoofRight", Vector3(width * 0.64, 0.34, depth + 1.05), Vector3(width * 0.245, body_size.y + 1.08, 0), roof_color, Vector3(0, 0, -25), 0.82)
     _box(house, "RoofRidge", Vector3(0.26, 0.30, depth + 1.12), Vector3(0, body_size.y + 1.62, 0), roof_color.darkened(0.18), Vector3.ZERO, 0.78)
     _box(house, "FasciaFront", Vector3(width + 0.58, 0.16, 0.18), Vector3(0, body_size.y + 0.76, depth * 0.57), beam)
+    _box(house, "FasciaBack", Vector3(width + 0.58, 0.16, 0.18), Vector3(0, body_size.y + 0.76, -depth * 0.57), beam)
+    _box(house, "EaveTrimL", Vector3(0.14, 0.18, depth + 1.02), Vector3(-width * 0.51, body_size.y + 0.78, 0), beam)
+    _box(house, "EaveTrimR", Vector3(0.14, 0.18, depth + 1.02), Vector3(width * 0.51, body_size.y + 0.78, 0), beam)
 
     _box(house, "Chimney", Vector3(0.52, 1.28, 0.52), Vector3(width * 0.25, body_size.y + 1.63, -depth * 0.18), Color("#5f5c58"))
     _box(house, "ChimneyCap", Vector3(0.68, 0.15, 0.68), Vector3(width * 0.25, body_size.y + 2.29, -depth * 0.18), Color("#474744"))
@@ -498,7 +553,7 @@ func _road_stones_z(center: Vector3, width: float, length: float) -> void:
             var x := center.x - width * 0.5 + (float(col) + 0.5) * stone_w + stagger
             if x > center.x + width * 0.5 - stone_w * 0.35:
                 x -= width
-            var inset := 0.08 + 0.025 * float((row + col) % 3)
+            var inset := 0.14 + 0.025 * float((row + col) % 3)
             _box(self, "RoadStone", Vector3(stone_w - inset, 0.045, stone_l - 0.11), Vector3(x, 0.080, z), _stone_tone(row * cols + col), Vector3.ZERO, 0.98)
 
 func _road_stones_x(center: Vector3, width: float, length: float) -> void:
@@ -513,7 +568,7 @@ func _road_stones_x(center: Vector3, width: float, length: float) -> void:
             var z := center.z - length * 0.5 + (float(row) + 0.5) * stone_l + stagger
             if z > center.z + length * 0.5 - stone_l * 0.35:
                 z -= length
-            var inset := 0.08 + 0.025 * float((row + col) % 3)
+            var inset := 0.14 + 0.025 * float((row + col) % 3)
             _box(self, "RoadStone", Vector3(stone_w - 0.11, 0.045, stone_l - inset), Vector3(x, 0.080, z), _stone_tone(col * rows + row + 2), Vector3.ZERO, 0.98)
 
 func _market_stones(center: Vector3, size: Vector2) -> void:
@@ -528,7 +583,7 @@ func _market_stones(center: Vector3, size: Vector2) -> void:
             if x > center.x + size.x * 0.5 - stone_w * 0.35:
                 x -= size.x
             var z := center.z - size.y * 0.5 + (float(row) + 0.5) * stone_l
-            var inset := 0.08 + 0.02 * float((row * 3 + col) % 4)
+            var inset := 0.14 + 0.02 * float((row * 3 + col) % 4)
             _box(self, "SquareStone", Vector3(stone_w - inset, 0.048, stone_l - 0.11), Vector3(x, 0.083, z), _stone_tone(row * cols + col + 1), Vector3.ZERO, 0.98)
 
 func _road_shoulders() -> void:
@@ -772,7 +827,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2F  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2G  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -954,7 +1009,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Ground & Road Polish • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Building Detail Polish • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
