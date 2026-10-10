@@ -20,7 +20,7 @@ func _initialize() -> void:
     # verifying the source file is not enough; both models AND each texture
     # must remain inside the exported Android PCK.
     for kind in ["cobble", "grass", "dirt", "plaster", "wood", "roof", "stone"]:
-        var texture_path := "res://textures/" + kind + ".bin"
+        var texture_path: String = "res://textures/" + String(kind) + ".bin"
         if not FileAccess.file_exists(texture_path):
             _fail("Android PCK does not include CC0 material: " + texture_path)
             return
