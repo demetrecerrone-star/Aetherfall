@@ -16,7 +16,21 @@ func _initialize() -> void:
     for model_file in MODEL_FILES:
         if not _validate_model(String(model_file)):
             return
-    print("AETHERFALL_DUAL_PACK_OK: Both bundled character rigs and their seven animation clips validated")
+    # This catches exactly the Android packaging mistake that broke 0.2P:
+    # verifying the source file is not enough; both models AND each texture
+    # must remain inside the exported Android PCK.
+    for kind in ["cobble", "grass", "dirt", "plaster", "wood", "roof", "stone"]:
+        var texture_path := "res://textures/" + kind + ".bin"
+        if not FileAccess.file_exists(texture_path):
+            _fail("Android PCK does not include CC0 material: " + texture_path)
+            return
+        var img := Image.new()
+        var image_err := img.load_jpg_from_buffer(FileAccess.get_file_as_bytes(texture_path))
+        if image_err != OK or img.get_width() < 512 or img.get_height() < 512:
+            _fail("Bad texture in exported PCK: %s, error=%d" % [texture_path, image_err])
+            return
+        print("AETHERFALL_TEXTURE_PACK_OK: %s (%d x %d)" % [texture_path, img.get_width(), img.get_height()])
+    print("AETHERFALL_DUAL_PACK_OK: Two rigs, all animations and seven materials validated")
     quit(0)
 
 
