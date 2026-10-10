@@ -1,0 +1,55 @@
+name: Aetherfall Female Model Rig Inspection
+
+on:
+  push:
+    branches: [feature/cleanroom-starter-town]
+    paths:
+      - "cleanroom/models/Female+anime+adventurer+3d+model (2).glb"
+      - ".github/workflows/inspect-female-adventurer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-rigs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Analyze both characters
+        run: |
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+
+          def parse(path):
+              raw=Path(path).read_bytes()
+              assert raw[:4]==b'glTF', f'Not GLB: {path}'
+              count=struct.unpack_from('<I',raw,12)[0]
+              j=json.loads(raw[20:20+count])
+              skins=j.get('skins',[])
+              bones=[[j['nodes'][i].get('name','') for i in skin.get('joints',[])] for skin in skins]
+              a=[(x.get('name'),len(x.get('channels',[]))) for x in j.get('animations',[])]
+              mesh=next((p for mesh in j.get('meshes',[]) for p in mesh.get('primitives',[])),{})
+              acc=j.get('accessors',[])
+              attrs=mesh.get('attributes',{})
+              mesh_count=acc[attrs['POSITION']]['count'] if 'POSITION' in attrs else 0
+              info={'bytes':len(raw),'bones':list(map(len,bones)),'animations':a,'mesh_vertices':mesh_count,'node_count':len(j.get('nodes',[])),'skins':bones,'name':str(path)}
+              return info
+          root=Path('cleanroom/models')
+          male=parse(root/'anime+adventurer+3d+model (1).glb')
+          female=parse(root/'Female+anime+adventurer+3d+model (2).glb')
+          for info in (male,female):
+              print('MODEL',info['name'],'bytes=',info['bytes'],'skin joint counts=',info['bones'],'mesh vertices=',info['mesh_vertices'])
+              print('CLIPS',info['animations'])
+              print('JOINTS',info['skins'][0] if info['skins'] else [])
+          namesm={name.lower() for names in male['skins'] for name in names}
+          namesf={name.lower() for names in female['skins'] for name in names}
+          print('COMMON JOINT COUNT:',len(namesm & namesf))
+          print('FEMALE-ONLY JOINTS:',sorted(namesf-namesm))
+          print('MALE-ONLY JOINTS:',sorted(namesm-namesf))
+          print('MATCHING SKELETON:',namesm==namesf)
+          print('CLIP NAMES F:',[n for n,_ in female['animations']])
+          if not female['bones'] or not female['animations']:
+              raise SystemExit('Female must be rigged and have animations')
+          PY
