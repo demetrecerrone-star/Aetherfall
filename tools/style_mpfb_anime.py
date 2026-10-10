@@ -32,6 +32,10 @@ def build_character(human,rig):
     gold=material("Aetherfall_Gold_Trim","c6a066",.38,.52)
     dark=material("Aetherfall_Soft_Boots","1d2635",.9)
     moss=material("Aetherfall_Fantasy_Cloth","53747f",.88)
+    eye_white=material("Aetherfall_Anime_Eye_White","eee3d4",.83)
+    iris=material("Aetherfall_Anime_Iris_Blue","4c8cae",.57)
+    pupil=material("Aetherfall_Anime_Pupil","141d33",.65)
+    lash=material("Aetherfall_Anime_Lashes","2b2738",.83)
     # Fabric underlay on actual MPFB topology prevents exposed skin from
     # appearing through outfit overlays, especially torso and upper thighs.
     base_index=len(human.data.materials)
@@ -41,7 +45,8 @@ def build_character(human,rig):
         vs=[human.data.vertices[i].co for i in face.vertices]
         mx=sum(v.x for v in vs)/len(vs)
         mz=sum(v.z for v in vs)/len(vs)
-        exposed_head=mz>=1.365
+        # Preserve natural skin on neck/face, not shoulders and sleeves.
+        exposed_head=mz>=1.365 and abs(mx)<.161
         exposed_hands=abs(mx)>.435 and .77<mz<1.11
         if exposed_head or exposed_hands:
             face.material_index=0
@@ -177,6 +182,45 @@ def build_character(human,rig):
                 faces.append((x,y,y+sides,x+sides))
         return mesh(name,pts,faces,mat,anchor)
 
+    # Mobile-friendly projected anime facial accents follow MPFB's sculpt.
+    # The projection samples real facial topology in the native X/Z plane.
+    face_vertices=[v.co for v in human.data.vertices
+                   if 1.46<v.co.z<1.635 and abs(v.co.x)<.127 and v.co.y<-.077]
+    assert len(face_vertices)>200,"No usable MPFB facial surface"
+    face_tree=kdtree.KDTree(len(face_vertices))
+    for i,p in enumerate(face_vertices):
+        face_tree.insert(Vector((p.x,0,p.z)),i)
+    face_tree.balance()
+
+    def face_y(x,z,offset=.003):
+        samples=face_tree.find_n(Vector((x,0,z)),8)
+        assert samples,"Facial projection failed"
+        return min(face_vertices[index].y for _,index,_ in samples)-offset
+
+    face_anchor=(0,-.13,1.56)
+    def face_patch(name,cx,cz,rx,rz,mat,depth=.004,segments=12):
+        coords=[(cx,face_y(cx,cz,depth),cz)]
+        for j in range(segments):
+            angle=j*TAU/segments
+            x=cx+rx*math.cos(angle)
+            z=cz+rz*math.sin(angle)
+            coords.append((x,face_y(x,z,depth),z))
+        polys=[(0,j+1,(j+1)%segments+1) for j in range(segments)]
+        mesh(name,coords,polys,mat,face_anchor)
+
+    for side,label in ((-1,"Left"),(1,"Right")):
+        x=side*.044
+        face_patch("Face_Anime_%sLash"%label,x,1.563,.030,.014,lash,.004)
+        face_patch("Face_Anime_%sSclera"%label,x,1.562,.025,.009,eye_white,.006)
+        face_patch("Face_Anime_%sIris"%label,x+side*.002,1.560,.008,.009,iris,.008)
+        face_patch("Face_Anime_%sPupil"%label,x+side*.002,1.560,.004,.006,pupil,.010)
+        brow=[]
+        for dx,dz in ((-.026,0),(-.011,.006),(.012,.005),(.027,-.001)):
+            xx=x+dx
+            zz=1.595+dz
+            brow.append((xx,face_y(xx,zz,.004),zz))
+        mesh("Face_Anime_%sBrow"%label,brow,[(0,1,2),(0,2,3)],lash,face_anchor)
+
     # Adult stylized head top is approximately z=1.69. Instead of a bald
     # painted dome, each style has its own 3D scalp shell and individual tufts.
     scalp_anchor=(0,-.06,1.635)
@@ -225,6 +269,18 @@ def build_character(human,rig):
         # Back locks vary radically: the ponytail has a raised tie and one
         # long tapered bundle; long hair reaches the shoulder blades; short
         # hair terminates above the ears.
+        # Fine temple strands soften the crown silhouette and frame the face.
+        for side,label in ((-1,"Left"),(1,"Right")):
+            for strand in range(3):
+                start_x=side*(.071+strand*.009)
+                tip_z=(1.472+.038*strand) if style=="Long" else (1.530+.026*strand)
+                tapered_strand("Hair_%s_%sTemple%02d"%(style,label,strand),
+                    [(start_x,-.051,1.670),
+                     (side*(.106+strand*.005),-.089,1.574),
+                     (side*(.105+strand*.011),-.133,tip_z)],
+                    .013 if strand else .017,
+                    bright if strand==1 else ink,scalp_anchor)
+
         if style=="Long":
             for i in range(12):
                 a=(i/11-.5)*.188
@@ -330,6 +386,23 @@ def build_character(human,rig):
                 p=k*18+j;q=k*18+(j+1)%18
                 faces.append((p,q,q+18,p+18))
         mesh("Outfit_Adventurer_%sBoot"%sname,verts,faces,dark)
+        # Close the cylindrical shin boot over the MPFB toes.
+        toe_points=[];toe_faces=[]
+        for z,rx,ry,cy in ((.018,.069,.134,-.075),
+                            (.058,.080,.137,-.073),
+                            (.127,.079,.105,-.052)):
+            for j in range(18):
+                angle=TAU*j/18
+                toe_points.append((side*.134+rx*math.cos(angle),
+                                   cy+ry*math.sin(angle),z))
+        for k in range(2):
+            for j in range(18):
+                a=k*18+j;b=k*18+(j+1)%18
+                toe_faces.append((a,b,b+18,a+18))
+        toe_faces.append(tuple(range(17,-1,-1)))
+        toe_faces.append(tuple(36+j for j in range(18)))
+        mesh("Outfit_Adventurer_%sBootToe"%sname,toe_points,toe_faces,dark)
+
 
         # Layered boot hardware is skinned like the boot, so the shin guards,
         # ankle wrap and upper cuff follow knees/ankles instead of floating.
