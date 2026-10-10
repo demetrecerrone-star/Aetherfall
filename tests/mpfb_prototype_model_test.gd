@@ -62,7 +62,7 @@ func _check() -> void:
             rig_count == 1 and mesh_count >= 20
             and bone_count >= 96 and bone_count <= 98
             and essential_legs == 6 and skinned_meshes == mesh_count
-            and hair_count >= 8 and outfit_count >= 10 and wrong_hair_count == 0
+            and hair_count >= 8 and outfit_count >= 25 and wrong_hair_count == 0
         )
         print("MPFB_GODOT_MOBILE_LEG_JOINTS %s: %d/6" % [style, essential_legs])
         character.queue_free()
