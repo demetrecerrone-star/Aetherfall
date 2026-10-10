@@ -59,7 +59,7 @@ jobs:
           cmp "$SOURCE" "$RAW"
           test "$(stat -c%s "$RAW")" -gt 3000000
           echo "Runtime raw binary ready: $(stat -c%s "$RAW") bytes"
-          grep -F 'include_filter="models/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
+          grep -F 'include_filter="models/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
           grep -F 'const MALE_MODEL_PATH := "res://models/adventurer_runtime.bin"' cleanroom/starter_town.gd
           grep -F 'const FEMALE_MODEL_PATH := "res://models/adventurer_female_runtime.bin"' cleanroom/starter_town.gd
           python3 cleanroom/tools/merge_female_animations.py \
@@ -73,7 +73,6 @@ jobs:
           set -euo pipefail
           python3 -m pip install --user --disable-pip-version-check "Pillow==11.3.0"
           python3 cleanroom/tools/fetch_town_textures.py
-          grep -F 'AETHERFALL_TEXTURES_READY' <(python3 -c 'print("AETHERFALL_TEXTURES_READY")')
           test "$(find cleanroom/textures -maxdepth 1 -name '*.bin' | wc -l)" -eq 7
           grep -F 'include_filter="models/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
 
