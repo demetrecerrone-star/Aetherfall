@@ -20,6 +20,7 @@ const MOVE_DECEL := 10.5
 const TURN_RATE := 9.0
 const STICK_DEADZONE := 0.10
 const STICK_RADIUS := 68.0
+const HDRI_PATH := "res://environment/kloppenheim_03_puresky_1k.hdr"
 
 # Starter-town world dimensions. The hard bounds are authoritative: even if a
 # decorative wall has a mesh gap, the player cannot leave this rectangle.
@@ -258,7 +259,7 @@ func _crystal_mat(color: Color) -> StandardMaterial3D:
     material.metallic = 0.05
     material.emission_enabled = true
     material.emission = color.lightened(0.12)
-    material.emission_energy_multiplier = 1.55
+    material.emission_energy_multiplier = 1.05
     return material
 
 func _box(parent: Node, name: String, size: Vector3, position: Vector3, color: Color, rotation_degrees: Vector3 = Vector3.ZERO, roughness: float = 0.9) -> MeshInstance3D:
@@ -675,32 +676,100 @@ func _road_shoulders() -> void:
     _box(self, "CrossShoulderN", Vector3(41.5, 0.028, 0.42), Vector3(0, 0.022, -2.02), dirt, Vector3.ZERO, 1.0)
     _box(self, "CrossShoulderS", Vector3(41.5, 0.028, 0.42), Vector3(0, 0.022, 4.02), dirt, Vector3.ZERO, 1.0)
 
+func _configure_hdri_environment(env: Environment) -> bool:
+    if not FileAccess.file_exists(HDRI_PATH):
+        return false
+    var hdri_image: Image = Image.load_from_file(HDRI_PATH)
+    if hdri_image == null or hdri_image.is_empty():
+        return false
+    var sky_texture: ImageTexture = ImageTexture.create_from_image(hdri_image)
+    if sky_texture == null:
+        return false
+    var panorama := PanoramaSkyMaterial.new()
+    panorama.panorama = sky_texture
+    panorama.energy_multiplier = 0.64
+    panorama.filter = true
+    var sky := Sky.new()
+    sky.radiance_size = Sky.RADIANCE_SIZE_64
+    sky.sky_material = panorama
+    env.sky = sky
+    env.background_mode = Environment.BG_SKY
+    env.background_energy_multiplier = 0.72
+    env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+    env.ambient_light_sky_contribution = 0.72
+    env.ambient_light_color = Color("#cbd7df")
+    env.ambient_light_energy = 0.46
+    env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+    return true
+
+func _configure_fallback_environment(env: Environment) -> void:
+    var fallback := ProceduralSkyMaterial.new()
+    fallback.sky_top_color = Color("#557b9a")
+    fallback.sky_horizon_color = Color("#a9bac6")
+    fallback.ground_horizon_color = Color("#87937f")
+    fallback.ground_bottom_color = Color("#404b3c")
+    fallback.energy_multiplier = 0.74
+    var sky := Sky.new()
+    sky.radiance_size = Sky.RADIANCE_SIZE_64
+    sky.sky_material = fallback
+    env.sky = sky
+    env.background_mode = Environment.BG_SKY
+    env.background_energy_multiplier = 0.74
+    env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+    env.ambient_light_sky_contribution = 0.62
+    env.ambient_light_color = Color("#c9d6df")
+    env.ambient_light_energy = 0.44
+    env.reflected_light_source = Environment.REFLECTION_SOURCE_BG
+
 func _build_stage() -> void:
     _world_blockers.clear()
     _circle_blockers.clear()
 
     var world := WorldEnvironment.new()
     var env := Environment.new()
-    env.background_mode = Environment.BG_COLOR
-    env.background_color = Color("#789fb8")
-    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color("#dce8ed")
-    env.ambient_light_energy = 0.48
+    _diag_stage("AF-LIGHT-222", "Loading Poly Haven Kloppenheim 03 1K HDR atmosphere.")
+    var hdri_ready := _configure_hdri_environment(env)
+    if not hdri_ready:
+        _configure_fallback_environment(env)
+        _diag_stage("AF-LIGHT-223", "HDRI unavailable; using mobile procedural-sky fallback.")
+    else:
+        _diag_stage("AF-LIGHT-224", "Poly Haven HDRI loaded successfully.")
+
     env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+    env.tonemap_exposure = 0.66
+    env.tonemap_white = 4.0
+    env.adjustment_enabled = true
+    env.adjustment_brightness = 0.98
+    env.adjustment_contrast = 1.05
+    env.adjustment_saturation = 0.94
+
+    # Lightweight depth fog adds distance separation without Forward+ volumetrics.
+    env.fog_enabled = true
+    env.fog_mode = Environment.FOG_MODE_DEPTH
+    env.fog_light_color = Color("#a8b8c3")
+    env.fog_light_energy = 0.56
+    env.fog_depth_begin = 30.0
+    env.fog_depth_end = 78.0
+    env.fog_depth_curve = 1.18
+    env.fog_sky_affect = 0.16
+    env.fog_sun_scatter = 0.05
+
     world.environment = env
     add_child(world)
 
     var sun := DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-48, -32, 0)
-    sun.light_color = Color("#ffe8c2")
-    sun.light_energy = 0.92
+    sun.rotation_degrees = Vector3(-43, -36, 0)
+    sun.light_color = Color("#ffd7a7")
+    sun.light_energy = 0.68
     sun.shadow_enabled = true
+    sun.shadow_bias = 0.04
     add_child(sun)
 
     var fill := DirectionalLight3D.new()
-    fill.rotation_degrees = Vector3(-24, 145, 0)
-    fill.light_color = Color("#b9d6eb")
-    fill.light_energy = 0.21
+    fill.rotation_degrees = Vector3(-22, 148, 0)
+    fill.light_color = Color("#a9c6d8")
+    fill.light_energy = 0.10
+    fill.shadow_enabled = false
     add_child(fill)
 
     # Ground: deeper grass tone with subtle patch variation around the edges.
@@ -781,9 +850,9 @@ func _build_stage() -> void:
         [Vector3(0, 1.77, -4.62), Vector3(-40, 0, 0)]
     ]
     for jet_entry in jet_data:
-        var jet := _cylinder(self, "FountainJet", 0.045, 1.10, jet_entry[0], Color("#7fd5e3"), 0.10)
+        var jet := _cylinder(self, "FountainJet", 0.032, 1.06, jet_entry[0], Color("#70c8da"), 0.12)
         jet.rotation_degrees = jet_entry[1]
-        jet.material_override = _water_mat(Color("#89ddec"), 0.64)
+        jet.material_override = _water_mat(Color("#79cddd"), 0.44)
         _fountain_jets.append(jet)
 
     _fountain_crystal = _sphere(self, "FountainCrystal", 0.34, Vector3(0, 2.68, -4.0), Color("#8ee2ec"), 0.10)
@@ -791,8 +860,8 @@ func _build_stage() -> void:
     _fountain_glow = OmniLight3D.new()
     _fountain_glow.position = Vector3(0, 2.68, -4.0)
     _fountain_glow.light_color = Color("#72d8e8")
-    _fountain_glow.light_energy = 0.78
-    _fountain_glow.omni_range = 4.6
+    _fountain_glow.light_energy = 0.46
+    _fountain_glow.omni_range = 3.8
     _fountain_glow.shadow_enabled = false
     add_child(_fountain_glow)
 
@@ -929,557 +998,3 @@ func _build_ui() -> void:
     _sprint_button.text = "SPRINT OFF"
     _sprint_button.anchor_left = 1.0
     _sprint_button.anchor_right = 1.0
-    _sprint_button.anchor_top = 1.0
-    _sprint_button.anchor_bottom = 1.0
-    _sprint_button.offset_left = -202.0
-    _sprint_button.offset_right = -34.0
-    _sprint_button.offset_top = -142.0
-    _sprint_button.offset_bottom = -48.0
-    _sprint_button.add_theme_font_size_override("font_size", 21)
-    _sprint_button.toggle_mode = true
-    _sprint_button.toggled.connect(_on_sprint_toggled)
-    ui.add_child(_sprint_button)
-
-    var pause_button := Button.new()
-    pause_button.text = "PAUSE"
-    pause_button.anchor_left = 1.0
-    pause_button.anchor_right = 1.0
-    pause_button.offset_left = -202.0
-    pause_button.offset_right = -92.0
-    pause_button.offset_top = 18.0
-    pause_button.offset_bottom = 70.0
-    pause_button.pressed.connect(_toggle_pause)
-    ui.add_child(pause_button)
-
-    var reset_button := Button.new()
-    reset_button.text = "RESET CAM"
-    reset_button.anchor_left = 1.0
-    reset_button.anchor_right = 1.0
-    reset_button.offset_left = -326.0
-    reset_button.offset_right = -210.0
-    reset_button.offset_top = 18.0
-    reset_button.offset_bottom = 70.0
-    reset_button.pressed.connect(_reset_camera)
-    ui.add_child(reset_button)
-
-func _set_status(title: String, detail: String) -> void:
-    if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2I  |  " + title
-    if _detail != null:
-        _detail.text = detail
-
-func _fail(message: String) -> void:
-    _loaded = false
-    _diag_failure("AF-MODEL-399", message)
-    push_error("TRIPO_RUNTIME_FAIL: " + message)
-    _set_status("LOAD ERROR", message + "\nThe app stays open so the error can be photographed.")
-
-func _load_runtime_glb() -> void:
-    _diag_stage("AF-MODEL-301", "Checking embedded character model file.")
-    if not FileAccess.file_exists(MODEL_PATH):
-        _fail("Embedded model file is missing: " + MODEL_PATH)
-        return
-
-    _diag_stage("AF-MODEL-302", "Reading embedded character model bytes.")
-    var bytes := FileAccess.get_file_as_bytes(MODEL_PATH)
-    if bytes.is_empty():
-        _fail("Embedded GLB could not be read.")
-        return
-
-    _diag_stage("AF-MODEL-303", "Parsing character GLB with Godot GLTFDocument.")
-    var document := GLTFDocument.new()
-    var state := GLTFState.new()
-    var err := document.append_from_buffer(bytes, "", state)
-    if err != OK:
-        _fail("Godot GLTFDocument returned error %d while parsing the GLB." % err)
-        return
-
-    _diag_stage("AF-MODEL-304", "GLB parsed. Generating character scene.")
-    var generated := document.generate_scene(state)
-    if generated == null:
-        _fail("Godot parsed the GLB but could not generate its scene.")
-        return
-
-    _model = generated as Node3D
-    if _model == null:
-        generated.queue_free()
-        _fail("Generated GLB root was not a Node3D.")
-        return
-
-    _diag_stage("AF-MODEL-305", "Character scene generated. Attaching model.")
-    _model.name = "TripoAdventurer"
-    _actor.add_child(_model)
-    # Tripo visual forward is opposite the controller's actor forward.
-    # Rotate only the generated model, not gameplay/world motion.
-    _model.rotation.y = PI
-    _skeleton = _find_skeleton(_model)
-    _animation = _find_animation_player(_model)
-
-    _diag_stage("AF-RIG-306", "Searching generated character for skeleton and animations.")
-    if _skeleton == null:
-        _fail("No Skeleton3D was generated from the GLB.")
-        return
-    _diag_stage("AF-RIG-307", "Skeleton found. Verifying 65-joint Mixamo rig.")
-    if _skeleton.get_bone_count() != 65:
-        _fail("Expected 65 Mixamo joints, got %d." % _skeleton.get_bone_count())
-        return
-    _diag_stage("AF-ANIM-308", "Rig verified. Checking AnimationPlayer.")
-    if _animation == null:
-        _fail("No AnimationPlayer was generated from the embedded clips.")
-        return
-
-    _diag_stage("AF-ANIM-309", "AnimationPlayer found. Verifying Walk and Run clips.")
-    var walk_clip := _clip_for("walk")
-    var run_clip := _clip_for("run")
-    if walk_clip.is_empty() or run_clip.is_empty():
-        _fail("Walk/Run clips were not found. Imported: %s" % [str(_animation.get_animation_list())])
-        return
-
-    _neutral_pose.clear()
-    for i in range(_skeleton.get_bone_count()):
-        _neutral_pose.append(_skeleton.get_bone_pose(i))
-
-    _hips_index = _find_bone_suffix("hips")
-    _spine_index = _find_bone_suffix("spine")
-    _spine1_index = _find_bone_suffix("spine1")
-    _head_index = _find_bone_suffix("head")
-    _left_foot_index = _find_bone_suffix("leftfoot")
-    _right_foot_index = _find_bone_suffix("rightfoot")
-    _left_toe_index = _find_bone_suffix("lefttoebase")
-    _right_toe_index = _find_bone_suffix("righttoebase")
-    _left_arm_index = _find_bone_suffix("leftarm")
-    _right_arm_index = _find_bone_suffix("rightarm")
-    _left_forearm_index = _find_bone_suffix("leftforearm")
-    _right_forearm_index = _find_bone_suffix("rightforearm")
-    if _hips_index < 0 or _left_foot_index < 0 or _right_foot_index < 0 or _left_toe_index < 0 or _right_toe_index < 0:
-        _fail("Required Mixamo Hips/Foot/ToeBase bones could not be located.")
-        return
-
-    _neutral_hips_origin = _skeleton.get_bone_pose(_hips_index).origin
-    _neutral_model_position = _model.position
-    _diag_stage("AF-PLAYER-320", "Rig ready. Building relaxed idle and sole grounding.")
-    _build_relaxed_idle_pose()
-    _align_neutral_feet_to_floor()
-
-    _loaded = true
-    _set_motion("IDLE")
-    _set_status("READY", "Visual Pass 1 • object collision + wall boundary • Tap SPRINT • drag right side to look")
-    _diag_stage("AF-READY-900", "Starter Town, character, rig, animations and controls initialized successfully.")
-
-func _find_skeleton(node: Node) -> Skeleton3D:
-    if node is Skeleton3D:
-        return node as Skeleton3D
-    for child in node.get_children():
-        var found := _find_skeleton(child)
-        if found != null:
-            return found
-    return null
-
-func _find_animation_player(node: Node) -> AnimationPlayer:
-    if node is AnimationPlayer:
-        return node as AnimationPlayer
-    for child in node.get_children():
-        var found := _find_animation_player(child)
-        if found != null:
-            return found
-    return null
-
-func _find_bone_suffix(suffix: String) -> int:
-    if _skeleton == null:
-        return -1
-    var needle := suffix.to_lower()
-    for i in range(_skeleton.get_bone_count()):
-        if String(_skeleton.get_bone_name(i)).to_lower().ends_with(needle):
-            return i
-    return -1
-
-func _clip_for(mode: String) -> String:
-    if _animation == null:
-        return ""
-    var needle := mode.to_lower()
-    for entry in _animation.get_animation_list():
-        var raw := String(entry)
-        var label := raw.to_lower()
-        if label == needle or label.ends_with("/" + needle) or label.ends_with("|" + needle) or label.ends_with(":" + needle):
-            return raw
-    return ""
-
-func _capture_transition_pose() -> void:
-    _transition_from.clear()
-    if _skeleton == null:
-        return
-    for i in range(_skeleton.get_bone_count()):
-        _transition_from.append(_skeleton.get_bone_pose(i))
-    _transition_elapsed = 0.0
-    _transitioning = _transition_from.size() == _neutral_pose.size()
-
-func _set_motion(mode: String) -> void:
-    if not _loaded or _animation == null:
-        _motion = mode
-        return
-
-    _capture_transition_pose()
-    _paused = false
-    _motion = mode
-
-    if mode == "IDLE":
-        # Preserve the current gait frame. _process blends it smoothly into the
-        # living neutral pose instead of snapping straight to bind pose.
-        _animation.stop(true)
-        _idle_time = 0.0
-    else:
-        var clip_name := _clip_for(mode)
-        if clip_name.is_empty():
-            _fail("Missing animation clip for " + mode)
-            return
-        var clip := _animation.get_animation(clip_name)
-        if clip != null:
-            clip.loop_mode = Animation.LOOP_LINEAR
-        var speed := WALK_SPEED if mode == "WALK" else RUN_SPEED
-        _animation.speed_scale = 1.0
-        # Manual skeleton blending below works even when coming from procedural idle.
-        _animation.play(clip_name, 0.0, speed)
-
-    _set_status(mode, _motion_detail())
-
-func _motion_detail() -> String:
-    var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
-    if _boundary_flash > 0.0:
-        return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Fountain & Water Polish • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
-
-func _on_sprint_toggled(enabled: bool) -> void:
-    _sprint_held = enabled
-    if _sprint_button != null:
-        _sprint_button.text = "SPRINT ON" if enabled else "SPRINT OFF"
-    if _loaded and not _paused:
-        _set_status(_motion, _motion_detail())
-
-func _toggle_pause() -> void:
-    if not _loaded:
-        return
-    _paused = not _paused
-    if _paused:
-        if _animation != null and _animation.is_playing():
-            _animation.pause()
-        _set_status("PAUSED", "Movement frozen • Drag right side to inspect • Tap PAUSE to resume")
-    else:
-        if _motion in ["WALK", "RUN"] and _animation != null:
-            _animation.play()
-        _set_status(_motion, _motion_detail())
-
-func _reset_camera() -> void:
-    _camera_yaw = _actor.rotation.y if _actor != null else 0.0
-    _camera_pitch = 0.18
-    _camera_distance = 4.0
-
-func _set_joystick_visual(offset: Vector2) -> void:
-    if _joystick_base == null or _joystick_knob == null:
-        return
-    var center := _joystick_base.size * 0.5
-    _joystick_knob.position = center + offset - _joystick_knob.size * 0.5
-
-func _update_joystick(screen_position: Vector2) -> void:
-    if _joystick_base == null:
-        return
-    var center := _joystick_base.global_position + _joystick_base.size * 0.5
-    var offset := screen_position - center
-    if offset.length() > STICK_RADIUS:
-        offset = offset.normalized() * STICK_RADIUS
-    var normalized := offset / STICK_RADIUS
-    if normalized.length() < STICK_DEADZONE:
-        normalized = Vector2.ZERO
-        offset = Vector2.ZERO
-    _move_input = normalized
-    _set_joystick_visual(offset)
-
-func _release_joystick() -> void:
-    _move_input = Vector2.ZERO
-    _move_touch = -1
-    _set_joystick_visual(Vector2.ZERO)
-
-func _build_relaxed_idle_pose() -> void:
-    _idle_pose.clear()
-    if _skeleton == null or _neutral_pose.size() != _skeleton.get_bone_count():
-        return
-    # Start from the imported bind pose, then lower the T-pose arms into a
-    # relaxed game-ready stance. These signs are measured for this Mixamo rig.
-    for i in range(_neutral_pose.size()):
-        _skeleton.set_bone_pose(i, _neutral_pose[i])
-    _apply_local_rotation(_left_arm_index, Vector3.RIGHT, -72.0)
-    _apply_local_rotation(_right_arm_index, Vector3.RIGHT, 72.0)
-    # Small opposing forearm bends bring both hands slightly forward instead
-    # of leaving the elbows/arms ruler-straight at the character's sides.
-    _apply_local_rotation(_left_forearm_index, Vector3.BACK, 12.0)
-    _apply_local_rotation(_right_forearm_index, Vector3.BACK, -12.0)
-    for i in range(_skeleton.get_bone_count()):
-        _idle_pose.append(_skeleton.get_bone_pose(i))
-
-func _reset_idle_target() -> void:
-    if _skeleton == null or _idle_pose.size() != _skeleton.get_bone_count():
-        return
-    for i in range(_idle_pose.size()):
-        _skeleton.set_bone_pose(i, _idle_pose[i])
-
-func _apply_idle_offsets(delta: float) -> void:
-    _idle_time += delta
-    var breath := sin(_idle_time * TAU / 4.4)
-    var sway := sin(_idle_time * TAU / 6.8 + 0.7)
-
-    if _hips_index >= 0:
-        var hips := _skeleton.get_bone_pose(_hips_index)
-        hips.origin.y += breath * 0.0018
-        _skeleton.set_bone_pose(_hips_index, hips)
-    _apply_local_rotation(_spine_index, Vector3.RIGHT, breath * 0.55 + sway * 0.18)
-    _apply_local_rotation(_spine1_index, Vector3.RIGHT, breath * 0.75)
-    _apply_local_rotation(_spine1_index, Vector3.FORWARD, sway * 0.32)
-    _apply_local_rotation(_head_index, Vector3.UP, sway * 0.45)
-    _apply_local_rotation(_head_index, Vector3.RIGHT, -breath * 0.20)
-
-func _apply_local_rotation(index: int, axis: Vector3, degrees: float) -> void:
-    if index < 0 or index >= _neutral_pose.size():
-        return
-    var base := _skeleton.get_bone_pose(index)
-    var delta_basis := Basis(Quaternion(axis.normalized(), deg_to_rad(degrees)))
-    _skeleton.set_bone_pose(index, base * Transform3D(delta_basis, Vector3.ZERO))
-
-func _apply_transition(delta: float) -> void:
-    if not _transitioning or _skeleton == null:
-        return
-    _transition_elapsed += delta
-    var t := clampf(_transition_elapsed / MOTION_BLEND_TIME, 0.0, 1.0)
-    var smooth_t := t * t * (3.0 - 2.0 * t)
-    for i in range(_transition_from.size()):
-        var target_pose := _skeleton.get_bone_pose(i)
-        _skeleton.set_bone_pose(i, _transition_from[i].interpolate_with(target_pose, smooth_t))
-    if t >= 1.0:
-        _transitioning = false
-        _transition_from.clear()
-
-func _lock_root_motion() -> void:
-    if not _loaded or _skeleton == null or _hips_index < 0:
-        return
-    # Keep vertical bob from the native clip but remove horizontal travel.
-    var hips_pose := _skeleton.get_bone_pose(_hips_index)
-    hips_pose.origin.x = _neutral_hips_origin.x
-    hips_pose.origin.z = _neutral_hips_origin.z
-    _skeleton.set_bone_pose(_hips_index, hips_pose)
-    if _model != null:
-        var model_pos := _model.position
-        model_pos.x = _neutral_model_position.x
-        model_pos.z = _neutral_model_position.z
-        _model.position = model_pos
-
-func _bone_world_y(index: int) -> float:
-    if _skeleton == null or index < 0:
-        return 999.0
-    return _skeleton.to_global(_skeleton.get_bone_global_pose(index).origin).y
-
-func _sole_floor_y() -> float:
-    if _skeleton == null:
-        return 0.0
-    var scale_y := absf(_actor.scale.y)
-    var foot_offset := FOOT_TO_SOLE_SOURCE_Y * scale_y
-    var toe_offset := TOE_TO_SOLE_SOURCE_Y * scale_y
-    # Use both ankle/foot and toe origins. During a stride either the heel or
-    # the toe may be the lowest planted part of the boot.
-    var left_sole := minf(_bone_world_y(_left_foot_index) - foot_offset,
-                          _bone_world_y(_left_toe_index) - toe_offset)
-    var right_sole := minf(_bone_world_y(_right_foot_index) - foot_offset,
-                           _bone_world_y(_right_toe_index) - toe_offset)
-    return minf(left_sole, right_sole)
-
-func _align_neutral_feet_to_floor() -> void:
-    var sole_y := _sole_floor_y()
-    _actor.position.y += SOLE_CLEARANCE_WORLD - sole_y
-    _base_actor_y = _actor.position.y
-
-func _correct_foot_ground(delta: float) -> void:
-    if not _loaded or _paused:
-        return
-    var sole_y := _sole_floor_y()
-    var desired_y := _actor.position.y
-    if sole_y < SOLE_CLEARANCE_WORLD:
-        # Only lift to solve penetration. Never pull an airborne stride down.
-        desired_y += SOLE_CLEARANCE_WORLD - sole_y
-    else:
-        # Ease back toward calibrated standing height after a correction.
-        desired_y = lerpf(desired_y, _base_actor_y, clampf(delta * 2.5, 0.0, 1.0))
-    desired_y = clampf(desired_y, _base_actor_y, _base_actor_y + 0.16)
-    _actor.position.y = lerpf(_actor.position.y, desired_y, clampf(delta * 14.0, 0.0, 1.0))
-
-func _desired_input() -> Vector2:
-    var keyboard := Vector2.ZERO
-    if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
-        keyboard.x -= 1.0
-    if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
-        keyboard.x += 1.0
-    if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
-        keyboard.y -= 1.0
-    if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
-        keyboard.y += 1.0
-    if keyboard.length() > 0.01:
-        return keyboard.normalized()
-    return _move_input
-
-func _ensure_motion(mode: String) -> void:
-    if mode != _motion:
-        _set_motion(mode)
-
-func _world_point_blocked(point: Vector2) -> bool:
-    for blocker in _world_blockers:
-        if blocker.has_point(point):
-            return true
-    for circle in _circle_blockers:
-        var center := Vector2(circle.x, circle.y)
-        if point.distance_to(center) < circle.z:
-            return true
-    return false
-
-func _resolve_world_position(previous: Vector3) -> void:
-    if _actor == null:
-        return
-    var requested := _actor.position
-    var clamped_x := clampf(requested.x, TOWN_MIN_X + PLAYER_WORLD_RADIUS, TOWN_MAX_X - PLAYER_WORLD_RADIUS)
-    var clamped_z := clampf(requested.z, TOWN_MIN_Z + PLAYER_WORLD_RADIUS, TOWN_MAX_Z - PLAYER_WORLD_RADIUS)
-    var resolved := previous
-
-    # Resolve one axis at a time so the player slides naturally along walls/buildings
-    # instead of sticking or teleporting backward when moving diagonally into them.
-    var x_test := Vector2(clamped_x, previous.z)
-    if not _world_point_blocked(x_test):
-        resolved.x = clamped_x
-    var z_test := Vector2(resolved.x, clamped_z)
-    if not _world_point_blocked(z_test):
-        resolved.z = clamped_z
-
-    _actor.position.x = resolved.x
-    _actor.position.z = resolved.z
-    var hit := absf(requested.x - resolved.x) > 0.001 or absf(requested.z - resolved.z) > 0.001
-    if hit:
-        _boundary_flash = 0.26
-        _move_speed = minf(_move_speed, WALK_WORLD_SPEED * 0.72)
-
-func _update_gameplay_movement(delta: float) -> void:
-    if _actor == null or not _loaded or _paused:
-        return
-    var input_vec := _desired_input()
-    var strength := clampf(input_vec.length(), 0.0, 1.0)
-    var moving := strength > STICK_DEADZONE
-    var wants_run := _sprint_held or Input.is_key_pressed(KEY_SHIFT)
-    var target_speed := 0.0
-    if moving:
-        target_speed = (RUN_WORLD_SPEED if wants_run else WALK_WORLD_SPEED) * strength
-    var rate := MOVE_ACCEL if target_speed > _move_speed else MOVE_DECEL
-    _move_speed = move_toward(_move_speed, target_speed, rate * delta)
-
-    if moving:
-        # Stick up is -Z. Rotate that vector by the camera heading so movement
-        # always feels camera-relative, like the final third-person game.
-        var local_dir := Vector3(input_vec.x, 0.0, input_vec.y).normalized()
-        _travel_direction = (Basis(Vector3.UP, _camera_yaw) * local_dir).normalized()
-        var target_yaw := atan2(-_travel_direction.x, -_travel_direction.z)
-        _actor.rotation.y = lerp_angle(_actor.rotation.y, target_yaw, clampf(delta * TURN_RATE, 0.0, 1.0))
-
-    if _move_speed > 0.04:
-        var previous_position := _actor.position
-        _actor.position += _travel_direction * _move_speed * delta
-        _resolve_world_position(previous_position)
-
-    var desired_motion := "IDLE"
-    if _move_speed > 0.12:
-        desired_motion = "RUN" if wants_run and _move_speed > WALK_WORLD_SPEED * 0.85 else "WALK"
-    _ensure_motion(desired_motion)
-
-    # Match cadence to actual travel during acceleration/deceleration to reduce
-    # visible foot sliding before we introduce full AnimationTree locomotion.
-    if _animation != null and _motion == "WALK":
-        _animation.speed_scale = clampf(_move_speed / WALK_WORLD_SPEED, 0.72, 1.05)
-    elif _animation != null and _motion == "RUN":
-        _animation.speed_scale = clampf(_move_speed / RUN_WORLD_SPEED, 0.82, 1.08)
-    elif _animation != null:
-        _animation.speed_scale = 1.0
-
-func _update_fountain(delta: float) -> void:
-    if _fountain_water == null:
-        return
-    _fountain_time += delta
-    var ripple := sin(_fountain_time * 2.2)
-    _fountain_water.position.y = 0.995 + ripple * 0.012
-    _fountain_water.rotation.y = _fountain_time * 0.035
-
-    if _fountain_crystal != null:
-        _fountain_crystal.position.y = 2.68 + sin(_fountain_time * 1.6) * 0.035
-        _fountain_crystal.rotation.y += delta * 0.48
-    if _fountain_glow != null:
-        _fountain_glow.light_energy = 0.76 + (sin(_fountain_time * 1.8) + 1.0) * 0.10
-    for i in range(_fountain_jets.size()):
-        var jet := _fountain_jets[i]
-        if jet != null:
-            var pulse := sin(_fountain_time * 3.0 + float(i) * 0.9)
-            jet.scale.y = 1.0 + pulse * 0.035
-
-func _process(delta: float) -> void:
-    if not _startup_complete and not _startup_failed:
-        _startup_elapsed += delta
-        if _startup_elapsed >= STARTUP_WATCHDOG_SECONDS:
-            _diag_failure("AF-WATCH-500", "Startup stopped before READY. Last stage: " + _diag_code + " - " + _diag_detail_text)
-    _boundary_flash = maxf(0.0, _boundary_flash - delta)
-    _update_gameplay_movement(delta)
-    if _loaded and not _paused:
-        if _motion == "IDLE":
-            _reset_idle_target()
-            _apply_idle_offsets(delta)
-        _apply_transition(delta)
-        _lock_root_motion()
-        _correct_foot_ground(delta)
-    _update_fountain(delta)
-    _update_camera(delta)
-    if _loaded and not _paused:
-        _set_status(_motion, _motion_detail())
-
-func _update_camera(delta: float) -> void:
-    if _camera == null or _actor == null:
-        return
-    var horizontal := cos(_camera_pitch) * _camera_distance
-    var vertical := sin(_camera_pitch) * _camera_distance
-    var target := _actor.global_position + Vector3(0.0, 1.03, 0.0)
-    # At yaw zero the camera is +Z, behind a model whose forward is -Z.
-    var offset := Vector3(sin(_camera_yaw) * horizontal, 0.55 + vertical, cos(_camera_yaw) * horizontal)
-    var goal := target + offset
-    if delta >= 1.0:
-        _camera.global_position = goal
-    else:
-        _camera.global_position = _camera.global_position.lerp(goal, clampf(delta * 8.5, 0.0, 1.0))
-    _camera.look_at(target, Vector3.UP)
-
-func _input(event: InputEvent) -> void:
-    if event is InputEventScreenTouch:
-        var view := get_viewport().get_visible_rect().size
-        if event.pressed:
-            if event.position.x < view.x * 0.43 and event.position.y > view.y * 0.42 and _move_touch < 0:
-                _move_touch = event.index
-                _update_joystick(event.position)
-            elif _sprint_button != null and _sprint_button.get_global_rect().has_point(event.position):
-                # The GUI button handles this touch. Keep it out of camera-drag state
-                # so Sprint can be tapped with a second finger while steering.
-                pass
-            elif event.position.x > view.x * 0.42 and _camera_touch < 0:
-                _camera_touch = event.index
-        else:
-            if event.index == _move_touch:
-                _release_joystick()
-            if event.index == _camera_touch:
-                _camera_touch = -1
-    elif event is InputEventScreenDrag:
-        if event.index == _move_touch:
-            _update_joystick(event.position)
-        elif event.index == _camera_touch:
-            _camera_yaw -= event.relative.x * 0.0045
-            _camera_pitch = clampf(_camera_pitch + event.relative.y * 0.0023, -0.08, 0.56)
-    elif event is InputEventMouseButton:
-        if event.button_index == MOUSE_BUTTON_RIGHT:
-            _drag_mouse = event.pressed
-    elif event is InputEventMouseMotion and _drag_mouse:
-        _camera_yaw -= event.relative.x * 0.0045
-        _camera_pitch = clampf(_camera_pitch + event.relative.y * 0.0023, -0.08, 0.56)
