@@ -4,7 +4,10 @@ extends Node3D
 ## gameplay locomotion test: touch movement, camera orbit, auto animation states, grounding.
 
 # Same verified Mixamo/Tripo skin and rig, now with seven authored clips.
-const MODEL_PATH := "res://models/anime+adventurer+3d+model (1).glb"
+# Raw GLB bytes are copied into this .bin path during CI before Android export.
+# Godot imports .glb as a resource and may omit the raw source from Android PCKs;
+# the unrecognized .bin extension is included as a non-resource by export filters.
+const MODEL_PATH := "res://models/adventurer_runtime.bin"
 const IDLE_OPTIONS := ["standing_relax", "idle", "look_around"]
 const MOTION_BLEND_TIME := 0.24
 const WALK_SPEED := 0.92
@@ -1072,7 +1075,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2P  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2Q  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1088,7 +1091,7 @@ func _load_runtime_glb() -> void:
         _fail("Embedded model file is missing: " + MODEL_PATH)
         return
 
-    _diag_stage("AF-MODEL-302", "Reading embedded character model bytes.")
+    _diag_stage("AF-MODEL-302", "Reading bundled seven-clip character bytes.")
     var bytes := FileAccess.get_file_as_bytes(MODEL_PATH)
     if bytes.is_empty():
         _fail("Embedded GLB could not be read.")
