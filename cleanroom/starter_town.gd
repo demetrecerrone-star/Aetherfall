@@ -7,7 +7,8 @@ extends Node3D
 # Raw GLB bytes are copied into this .bin path during CI before Android export.
 # Godot imports .glb as a resource and may omit the raw source from Android PCKs;
 # the unrecognized .bin extension is included as a non-resource by export filters.
-const MODEL_PATH := "res://models/adventurer_runtime.bin"
+const MALE_MODEL_PATH := "res://models/adventurer_runtime.bin"
+const FEMALE_MODEL_PATH := "res://models/adventurer_female_runtime.bin"
 const IDLE_OPTIONS := ["standing_relax", "idle", "look_around"]
 const MOTION_BLEND_TIME := 0.24
 const WALK_SPEED := 0.92
@@ -87,6 +88,8 @@ var _joystick_base: Panel
 var _joystick_knob: Panel
 var _sprint_button: Button
 var _pose_button: Button
+var _character_button: Button
+var _character_variant := "male"
 var _idle_option_index := 0
 var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
@@ -1051,6 +1054,20 @@ func _build_ui() -> void:
     _pose_button.pressed.connect(_cycle_idle_pose)
     ui.add_child(_pose_button)
 
+    _character_button = Button.new()
+    _character_button.text = "CHARACTER: MALE"
+    _character_button.anchor_left = 1.0
+    _character_button.anchor_right = 1.0
+    _character_button.anchor_top = 1.0
+    _character_button.anchor_bottom = 1.0
+    _character_button.offset_left = -226.0
+    _character_button.offset_right = -34.0
+    _character_button.offset_top = -285.0
+    _character_button.offset_bottom = -222.0
+    _character_button.add_theme_font_size_override("font_size", 16)
+    _character_button.pressed.connect(_switch_character)
+    ui.add_child(_character_button)
+
     var pause_button := Button.new()
     pause_button.text = "PAUSE"
     pause_button.anchor_left = 1.0
@@ -1075,7 +1092,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2Q  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2R  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1085,14 +1102,19 @@ func _fail(message: String) -> void:
     push_error("TRIPO_RUNTIME_FAIL: " + message)
     _set_status("LOAD ERROR", message + "\nThe app stays open so the error can be photographed.")
 
+func _active_model_path() -> String:
+    return FEMALE_MODEL_PATH if _character_variant == "female" else MALE_MODEL_PATH
+
+
 func _load_runtime_glb() -> void:
-    _diag_stage("AF-MODEL-301", "Checking embedded character model file.")
-    if not FileAccess.file_exists(MODEL_PATH):
-        _fail("Embedded model file is missing: " + MODEL_PATH)
+    var model_path := _active_model_path()
+    _diag_stage("AF-MODEL-301", "Checking embedded " + _character_variant + " character model.")
+    if not FileAccess.file_exists(model_path):
+        _fail("Embedded model file is missing: " + model_path)
         return
 
     _diag_stage("AF-MODEL-302", "Reading bundled seven-clip character bytes.")
-    var bytes := FileAccess.get_file_as_bytes(MODEL_PATH)
+    var bytes := FileAccess.get_file_as_bytes(model_path)
     if bytes.is_empty():
         _fail("Embedded GLB could not be read.")
         return
@@ -1118,7 +1140,7 @@ func _load_runtime_glb() -> void:
         return
 
     _diag_stage("AF-MODEL-305", "Character scene generated. Attaching model.")
-    _model.name = "TripoAdventurer"
+    _model.name = "TripoAdventurer_" + _character_variant
     _actor.add_child(_model)
     # Tripo visual forward is opposite the controller's actor forward.
     # Rotate only the generated model, not gameplay/world motion.
@@ -1177,7 +1199,7 @@ func _load_runtime_glb() -> void:
 
     _neutral_hips_origin = _skeleton.get_bone_pose(_hips_index).origin
     _neutral_model_position = _model.position
-    _diag_stage("AF-PLAYER-320", "Rig ready. Applying authored Standing Relax pose and sole grounding.")
+    _diag_stage("AF-PLAYER-320", "Rig ready. Applying " + _idle_label() + " pose and sole grounding.")
     # Advance to the real animation pose BEFORE measuring the shoe sole. Unlike
     # the previous hand-rotated bind pose, this is exactly what the user sees.
     var starting_idle := _selected_idle_clip()
@@ -1190,8 +1212,9 @@ func _load_runtime_glb() -> void:
 
     _loaded = true
     _set_motion("IDLE")
-    _set_status("READY", "Authored Mixamo idle poses • Tap POSE to compare • Joystick moves • Tap SPRINT to run")
-    _diag_stage("AF-READY-900", "Starter Town, character, rig, animations and controls initialized successfully.")
+    _refresh_character_buttons()
+    _set_status("READY", "Male/Female adventurers • Tap CHARACTER to switch • Tap POSE to compare")
+    _diag_stage("AF-READY-900", "Starter Town, selected character, rig, animations and controls initialized successfully.")
 
 func _polish_actor_materials(node: Node) -> void:
     # Restrict changes to recognizable hair and garment materials; retain
@@ -1295,12 +1318,45 @@ func _idle_label() -> String:
     return "Idle"
 
 
+func _refresh_character_buttons() -> void:
+    if _character_button != null:
+        _character_button.text = "CHARACTER: " + _character_variant.to_upper()
+    if _pose_button != null:
+        _pose_button.text = "POSE: " + _idle_label().to_upper()
+
+
+func _switch_character() -> void:
+    if not _loaded or _paused or _actor == null:
+        return
+    # Preserve world position/heading but recalibrate Y from new boot soles.
+    _loaded = false
+    if _animation != null:
+        _animation.stop()
+    if _model != null:
+        _actor.remove_child(_model)
+        _model.queue_free()
+        _model = null
+    _skeleton = null
+    _animation = null
+    _neutral_pose.clear()
+    _transition_from.clear()
+    _transitioning = false
+    _move_speed = 0.0
+    _move_input = Vector2.ZERO
+    _actor.position.y = 0.0
+
+    _character_variant = "female" if _character_variant == "male" else "male"
+    _idle_option_index = 1 if _character_variant == "female" else 0
+    _refresh_character_buttons()
+    _set_status("LOADING", "Loading " + _character_variant + " adventurer")
+    _load_runtime_glb()
+
+
 func _cycle_idle_pose() -> void:
     if not _loaded or _paused:
         return
     _idle_option_index = (_idle_option_index + 1) % IDLE_OPTIONS.size()
-    if _pose_button != null:
-        _pose_button.text = "POSE: " + _idle_label().to_upper()
+    _refresh_character_buttons()
     if _motion == "IDLE":
         # Smooth transition from the current frame into the selected full-body
         # authored pose, preserving the world actor's position and sole offset.
