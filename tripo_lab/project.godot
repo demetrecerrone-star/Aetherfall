@@ -3,7 +3,7 @@ config_version=5
 
 [application]
 config/name="Aetherfall Tripo Character Lab"
-run/main_scene="res://lab.tscn"
+run/main_scene="res://tripo_lab.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [display]
