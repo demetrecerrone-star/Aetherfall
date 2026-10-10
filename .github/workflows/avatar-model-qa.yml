@@ -17,6 +17,12 @@ jobs:
     steps:
       - name: Check out original Aetherfall project
         uses: actions/checkout@v4
+      - name: Set up Godot 4.6.3 for rig and studio checks
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
       - name: Generate second-pass anime character without exporting APK
         run: |
           set -euo pipefail
@@ -24,6 +30,12 @@ jobs:
           test -s assets/characters/aetherfall_adventurer.gltf
       - name: Verify knee bend points backward relative to facing direction
         run: python3 tests/test_avatar_v033.py
+      - name: Import original skinned glTF using Godot
+        run: godot --headless --editor --path . --quit
+      - name: Confirm rig, animations, and saved character customization
+        run: |
+          godot --headless --path . --script res://tests/model_asset_test.gd
+          godot --headless --path . --script res://tests/studio_preview_test.gd
       - name: Save reviewable original rigged model
         uses: actions/upload-artifact@v4
         with:
