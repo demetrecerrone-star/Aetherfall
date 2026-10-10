@@ -331,6 +331,39 @@ def build_character(human,rig):
                 faces.append((p,q,q+18,p+18))
         mesh("Outfit_Adventurer_%sBoot"%sname,verts,faces,dark)
 
+        # Layered boot hardware is skinned like the boot, so the shin guards,
+        # ankle wrap and upper cuff follow knees/ankles instead of floating.
+        for label,z0,z1,rx,ry,finish in (
+            ("UpperBootCuff",.395,.418,.068,.073,leather),
+            ("AnkleWrap",.158,.179,.078,.092,gold),
+        ):
+            ring=[];ring_faces=[]
+            for z in (z0,z1):
+                for j in range(18):
+                    angle=TAU*j/18
+                    ring.append((side*.134+rx*math.cos(angle),
+                                 -.002+ry*math.sin(angle),z))
+            for j in range(18):
+                p=j;q=(j+1)%18
+                ring_faces.append((p,q,q+18,p+18))
+            mesh("Outfit_Adventurer_%s%s"%(sname,label),ring,ring_faces,finish)
+        front=[(side*.084,-.079,.345),(side*.184,-.079,.345),
+               (side*.190,-.089,.208),(side*.078,-.089,.208)]
+        mesh("Outfit_Adventurer_%sShinGuard"%sname,
+             front,[(0,1,2,3)],leather)
+
+    # Angular lapels and narrow bright piping give the layered jacket a
+    # readable original fantasy-anime silhouette, even at phone resolution.
+    for side,sname in ((-1,"Left"),(1,"Right")):
+        mesh("Outfit_Adventurer_%sLapel"%sname,[
+            (side*.052,-.171,1.218),(side*.157,-.158,1.184),
+            (side*.114,-.171,1.060),(side*.032,-.176,1.143)],
+            [(0,1,2,3)],leather)
+        mesh("Outfit_Adventurer_%sLapelTrim"%sname,[
+            (side*.048,-.178,1.218),(side*.061,-.179,1.217),
+            (side*.046,-.185,1.142),(side*.033,-.185,1.143)],
+            [(0,1,2,3)],gold)
+
     # A buckle with a clear glowing-metal highlight; belt and lapped waistcoat
     # occupy visible separate meshes for future outfit recoloring.
     verts=[(-.038,-.171,.904),(.038,-.171,.904),
