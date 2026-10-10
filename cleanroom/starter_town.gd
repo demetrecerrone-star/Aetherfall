@@ -725,6 +725,12 @@ func _build_stage() -> void:
     _world_blockers.clear()
     _circle_blockers.clear()
 
+    # Directional shadow tuning for the third-person Android camera. Keep the
+    # atlas concentrated near the player instead of spending resolution far
+    # beyond the starter-town footprint.
+    RenderingServer.directional_shadow_atlas_set_size(4096, true)
+    RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM)
+
     var world := WorldEnvironment.new()
     var env := Environment.new()
     _diag_stage("AF-LIGHT-222", "Loading Poly Haven Kloppenheim 03 1K HDR atmosphere.")
@@ -762,7 +768,22 @@ func _build_stage() -> void:
     sun.light_color = Color("#ffe0b9")
     sun.light_energy = 0.86
     sun.shadow_enabled = true
-    sun.shadow_bias = 0.04
+    # Four tighter PSSM cascades give the character and nearby town props far
+    # more shadow-map texels than the default 100 m coverage. Split blending
+    # hides cascade transitions while moderate filtering removes stair-step
+    # edges without the cost of Forward+-only contact/PCSS shadows.
+    sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+    sun.directional_shadow_max_distance = 46.0
+    sun.directional_shadow_split_1 = 0.08
+    sun.directional_shadow_split_2 = 0.20
+    sun.directional_shadow_split_3 = 0.46
+    sun.directional_shadow_blend_splits = true
+    sun.directional_shadow_fade_start = 0.88
+    sun.directional_shadow_pancake_size = 12.0
+    sun.shadow_bias = 0.025
+    sun.shadow_normal_bias = 0.85
+    sun.shadow_blur = 1.18
+    sun.shadow_opacity = 0.88
     add_child(sun)
 
     var fill := DirectionalLight3D.new()
@@ -1033,7 +1054,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2K  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2L  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1215,7 +1236,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Lighting Balance • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Shadow Quality • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
