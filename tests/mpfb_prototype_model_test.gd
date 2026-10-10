@@ -29,6 +29,8 @@ func _check() -> void:
         var skinned_meshes := 0
         var hair_count := 0
         var outfit_count := 0
+        var anime_face_count := 0
+        var covered_toes := 0
         var wrong_hair_count := 0
         while not stack.is_empty():
             var node: Node = stack.pop_back()
@@ -43,6 +45,10 @@ func _check() -> void:
                         wrong_hair_count += 1
                 if str(node.name).begins_with("Outfit_Adventurer"):
                     outfit_count += 1
+                if str(node.name).begins_with("Face_Anime_"):
+                    anime_face_count += 1
+                if str(node.name).contains("BootToe"):
+                    covered_toes += 1
             elif node is Skeleton3D:
                 rig_count += 1
                 var skeleton := node as Skeleton3D
@@ -62,9 +68,10 @@ func _check() -> void:
             rig_count == 1 and mesh_count >= 20
             and bone_count >= 96 and bone_count <= 98
             and essential_legs == 6 and skinned_meshes == mesh_count
-            and hair_count >= 8 and outfit_count >= 25 and wrong_hair_count == 0
+            and hair_count >= 8 and outfit_count >= 27 and wrong_hair_count == 0
+            and anime_face_count >= 10 and covered_toes == 2
         )
-        print("MPFB_GODOT_MOBILE_LEG_JOINTS %s: %d/6" % [style, essential_legs])
+        print("MPFB_GODOT_MOBILE_LEG_JOINTS %s: %d/6 face=%d toe_caps=%d" % [style, essential_legs, anime_face_count, covered_toes])
         character.queue_free()
         await process_frame
         if not ok:
