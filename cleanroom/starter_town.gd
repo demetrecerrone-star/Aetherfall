@@ -66,6 +66,7 @@ var _neutral_model_position := Vector3.ZERO
 var _base_actor_y := 0.0
 
 var _ground_contact_shadow: MeshInstance3D
+var _town_textures: Dictionary = {}
 var _camera: Camera3D
 var _status: Label
 var _detail: Label
@@ -122,6 +123,8 @@ func _ready() -> void:
     _build_diagnostic_overlay()
     _diag_stage("AF-WORLD-200", "Starter Town controller entered _ready().")
 
+    _diag_stage("AF-TEX-210", "Loading seven compact CC0 texture maps.")
+    _load_town_textures()
     _diag_stage("AF-TOWN-220", "Building Starter Town geometry and collision blockers.")
     _build_stage()
     _diag_stage("AF-TOWN-221", "Starter Town geometry finished successfully.")
@@ -248,6 +251,68 @@ func _refresh_diagnostics() -> void:
             state = "FAILED - photograph this panel"
         _diag_detail_label.text = "Starter Town v0.1.9 diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
 
+func _load_town_textures() -> void:
+    _town_textures.clear()
+    for kind in ["cobble", "grass", "dirt", "plaster", "wood", "roof", "stone"]:
+        var filename := "res://textures/" + kind + ".bin"
+        if not FileAccess.file_exists(filename):
+            push_warning("Town texture not available: " + filename)
+            continue
+        var img := Image.new()
+        if img.load_jpg_from_buffer(FileAccess.get_file_as_bytes(filename)) != OK:
+            push_warning("Could not decode texture: " + filename)
+            continue
+        img.generate_mipmaps()
+        _town_textures[kind] = ImageTexture.create_from_image(img)
+
+
+func _town_texture_group(name: String) -> String:
+    var n := name.to_lower()
+    if n in ["townground", "grasspatch"]:
+        return "grass"
+    if n.contains("shoulder") or n == "treedirt":
+        return "dirt"
+    if n.begins_with("roof") or n.begins_with("gateroof") or n == "doorhood":
+        return "roof"
+    if n == "plasterwalls":
+        return "plaster"
+    if n in ["roadstone", "squarestone", "entryroad", "crossroad", "marketsquare"]:
+        return "cobble"
+    if n.begins_with("fountain") and n not in ["fountainwater", "fountainjet", "fountaincrystal"]:
+        return "stone"
+    if n.contains("foundation") or n.contains("cornerstone") or n.contains("wallcap") or n.contains("buttress") or n == "townwall" or n.begins_with("gatetower") or n.begins_with("chimney") or n == "rock":
+        return "stone"
+    for prefix in ["frontpost", "sidepost", "frontband", "sideband", "brace", "eavetrim", "fascia", "windowtrim", "sidewindowtrim", "windowcross", "sidewindowcross", "door", "shutter", "flowerbox", "counter", "shelf", "gatebar", "gatecrossbar", "barrel", "trunk", "branch", "shop", "bench"]:
+        if n.begins_with(prefix):
+            return "wood"
+    return ""
+
+
+func _town_mat(name: String, color: Color, roughness: float, size: Vector3) -> StandardMaterial3D:
+    var mat := _mat(color, roughness)
+    var kind := _town_texture_group(name)
+    if kind.is_empty() or not _town_textures.has(kind):
+        return mat
+    mat.albedo_texture = _town_textures[kind] as Texture2D
+    var strength := 0.18
+    if kind == "plaster" or kind == "roof":
+        strength = 0.36
+    elif kind == "wood":
+        strength = 0.27
+    elif kind == "cobble" or kind == "stone":
+        strength = 0.23
+    mat.albedo_color = Color.WHITE.lerp(color, strength)
+    var meters := 2.3
+    if kind == "plaster":
+        meters = 2.8
+    elif kind == "wood" or kind == "roof":
+        meters = 1.9
+    mat.uv1_scale = Vector3(maxf(1.0, size.x / meters), maxf(1.0, maxf(size.y, size.z) / meters), 1.0)
+    mat.texture_repeat = BaseMaterial3D.TEXTURE_REPEAT_ENABLED
+    mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    return mat
+
+
 func _mat(color: Color, roughness: float = 0.9, metallic: float = 0.0) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
     material.albedo_color = color
@@ -284,7 +349,7 @@ func _box(parent: Node, name: String, size: Vector3, position: Vector3, color: C
     mesh_instance.mesh = mesh
     mesh_instance.position = position
     mesh_instance.rotation_degrees = rotation_degrees
-    mesh_instance.material_override = _mat(color, roughness)
+    mesh_instance.material_override = _town_mat(name, color, roughness, size)
     parent.add_child(mesh_instance)
     return mesh_instance
 
@@ -298,7 +363,7 @@ func _cylinder(parent: Node, name: String, radius: float, height: float, positio
     mesh.radial_segments = 18
     mesh_instance.mesh = mesh
     mesh_instance.position = position
-    mesh_instance.material_override = _mat(color, roughness)
+    mesh_instance.material_override = _town_mat(name, color, roughness, Vector3(radius * 2.0, height, radius * 2.0))
     parent.add_child(mesh_instance)
     return mesh_instance
 
@@ -312,7 +377,7 @@ func _tapered_cylinder(parent: Node, name: String, bottom_radius: float, top_rad
     mesh.radial_segments = 14
     mesh_instance.mesh = mesh
     mesh_instance.position = position
-    mesh_instance.material_override = _mat(color, 0.95)
+    mesh_instance.material_override = _town_mat(name, color, 0.95, Vector3(bottom_radius * 2.0, height, bottom_radius * 2.0))
     parent.add_child(mesh_instance)
     return mesh_instance
 
@@ -326,7 +391,7 @@ func _sphere(parent: Node, name: String, radius: float, position: Vector3, color
     mesh.rings = 8
     mesh_instance.mesh = mesh
     mesh_instance.position = position
-    mesh_instance.material_override = _mat(color, roughness)
+    mesh_instance.material_override = _town_mat(name, color, roughness, Vector3(radius * 2.0, radius * 2.0, radius * 2.0))
     parent.add_child(mesh_instance)
     return mesh_instance
 
@@ -1092,7 +1157,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2R  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2S  |  " + title
     if _detail != null:
         _detail.text = detail
 
