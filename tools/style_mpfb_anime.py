@@ -11,7 +11,9 @@ from mathutils import Vector, kdtree
 TAU=math.tau
 
 def material(name,hex_color,roughness=.7,metallic=0.0):
-    color=tuple(int(hex_color[i:i+2],16)/255 for i in (0,2,4))
+    # Convert authored sRGB colors to Blender node linear space.
+    srgb=[int(hex_color[i:i+2],16)/255.0 for i in (0,2,4)]
+    color=tuple(v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4 for v in srgb)
     mat=bpy.data.materials.new(name)
     mat.diffuse_color=(*color,1)
     mat.use_nodes=True
@@ -30,6 +32,23 @@ def build_character(human,rig):
     gold=material("Aetherfall_Gold_Trim","c6a066",.38,.52)
     dark=material("Aetherfall_Soft_Boots","1d2635",.9)
     moss=material("Aetherfall_Fantasy_Cloth","53747f",.88)
+    # Fabric underlay on actual MPFB topology prevents exposed skin from
+    # appearing through outfit overlays, especially torso and upper thighs.
+    base_index=len(human.data.materials)
+    for mat in (shirt,dark):
+        human.data.materials.append(mat)
+    for face in human.data.polygons:
+        vs=[human.data.vertices[i].co for i in face.vertices]
+        mx=sum(v.x for v in vs)/len(vs)
+        mz=sum(v.z for v in vs)/len(vs)
+        exposed_head=mz>=1.365
+        exposed_hands=abs(mx)>.435 and .77<mz<1.11
+        if exposed_head or exposed_hands:
+            face.material_index=0
+        elif mz<.425:
+            face.material_index=base_index+1
+        else:
+            face.material_index=base_index
     objects=[]
 
     # Blender KD tree ties new geometry to *real MPFB skinned vertices*;
@@ -230,13 +249,22 @@ def build_character(human,rig):
            (-.061,-.125,1.21),(.060,-.130,1.20)]]
         faces=[(0,1,5,4),(0,4,3),(1,2,5),(4,5,2,3)]
         mesh("Outfit_Adventurer_%sPauldron"%sname,pts,faces,leather)
-        # Tapered armor bracers on the outside-facing wrists.
+        # Align bracers to the actual Rigify forearm bones instead of
+        # leaving rigid vertical cylinders hanging below wrists.
+        forearms=[rig.data.bones[n] for n in ("DEF-forearm.L","DEF-forearm.R")]
+        forearm=min(forearms,key=lambda b:abs(b.head_local.x-side*.4))
+        start=forearm.head_local
+        finish=forearm.tail_local
+        forward=(finish-start).normalized()
+        u=forward.cross(Vector((0,0,1))).normalized()
+        v=forward.cross(u).normalized()
         verts=[];faces=[]
-        for z,rad in ((.820,.054),(.930,.060),(1.005,.067)):
+        for t,rad in ((.15,.065),(.65,.061),(.90,.051)):
+            center=start.lerp(finish,t)
             for j in range(12):
-                theta=TAU*j/12
-                verts.append((side*.414+rad*math.cos(theta),
-                             .015+rad*.76*math.sin(theta),z))
+                a=TAU*j/12
+                p=center+rad*(u*math.cos(a)+v*math.sin(a))
+                verts.append(tuple(p))
         for k in range(2):
             for j in range(12):
                 p=k*12+j;q=k*12+(j+1)%12
