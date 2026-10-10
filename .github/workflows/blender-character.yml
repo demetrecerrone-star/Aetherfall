@@ -31,6 +31,27 @@ jobs:
           blender -b -t 2 --python tools/blender_character_pipeline.py
           test -s builds/Aetherfall-Anime-Character-Editable.blend
           test -s builds/Aetherfall-Anime-Character-Blender.glb
+      - name: Install Godot for Blender GLB compatibility test
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Test Blender-exported model in Godot without changing release sources
+        run: |
+          set -euo pipefail
+          cp builds/Aetherfall-Anime-Character-Blender.glb assets/characters/aetherfall_blender_test.glb
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path("scripts/avatar_v03.gd")
+          source=path.read_text()
+          old="res://assets/characters/aetherfall_adventurer.gltf"
+          assert old in source
+          path.write_text(source.replace(old,"res://assets/characters/aetherfall_blender_test.glb"))
+          PY
+          godot --headless --editor --path . --quit
+          godot --headless --path . --script res://tests/model_asset_test.gd
+          godot --headless --path . --script res://tests/studio_preview_test.gd
       - name: Upload Blender working file and GLB
         uses: actions/upload-artifact@v4
         with:
