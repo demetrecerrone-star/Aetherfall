@@ -1,0 +1,31 @@
+name: Fetch Aetherfall HDRI
+
+on:
+  push:
+    branches:
+      - feature/cleanroom-starter-town
+    paths:
+      - ".github/workflows/fetch-aetherfall-hdri.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-hdri:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Download Poly Haven 1K HDRI
+        run: |
+          set -euo pipefail
+          mkdir -p hdri
+          curl -L --fail --retry 3             "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloppenheim_03_puresky_1k.hdr"             -o hdri/kloppenheim_03_puresky_1k.hdr
+          echo "4398fb83b085aed97cef788cda6f9e2d  hdri/kloppenheim_03_puresky_1k.hdr" | md5sum -c -
+          ls -lh hdri/kloppenheim_03_puresky_1k.hdr
+      - name: Upload HDRI
+        uses: actions/upload-artifact@v4
+        with:
+          name: aetherfall-kloppenheim-03-puresky-1k
+          path: hdri/kloppenheim_03_puresky_1k.hdr
+          if-no-files-found: error
