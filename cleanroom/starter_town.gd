@@ -1059,7 +1059,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2N  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2O  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1236,29 +1236,29 @@ func _collect_finger_bones(hand_prefix: String) -> Array[int]:
 func _apply_relaxed_fingers() -> void:
     if _skeleton == null:
         return
-    # Mixamo finger chains are nearly straight by default. A small mirrored
-    # local-Z curl removes the splayed mannequin look without making fists.
+    # Keep finger joints loose, with a softer thumb bend. Only used in idle;
+    # Walk and Run continue to use the original Mixamo animation clips.
     for i in range(_left_finger_bones.size()):
         var bone_index := _left_finger_bones[i]
         var name := String(_skeleton.get_bone_name(bone_index)).to_lower()
-        var amount := 10.0
-        if name.ends_with("2"):
-            amount = 17.0
+        var amount := 11.0
+        if name.contains("thumb"):
+            amount = 6.0
+        elif name.ends_with("2"):
+            amount = 16.0
         elif name.ends_with("3"):
-            amount = 20.0
-        elif name.contains("thumb"):
-            amount *= 0.55
+            amount = 19.0
         _apply_local_rotation(bone_index, Vector3.FORWARD, amount)
     for i in range(_right_finger_bones.size()):
         var bone_index := _right_finger_bones[i]
         var name := String(_skeleton.get_bone_name(bone_index)).to_lower()
-        var amount := -10.0
-        if name.ends_with("2"):
-            amount = -17.0
+        var amount := -11.0
+        if name.contains("thumb"):
+            amount = -6.0
+        elif name.ends_with("2"):
+            amount = -16.0
         elif name.ends_with("3"):
-            amount = -20.0
-        elif name.contains("thumb"):
-            amount *= 0.55
+            amount = -19.0
         _apply_local_rotation(bone_index, Vector3.FORWARD, amount)
 
 func _clip_for(mode: String) -> String:
@@ -1374,18 +1374,14 @@ func _build_relaxed_idle_pose() -> void:
     # relaxed game-ready stance. These signs are measured for this Mixamo rig.
     for i in range(_neutral_pose.size()):
         _skeleton.set_bone_pose(i, _neutral_pose[i])
-    # Bring the upper arms nearly vertical instead of leaving the residual
-    # wide/splayed stance from the imported T-pose.
-    _apply_local_rotation(_left_arm_index, Vector3.RIGHT, -83.0)
-    _apply_local_rotation(_right_arm_index, Vector3.RIGHT, 83.0)
-    # A restrained elbow bend keeps the silhouette relaxed rather than rigid.
-    _apply_local_rotation(_left_forearm_index, Vector3.BACK, 8.0)
-    _apply_local_rotation(_right_forearm_index, Vector3.BACK, -8.0)
-    # Mixamo's bind-pose wrists leave the palms facing outward after the arms
-    # are lowered. Roll the hands around their local length axis so the palms
-    # sit toward the thighs instead of presenting outward.
-    _apply_local_rotation(_left_hand_index, Vector3.RIGHT, 155.0)
-    _apply_local_rotation(_right_hand_index, Vector3.RIGHT, 155.0)
+    # Relax both shoulders toward the thighs, add a small natural elbow bend,
+    # and remove the nearly 180-degree wrist twist visible in the 0.2N test.
+    _apply_local_rotation(_left_arm_index, Vector3.RIGHT, -IDLE_ARM_LOWER_DEGREES)
+    _apply_local_rotation(_right_arm_index, Vector3.RIGHT, IDLE_ARM_LOWER_DEGREES)
+    _apply_local_rotation(_left_forearm_index, Vector3.BACK, IDLE_ELBOW_BEND_DEGREES)
+    _apply_local_rotation(_right_forearm_index, Vector3.BACK, -IDLE_ELBOW_BEND_DEGREES)
+    _apply_local_rotation(_left_hand_index, Vector3.RIGHT, IDLE_WRIST_ROLL_DEGREES)
+    _apply_local_rotation(_right_hand_index, Vector3.RIGHT, IDLE_WRIST_ROLL_DEGREES)
     _apply_relaxed_fingers()
     for i in range(_skeleton.get_bone_count()):
         _idle_pose.append(_skeleton.get_bone_pose(i))
@@ -1410,6 +1406,9 @@ func _apply_idle_offsets(delta: float) -> void:
     _apply_local_rotation(_spine1_index, Vector3.FORWARD, sway * 0.32)
     _apply_local_rotation(_head_index, Vector3.UP, sway * 0.45)
     _apply_local_rotation(_head_index, Vector3.RIGHT, -breath * 0.20)
+    # Breathing moves the upper arms subtly, never the knees or feet.
+    _apply_local_rotation(_left_arm_index, Vector3.FORWARD, breath * 0.32)
+    _apply_local_rotation(_right_arm_index, Vector3.FORWARD, -breath * 0.32)
 
 func _apply_local_rotation(index: int, axis: Vector3, degrees: float) -> void:
     if index < 0 or index >= _neutral_pose.size():
