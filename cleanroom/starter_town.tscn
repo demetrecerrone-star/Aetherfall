@@ -1,6 +1,1 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://starter_town.gd" id="1_runtime"]
-
-[node name="AetherfallStarterTown" type="Node3D"]
-script = ExtResource("1_runtime")
+The requested file reference is not currently visible. Use files.search or files.list to rediscover the file, then retry with a returned ref_id or file_id.
