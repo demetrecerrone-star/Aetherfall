@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/mpfb-rigify.yml"
       - "tools/check_mpfb_rigify.py"
+      - "tools/generate_mpfb_rigify_anime.py"
   workflow_dispatch:
 
 permissions:
@@ -51,6 +52,33 @@ jobs:
           test -f "$BLENDER_USER_SCRIPTS/addons/rigify/__init__.py"
           "$BLENDER" --online-mode --command extension list
           "$BLENDER" -b --python tools/check_mpfb_rigify.py
+      - name: Generate MPFB anime body and actual Rigify rig
+        env:
+          BLENDER_USER_CONFIG: ${{ runner.temp }}/blender-settings
+          BLENDER_USER_EXTENSIONS: ${{ runner.temp }}/blender-extensions
+          BLENDER_USER_SCRIPTS: ${{ runner.temp }}/blender-user-scripts
+        run: |
+          set -euo pipefail
+          timeout 180s /tmp/aetherfall-blender-4.5/blender -b -t 2 --python tools/generate_mpfb_rigify_anime.py
+          test -s builds/Aetherfall-MPFB-Rigify-Anime-Prototype.blend
+          test -s builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path("builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json").read_text())
+          assert data["vertices"]>10000 and data["deform_bones"]>15, data
+          print("MPFB_RIGIFY_MODEL_VALID",data)
+          PY
+      - name: Upload anime character prototype
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-MPFB-Rigify-Anime-Prototype
+          path: |
+            builds/Aetherfall-MPFB-Rigify-Anime-Prototype.blend
+            builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb
+            builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json
+          if-no-files-found: error
+          retention-days: 21
       - name: Upload installation verification
         uses: actions/upload-artifact@v4
         with:
