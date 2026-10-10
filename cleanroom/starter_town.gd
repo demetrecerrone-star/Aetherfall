@@ -997,7 +997,7 @@ func _apply_transition(delta: float) -> void:
     var t := clampf(_transition_elapsed / MOTION_BLEND_TIME, 0.0, 1.0)
     var smooth_t := t * t * (3.0 - 2.0 * t)
     for i in range(_transition_from.size()):
-        var target_pose := _skeleton.get_bone_pose(i)        _skeleton.set_bone_pose(i, _transition_from[i].interpolate_with(target_pose, smooth_t))
+        var target_pose := _skeleton.get_bone_pose(i)\n        _skeleton.set_bone_pose(i, _transition_from[i].interpolate_with(target_pose, smooth_t))
     if t >= 1.0:
         _transitioning = false
         _transition_from.clear()
