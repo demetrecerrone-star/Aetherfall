@@ -8,17 +8,33 @@ var _model: Node3D
 var _skeleton: Skeleton3D
 var _animation: AnimationPlayer
 var _neutral_pose: Array[Transform3D] = []
+var _transition_from: Array[Transform3D] = []
+var _transition_elapsed := 0.0
+var _transitioning := false
+var _hips_index := -1
+var _spine_index := -1
+var _spine1_index := -1
+var _head_index := -1
+var _left_foot_index := -1
+var _right_foot_index := -1
+var _neutral_hips_origin := Vector3.ZERO
+var _neutral_model_position := Vector3.ZERO
+var _base_actor_y := 0.0
+var _idle_time := 0.0
+var _paused := false
 var _camera: Camera3D
 var _status: Label
 var _motion := "IDLE"
-var _zoom := 2.9
+var _zoom := 2.25
 var _yaw := 0.0
 var _pitch := 0.08
-var _front := true
+var _front := false
 var _drag_mouse := false
 var _last_status := -1
 
 func _ready() -> void:
+    # Apply corrections after imported animation evaluation.
+    process_priority = 1000
     _create_stage()
     _actor = Node3D.new()
     _actor.name = "TripoActor"
@@ -29,7 +45,7 @@ func _ready() -> void:
     _camera = Camera3D.new()
     _camera.name = "OrbitCamera"
     _camera.current = true
-    _camera.fov = 52.0
+    _camera.fov = 46.0
     _camera.near = 0.04
     _camera.far = 125.0
     add_child(_camera)
@@ -167,28 +183,49 @@ func _load_model() -> void:
         return
     for idx in range(_skeleton.get_bone_count()):
         _neutral_pose.append(_skeleton.get_bone_pose(idx))
-    # User can inspect a safe unchanged bind-pose before playing clips.
+    _hips_index = _find_bone_suffix("hips")
+    _spine_index = _find_bone_suffix("spine")
+    _spine1_index = _find_bone_suffix("spine1")
+    _head_index = _find_bone_suffix("head")
+    _left_foot_index = _find_bone_suffix("leftfoot")
+    _right_foot_index = _find_bone_suffix("rightfoot")
+    if _hips_index < 0 or _left_foot_index < 0 or _right_foot_index < 0:
+        push_error("TRIPO_TEST_FAIL: required Hips/Foot bones missing")
+        return
+    _neutral_hips_origin = _skeleton.get_bone_pose(_hips_index).origin
+    _neutral_model_position = _model.position
+    _align_neutral_feet_to_floor()
     _set_motion("IDLE")
     _update_status()
+
+func _capture_transition_pose() -> void:
+    _transition_from.clear()
+    if _skeleton == null:
+        return
+    for i in range(_skeleton.get_bone_count()):
+        _transition_from.append(_skeleton.get_bone_pose(i))
+    _transition_elapsed = 0.0
+    _transitioning = _transition_from.size() == _neutral_pose.size()
 
 func _set_motion(mode: String) -> void:
     _motion = mode
     if _animation == null:
         return
+    _capture_transition_pose()
+    _paused = false
     if mode == "IDLE":
-        _animation.stop()
-        if _skeleton != null and _neutral_pose.size() == _skeleton.get_bone_count():
-            for i in range(_neutral_pose.size()):
-                _skeleton.set_bone_pose(i, _neutral_pose[i])
+        _animation.stop(true)
+        _idle_time = 0.0
     else:
         var clip_name := _clip_for(mode)
-        if not clip_name.is_empty():
-            var clip := _animation.get_animation(clip_name)
-            if clip != null:
-                clip.loop_mode = Animation.LOOP_LINEAR
-            _animation.play(clip_name, 0.16)
-        else:
+        if clip_name.is_empty():
             push_error("TRIPO_TEST_FAIL: missing motion clip: " + mode)
+            return
+        var clip := _animation.get_animation(clip_name)
+        if clip != null:
+            clip.loop_mode = Animation.LOOP_LINEAR
+        var speed := 0.92 if mode == "WALK" else 1.06
+        _animation.play(clip_name, 0.0, speed)
     _update_status()
 
 func _on_control(key: String) -> void:
@@ -197,10 +234,14 @@ func _on_control(key: String) -> void:
             _set_motion(key)
         "PAUSE":
             if _animation != null:
-                if _animation.is_playing():
-                    _animation.pause()
+                if _paused:
+                    _paused = false
+                    if _motion in ["WALK", "RUN"]:
+                        _animation.play()
                 else:
-                    _set_motion("RUN" if _motion == "RUN" else "WALK")
+                    _paused = true
+                    if _animation.is_playing():
+                        _animation.pause()
         "VIEW":
             _front = not _front
         "ZOOM +":
@@ -213,9 +254,89 @@ func _update_status() -> void:
     if _status == null:
         return
     var joints := _skeleton.get_bone_count() if _skeleton != null else 0
-    _status.text = "AETHERFALL  |  TRIPO 3D CHARACTER TEST\n%s  •  %d/65 Mixamo joints  •  Native Walk + Run • Root locked" % [_motion, joints]
+    var state := "PAUSED" if _paused else _motion
+    _status.text = "AETHERFALL  |  CHARACTER PASS 2\n%s  •  %d/65 joints  •  smooth blend • living idle • grounded feet" % [state, joints]
+
+func _reset_idle_target() -> void:
+    if _skeleton == null or _neutral_pose.size() != _skeleton.get_bone_count():
+        return
+    for i in range(_neutral_pose.size()):
+        _skeleton.set_bone_pose(i, _neutral_pose[i])
+
+func _apply_local_rotation(index: int, axis: Vector3, degrees: float) -> void:
+    if index < 0 or index >= _neutral_pose.size():
+        return
+    var pose := _skeleton.get_bone_pose(index)
+    var delta_basis := Basis(Quaternion(axis.normalized(), deg_to_rad(degrees)))
+    _skeleton.set_bone_pose(index, pose * Transform3D(delta_basis, Vector3.ZERO))
+
+func _apply_idle_offsets(delta: float) -> void:
+    _idle_time += delta
+    var breath := sin(_idle_time * TAU / 4.4)
+    var sway := sin(_idle_time * TAU / 6.8 + 0.7)
+    if _hips_index >= 0:
+        var hips := _skeleton.get_bone_pose(_hips_index)
+        hips.origin.y += breath * 0.0018
+        _skeleton.set_bone_pose(_hips_index, hips)
+    _apply_local_rotation(_spine_index, Vector3.RIGHT, breath * 0.55 + sway * 0.18)
+    _apply_local_rotation(_spine1_index, Vector3.RIGHT, breath * 0.75)
+    _apply_local_rotation(_spine1_index, Vector3.FORWARD, sway * 0.32)
+    _apply_local_rotation(_head_index, Vector3.UP, sway * 0.45)
+
+func _apply_transition(delta: float) -> void:
+    if not _transitioning or _skeleton == null:
+        return
+    _transition_elapsed += delta
+    var t := clampf(_transition_elapsed / 0.24, 0.0, 1.0)
+    var smooth_t := t * t * (3.0 - 2.0 * t)
+    for i in range(_transition_from.size()):
+        var target := _skeleton.get_bone_pose(i)
+        _skeleton.set_bone_pose(i, _transition_from[i].interpolate_with(target, smooth_t))
+    if t >= 1.0:
+        _transitioning = false
+        _transition_from.clear()
+
+func _lock_root_motion() -> void:
+    if _skeleton == null or _hips_index < 0:
+        return
+    var hips := _skeleton.get_bone_pose(_hips_index)
+    hips.origin.x = _neutral_hips_origin.x
+    hips.origin.z = _neutral_hips_origin.z
+    _skeleton.set_bone_pose(_hips_index, hips)
+    if _model != null:
+        var pos := _model.position
+        pos.x = _neutral_model_position.x
+        pos.z = _neutral_model_position.z
+        _model.position = pos
+    _actor.position.x = 0.0
+    _actor.position.z = 0.0
+
+func _foot_floor_y() -> float:
+    if _skeleton == null or _left_foot_index < 0 or _right_foot_index < 0:
+        return 0.0
+    var ly := _skeleton.to_global(_skeleton.get_bone_global_pose(_left_foot_index).origin).y
+    var ry := _skeleton.to_global(_skeleton.get_bone_global_pose(_right_foot_index).origin).y
+    return minf(ly, ry)
+
+func _align_neutral_feet_to_floor() -> void:
+    _actor.position.y -= _foot_floor_y()
+    _base_actor_y = _actor.position.y
+
+func _correct_foot_ground(delta: float) -> void:
+    if _paused:
+        return
+    var desired := _actor.position.y - _foot_floor_y()
+    desired = clampf(desired, _base_actor_y - 0.055, _base_actor_y + 0.085)
+    _actor.position.y = lerpf(_actor.position.y, desired, clampf(delta * 10.0, 0.0, 1.0))
 
 func _process(delta: float) -> void:
+    if not _paused and _skeleton != null:
+        if _motion == "IDLE":
+            _reset_idle_target()
+            _apply_idle_offsets(delta)
+        _apply_transition(delta)
+        _lock_root_motion()
+        _correct_foot_ground(delta)
     _update_camera(delta)
     var fps := Engine.get_frames_per_second()
     if fps != _last_status and _status != null and fps >= 1:
@@ -227,8 +348,9 @@ func _update_camera(delta: float) -> void:
     if _actor == null or _camera == null:
         return
     var angle := _yaw + (PI if _front else 0.0)
-    var target := _actor.global_position + Vector3(0.0, 0.88, 0.0)
-    var goal := target + Vector3(sin(angle) * _zoom, 0.35 + _pitch * 1.7, -cos(angle) * _zoom)
+    var radius := _zoom + (0.10 if _motion == "RUN" else 0.0)
+    var target := _actor.global_position + Vector3(0.0, 0.90, 0.0)
+    var goal := target + Vector3(sin(angle) * radius, 0.32 + _pitch * 1.65, -cos(angle) * radius)
     _camera.global_position = goal if delta >= 1.0 else _camera.global_position.lerp(goal, clampf(delta * 8.0, 0.0, 1.0))
     _camera.look_at(target, Vector3.UP)
 

@@ -66,10 +66,28 @@ func _check() -> void:
             push_error("TRIPO_GODOT_TEST_FAIL: missing " + target + " animation")
             quit(1)
             return
-    for mode in ["WALK", "RUN", "IDLE"]:
-        scene.call("_on_control", mode)
-        for frame in range(3):
-            await process_frame
+    scene.call("_on_control", "WALK")
+    for frame in range(4):
+        await process_frame
+    if scene.get("_motion") != "WALK":
+        push_error("TRIPO_GODOT_TEST_FAIL: walk state did not engage")
+        quit(1)
+        return
+    scene.call("_on_control", "RUN")
+    for frame in range(4):
+        await process_frame
+    var actor := scene.get_node("TripoActor") as Node3D
+    if absf(actor.position.x) > 0.001 or absf(actor.position.z) > 0.001:
+        push_error("TRIPO_GODOT_TEST_FAIL: root motion escaped actor origin")
+        quit(1)
+        return
+    scene.call("_on_control", "IDLE")
+    scene.call("_reset_idle_target")
+    scene.call("_apply_idle_offsets", 1.1)
+    if float(scene.get("_idle_time")) < 1.0:
+        push_error("TRIPO_GODOT_TEST_FAIL: living idle did not advance")
+        quit(1)
+        return
     var start_zoom: float = scene.get("_zoom")
     scene.call("_on_control", "ZOOM +")
     if not float(scene.get("_zoom")) < start_zoom:
@@ -81,6 +99,6 @@ func _check() -> void:
         push_error("TRIPO_GODOT_TEST_FAIL: zoom restore failed")
         quit(1)
         return
-    print("AETHERFALL_TRIPO_IMPORT_OK %d joints, native walk/run clips, root lock, front camera, controls" % rig.get_bone_count())
+    print("AETHERFALL_TRIPO_PASS2_OK %d joints, blends, living idle, root lock, foot grounding, tuned speeds" % rig.get_bone_count())
     scene.queue_free()
     quit(0)
