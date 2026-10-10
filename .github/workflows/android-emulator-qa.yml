@@ -9,7 +9,8 @@ on:
       - "tools/verify_emulator_frames.py"
       - "tools/generate_avatar.py"
       - "tools/generate_avatar_v032.py"
-      - "scripts/avatar_v03.gd"\n      - "tests/test_gait_v032.py"
+      - "scripts/avatar_v03.gd"
+      - "tests/test_gait_v032.py"
 
 permissions:
   contents: read
@@ -51,7 +52,8 @@ jobs:
       - name: Build x86_64 Compatibility renderer APK for emulator
         run: |
           set -euxo pipefail
-          python3 tools/generate_avatar_v032.py\n          python3 tests/test_gait_v032.py
+          python3 tools/generate_avatar_v032.py
+          python3 tests/test_gait_v032.py
           python3 - <<'PY'
           from pathlib import Path
           path=Path('export_presets.cfg')
