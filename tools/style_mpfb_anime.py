@@ -242,6 +242,24 @@ def build_character(human,rig):
                 p=k*12+j;q=k*12+(j+1)%12
                 faces.append((p,q,q+12,p+12))
         mesh("Outfit_Adventurer_%sBracer"%sname,verts,faces,dark)
+        # Proper full-length cloth trousers so the MPFB human skin does not
+        # remain exposed between surcoat tails and boots.
+        trousers=[]; trouser_faces=[]
+        sections=[(.375,.071,.073,side*.137,-.005),
+                  (.46,.082,.079,side*.146,-.002),
+                  (.61,.087,.087,side*.157,-.008),
+                  (.745,.099,.098,side*.151,-.008),
+                  (.865,.104,.103,side*.134,-.011)]
+        for z,rx,ry,cx,cy in sections:
+            for j in range(18):
+                a=TAU*j/18
+                trousers.append((cx+rx*math.cos(a),cy+ry*math.sin(a),z))
+        for k in range(len(sections)-1):
+            for j in range(18):
+                p=k*18+j;q=k*18+(j+1)%18
+                trouser_faces.append((p,q,q+18,p+18))
+        mesh("Outfit_Adventurer_%sTrousers"%sname,
+             trousers,trouser_faces,shirt)
         # Boots around human shins; keep forward sole shorter than knees.
         verts=[];faces=[]
         for z,rx,ry in ((.045,.086,.126),(.16,.071,.087),
