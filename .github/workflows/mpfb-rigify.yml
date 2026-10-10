@@ -1,0 +1,52 @@
+name: MPFB + Rigify Character Foundation
+
+on:
+  push:
+    paths:
+      - ".github/workflows/mpfb-rigify.yml"
+      - "tools/check_mpfb_rigify.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  addon-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Blender 4.5 LTS
+        uses: actions/cache@v4
+        with:
+          path: /tmp/aetherfall-blender-4.5
+          key: blender-4.5.13-linux-x64
+      - name: Install compatible Blender 4.5 LTS
+        run: |
+          set -euo pipefail
+          if [[ ! -x /tmp/aetherfall-blender-4.5/blender ]]; then
+            curl -fL --retry 3 --connect-timeout 30 \
+              https://download.blender.org/release/Blender4.5/blender-4.5.13-linux-x64.tar.xz \
+              -o /tmp/aetherfall-blender-4.5.tar.xz
+            mkdir -p /tmp/aetherfall-blender-4.5
+            tar -xJf /tmp/aetherfall-blender-4.5.tar.xz -C /tmp/aetherfall-blender-4.5 --strip-components=1
+          fi
+          /tmp/aetherfall-blender-4.5/blender -b --factory-startup --python-expr 'import bpy; assert bpy.app.version >= (4, 2, 0); print(bpy.app.version_string)'
+      - name: Install MPFB and Rigify from official Blender extension catalog
+        env:
+          BLENDER_USER_CONFIG: ${{ runner.temp }}/blender-settings
+          BLENDER_USER_EXTENSIONS: ${{ runner.temp }}/blender-extensions
+        run: |
+          set -euo pipefail
+          BLENDER=/tmp/aetherfall-blender-4.5/blender
+          "$BLENDER" --command extension repo-add blender_org --url https://extensions.blender.org/api/v1/extensions/
+          "$BLENDER" --command extension sync
+          "$BLENDER" --command extension install -e bl_ext.blender_org.mpfb,bl_ext.blender_org.rigify
+          "$BLENDER" --command extension list
+          "$BLENDER" -b --python tools/check_mpfb_rigify.py
+      - name: Upload installation verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-MPFB-Rigify-Verification
+          path: builds/aetherfall_addons_verified.json
+          if-no-files-found: error
