@@ -34,11 +34,19 @@ def build_character(human,rig):
 
     # Blender KD tree ties new geometry to *real MPFB skinned vertices*;
     # deform weights remain valid when Rigify control bones are stripped.
-    kd=kdtree.KDTree(len(human.data.vertices))
-    for v in human.data.vertices:
-        kd.insert(v.co,v.index)
-    kd.balance()
     valid={b.name for b in rig.data.bones if b.use_deform}
+    # Body includes mask/helper verts with no deform weights (notably around
+    # the feet). Index ONLY properly rigged source vertices, so nearby
+    # unweighted helpers cannot strip the accessory's skinning.
+    weighted_indices=[]
+    for v in human.data.vertices:
+        if any(g.weight>0 and human.vertex_groups[g.group].name in valid for g in v.groups):
+            weighted_indices.append(v.index)
+    assert len(weighted_indices)>1000, "Rigify weight transfer has too few source vertices"
+    kd=kdtree.KDTree(len(weighted_indices))
+    for idx in weighted_indices:
+        kd.insert(human.data.vertices[idx].co,idx)
+    kd.balance()
     def bind(obj,weight_anchor=None):
         obj.parent=None
         for mod in tuple(obj.modifiers):
