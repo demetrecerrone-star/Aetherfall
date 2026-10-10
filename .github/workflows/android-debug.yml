@@ -80,8 +80,8 @@ jobs:
 
       - name: Generate original skinned anime glTF character
         run: |
-          python3 tools/generate_avatar_v031.py
-          test -s assets/characters/aetherfall_adventurer.gltf
+          python3 tools/generate_avatar_v032.py
+          test -s assets/characters/aetherfall_adventurer.gltf\n          python3 tests/test_gait_v032.py
           ls -lh assets/characters/aetherfall_adventurer.gltf
 
       - name: Godot import all generated 3D assets
@@ -107,8 +107,8 @@ jobs:
       - name: Export signed Android debug APK
         run: |
           mkdir -p builds
-          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.1-debug.apk"
-          test -s builds/Aetherfall-v0.3.1-debug.apk
+          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.2-debug.apk"
+          test -s builds/Aetherfall-v0.3.2-debug.apk
 
       - name: Verify release APK carries the configured signing certificate
         env:
@@ -116,7 +116,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          APK="builds/Aetherfall-v0.3.1-debug.apk"
+          APK="builds/Aetherfall-v0.3.2-debug.apk"
           "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
           ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
           EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
@@ -125,12 +125,12 @@ jobs:
             exit 1
           fi
           echo "Signing certificate SHA-256: $ACTUAL"
-          echo "### Aetherfall v0.3.1 APK uses the configured persistent signing identity." >> "$GITHUB_STEP_SUMMARY"
+          echo "### Aetherfall v0.3.2 APK uses the configured persistent signing identity." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish source model glTF for inspection
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3.1-Source-Rigged-Model
+          name: Aetherfall-v0.3.2-Source-Rigged-Model
           path: assets/characters/aetherfall_adventurer.gltf
           if-no-files-found: error
           retention-days: 30
@@ -138,7 +138,7 @@ jobs:
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3.1-Android-Debug
-          path: builds/Aetherfall-v0.3.1-debug.apk
+          name: Aetherfall-v0.3.2-Android-Debug
+          path: builds/Aetherfall-v0.3.2-debug.apk
           if-no-files-found: error
           retention-days: 30
