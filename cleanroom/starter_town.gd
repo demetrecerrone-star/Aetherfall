@@ -422,25 +422,75 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
     var tree := Node3D.new()
     tree.position = position
     add_child(tree)
-    var trunk := Color("#513626")
-    var leaf_dark := Color("#315e3d")
-    var leaf_mid := Color("#477c4d")
-    var leaf_light := Color("#63985b")
-    _tapered_cylinder(tree, "Trunk", 0.27 * scale_factor, 0.17 * scale_factor, 2.45 * scale_factor, Vector3(0, 1.22 * scale_factor, 0), trunk)
-    _sphere(tree, "LeafA", 0.76 * scale_factor, Vector3(-0.28, 2.65, 0.05) * scale_factor, leaf_dark)
-    _sphere(tree, "LeafB", 0.82 * scale_factor, Vector3(0.32, 2.75, 0.05) * scale_factor, leaf_mid)
-    _sphere(tree, "LeafC", 0.70 * scale_factor, Vector3(0.00, 3.34, -0.08) * scale_factor, leaf_light)
-    _sphere(tree, "LeafD", 0.57 * scale_factor, Vector3(-0.42, 3.25, 0.18) * scale_factor, leaf_mid)
-    _sphere(tree, "LeafE", 0.55 * scale_factor, Vector3(0.48, 3.25, 0.12) * scale_factor, leaf_dark)
-    _add_circle_blocker(Vector2(position.x, position.z), 0.32 * scale_factor, PLAYER_WORLD_RADIUS + 0.10)
+    var trunk := Color("#4a3326")
+    var bark_dark := Color("#35271f")
+    var leaf_dark := Color("#2f5538")
+    var leaf_mid := Color("#477249")
+    var leaf_light := Color("#668d56")
 
-func _add_shrub(position: Vector3, scale_factor: float = 1.0) -> void:
+    # Soft dirt ring makes the tree feel planted instead of dropped onto grass.
+    _cylinder(tree, "TreeDirt", 0.78 * scale_factor, 0.022, Vector3(0, 0.012, 0), Color("#5b4937"), 1.0)
+    _tapered_cylinder(tree, "Trunk", 0.30 * scale_factor, 0.16 * scale_factor, 2.55 * scale_factor, Vector3(0, 1.28 * scale_factor, 0), trunk)
+
+    # Simple angled branches improve the silhouette without a heavy mesh.
+    _box(tree, "BranchL", Vector3(0.12, 0.95, 0.12) * scale_factor, Vector3(-0.22, 2.15, 0) * scale_factor, bark_dark, Vector3(0, 0, -36))
+    _box(tree, "BranchR", Vector3(0.11, 0.88, 0.11) * scale_factor, Vector3(0.25, 2.10, 0.05) * scale_factor, bark_dark, Vector3(0, 0, 39))
+    _box(tree, "BranchBack", Vector3(0.10, 0.76, 0.10) * scale_factor, Vector3(0.02, 2.20, -0.18) * scale_factor, bark_dark, Vector3(34, 0, 0))
+
+    # Layered crown: asymmetric clusters keep trees from reading as green balls.
+    _sphere(tree, "LeafA", 0.70 * scale_factor, Vector3(-0.48, 2.68, 0.08) * scale_factor, leaf_dark)
+    _sphere(tree, "LeafB", 0.78 * scale_factor, Vector3(0.38, 2.74, 0.10) * scale_factor, leaf_mid)
+    _sphere(tree, "LeafC", 0.67 * scale_factor, Vector3(0.02, 3.34, -0.12) * scale_factor, leaf_light)
+    _sphere(tree, "LeafD", 0.52 * scale_factor, Vector3(-0.58, 3.18, 0.24) * scale_factor, leaf_mid)
+    _sphere(tree, "LeafE", 0.52 * scale_factor, Vector3(0.58, 3.16, 0.18) * scale_factor, leaf_dark)
+    _sphere(tree, "LeafF", 0.44 * scale_factor, Vector3(0.02, 2.92, -0.52) * scale_factor, leaf_mid)
+    _add_circle_blocker(Vector2(position.x, position.z), 0.34 * scale_factor, PLAYER_WORLD_RADIUS + 0.10)
+
+func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
     var shrub := Node3D.new()
     shrub.position = position
     add_child(shrub)
-    _sphere(shrub, "ShrubA", 0.38 * scale_factor, Vector3(-0.18, 0.34, 0), Color("#3f7245"))
-    _sphere(shrub, "ShrubB", 0.43 * scale_factor, Vector3(0.18, 0.40, 0.05), Color("#588d51"))
-    _sphere(shrub, "ShrubC", 0.28 * scale_factor, Vector3(0.02, 0.68, -0.05), Color("#6a9f59"))
+    var dark := Color("#365f3d")
+    var mid := Color("#4f7d49")
+    var light := Color("#6c9458")
+    if variant % 2 == 0:
+        _sphere(shrub, "ShrubA", 0.34 * scale_factor, Vector3(-0.24, 0.30, 0.04), dark)
+        _sphere(shrub, "ShrubB", 0.40 * scale_factor, Vector3(0.18, 0.38, -0.02), mid)
+        _sphere(shrub, "ShrubC", 0.26 * scale_factor, Vector3(0.02, 0.62, 0.03), light)
+    else:
+        _sphere(shrub, "ShrubA", 0.30 * scale_factor, Vector3(-0.30, 0.28, 0.06), mid)
+        _sphere(shrub, "ShrubB", 0.34 * scale_factor, Vector3(0.00, 0.34, -0.08), dark)
+        _sphere(shrub, "ShrubC", 0.31 * scale_factor, Vector3(0.31, 0.31, 0.05), light)
+        _sphere(shrub, "ShrubD", 0.22 * scale_factor, Vector3(0.12, 0.58, 0.00), mid)
+
+func _add_grass_clump(position: Vector3, scale_factor: float = 1.0) -> void:
+    var clump := Node3D.new()
+    clump.position = position
+    add_child(clump)
+    var green_a := Color("#496841")
+    var green_b := Color("#5c7848")
+    _box(clump, "BladeA", Vector3(0.035, 0.42, 0.05) * scale_factor, Vector3(-0.12, 0.20, 0), green_a, Vector3(0, 0, -13))
+    _box(clump, "BladeB", Vector3(0.035, 0.48, 0.05) * scale_factor, Vector3(0.00, 0.23, 0), green_b, Vector3(0, 0, 7))
+    _box(clump, "BladeC", Vector3(0.035, 0.38, 0.05) * scale_factor, Vector3(0.12, 0.18, 0), green_a, Vector3(0, 0, 16))
+
+func _add_flower_patch(position: Vector3, flower_color: Color) -> void:
+    var patch := Node3D.new()
+    patch.position = position
+    add_child(patch)
+    var stem := Color("#47683f")
+    for i in range(4):
+        var x: float = -0.30 + float(i) * 0.20
+        var z: float = 0.10 if i % 2 == 0 else -0.10
+        var h: float = 0.26 + 0.04 * float(i % 2)
+        _box(patch, "FlowerStem", Vector3(0.025, h, 0.025), Vector3(x, h * 0.5, z), stem)
+        _sphere(patch, "FlowerHead", 0.07, Vector3(x, h + 0.03, z), flower_color)
+
+func _add_rock(position: Vector3, scale_factor: float = 1.0) -> void:
+    var rock := Node3D.new()
+    rock.position = position
+    add_child(rock)
+    _sphere(rock, "Rock", 0.26 * scale_factor, Vector3(0, 0.18 * scale_factor, 0), Color("#686861"), 1.0)
+    rock.scale = Vector3(1.25, 0.70, 0.95)
 
 func _add_market_stall(position: Vector3, awning: Color) -> void:
     var stall := Node3D.new()
@@ -540,8 +590,8 @@ func _market_grid(center: Vector3, size: Vector2) -> void:
 
 func _stone_tone(index: int) -> Color:
     var tones := [
-        Color("#77736a"), Color("#817d73"), Color("#6f6c64"),
-        Color("#898479"), Color("#747168")
+        Color("#66635c"), Color("#706c64"), Color("#5f5d57"),
+        Color("#767168"), Color("#64615b")
     ]
     return tones[index % tones.size()]
 
@@ -713,11 +763,37 @@ func _build_stage() -> void:
         Vector3(-24,0,21), Vector3(24,0,21)
     ]:
         _add_tree(tree_pos, 0.82)
+    var shrub_index := 0
     for shrub_pos in [
         Vector3(-15,0,-11), Vector3(-6,0,-11), Vector3(6,0,-11), Vector3(15,0,-11),
         Vector3(-15,0,11), Vector3(-7,0,11), Vector3(7,0,11), Vector3(15,0,11)
     ]:
-        _add_shrub(shrub_pos, 0.9)
+        _add_shrub(shrub_pos, 0.9, shrub_index)
+        shrub_index += 1
+
+    # Lightweight landscaping around foundations and perimeter green space.
+    for grass_pos in [
+        Vector3(-18.0,0,-10.8), Vector3(-16.8,0,-12.2), Vector3(-7.5,0,-12.0),
+        Vector3(8.2,0,-11.8), Vector3(17.2,0,-10.7), Vector3(18.4,0,-12.1),
+        Vector3(-18.4,0,11.7), Vector3(-8.2,0,12.1), Vector3(8.6,0,12.0),
+        Vector3(17.9,0,11.5), Vector3(-23.2,0,-11.5), Vector3(23.0,0,-10.8),
+        Vector3(-23.0,0,12.0), Vector3(23.1,0,12.4)
+    ]:
+        _add_grass_clump(grass_pos, 1.0)
+
+    _add_flower_patch(Vector3(-14.3,0,-10.9), Color("#d9879b"))
+    _add_flower_patch(Vector3(-7.0,0,-11.1), Color("#d9b05f"))
+    _add_flower_patch(Vector3(7.3,0,-11.0), Color("#8ea9d8"))
+    _add_flower_patch(Vector3(14.2,0,-10.8), Color("#d9879b"))
+    _add_flower_patch(Vector3(-14.0,0,11.0), Color("#9f86cf"))
+    _add_flower_patch(Vector3(13.8,0,11.1), Color("#d9b05f"))
+
+    for rock_pos in [
+        Vector3(-24.0,0,-14.0), Vector3(24.1,0,-14.3),
+        Vector3(-24.2,0,15.0), Vector3(24.0,0,15.2),
+        Vector3(-18.5,0,-22.2), Vector3(18.7,0,-22.0)
+    ]:
+        _add_rock(rock_pos, 0.85)
 
     # Rest zones stay on the square perimeter and never occupy vendor work space.
     _add_bench(Vector3(-3.9,0,-8.9), 0)
@@ -831,7 +907,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2G  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2H  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1013,7 +1089,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Building Detail Polish • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Foliage & Landscaping • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
