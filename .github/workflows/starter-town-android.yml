@@ -8,6 +8,7 @@ on:
       - "cleanroom/starter_town.gd"
       - "cleanroom/export_presets.cfg"
       - ".github/workflows/starter-town-android.yml"
+      - "cleanroom/tests/verify_pack_model.gd"
   workflow_dispatch:
 
 permissions:
@@ -45,6 +46,18 @@ jobs:
               raise SystemExit(f"Unexpected character mesh vertex count: {vertices}")
           print(f"Validated: {path.stat().st_size:,} bytes; skins={joint_counts}; animations={sorted(animations)}")
           PY
+
+      - name: Prepare export-safe raw character bytes
+        run: |
+          set -euo pipefail
+          SOURCE="cleanroom/models/anime+adventurer+3d+model (1).glb"
+          RAW="cleanroom/models/adventurer_runtime.bin"
+          cp "$SOURCE" "$RAW"
+          cmp "$SOURCE" "$RAW"
+          test "$(stat -c%s "$RAW")" -gt 3000000
+          echo "Runtime raw binary ready: $(stat -c%s "$RAW") bytes"
+          grep -F 'include_filter="models/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
+          grep -F 'const MODEL_PATH := "res://models/adventurer_runtime.bin"' cleanroom/starter_town.gd
 
       - name: Fetch optional licensed Poly Haven sky
         run: |
@@ -109,7 +122,7 @@ jobs:
           text = path.read_text()
           version = 100000000 + int(os.environ["GITHUB_RUN_NUMBER"])
           text = re.sub(r"version/code=\d+", f"version/code={version}", text, count=1)
-          text = re.sub(r'version/name="[^"]+"', f'version/name="0.2P-test.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
+          text = re.sub(r'version/name="[^"]+"', f'version/name="0.2Q-test.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
           path.write_text(text)
           print("Android version code:", version)
           PY
@@ -128,11 +141,22 @@ jobs:
             exit 1
           fi
 
+      - name: Verify model INSIDE exported Android resource pack
+        run: |
+          set -euo pipefail
+          mkdir -p cleanroom/builds "$RUNNER_TEMP/pack-audit"
+          godot --headless --path cleanroom --export-pack Android "$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-v0.2Q.pck"
+          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2Q.pck
+          printf 'config_version=5\n\n[application]\nconfig/name="Aetherfall Pack Audit"\n' > "$RUNNER_TEMP/pack-audit/project.godot"
+          cp cleanroom/tests/verify_pack_model.gd "$RUNNER_TEMP/pack-audit/verify_pack_model.gd"
+          export AETHERFALL_PACK_FILE="$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-v0.2Q.pck"
+          godot --headless --path "$RUNNER_TEMP/pack-audit" --script res://verify_pack_model.gd
+
       - name: Export signed Aetherfall Starter Town APK
         run: |
           mkdir -p cleanroom/builds
-          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-v0.2P.apk)
-          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2P.apk
+          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-v0.2Q.apk)
+          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2Q.apk
 
       - name: Verify APK signing certificate
         env:
@@ -140,7 +164,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          APK="cleanroom/builds/Aetherfall-StarterTown-v0.2P.apk"
+          APK="cleanroom/builds/Aetherfall-StarterTown-v0.2Q.apk"
           "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
           ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
           EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
@@ -150,7 +174,7 @@ jobs:
       - name: Upload phone test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-StarterTown-v0.2P-Android
-          path: cleanroom/builds/Aetherfall-StarterTown-v0.2P.apk
+          name: Aetherfall-StarterTown-v0.2Q-Android
+          path: cleanroom/builds/Aetherfall-StarterTown-v0.2Q.apk
           if-no-files-found: error
           retention-days: 30
