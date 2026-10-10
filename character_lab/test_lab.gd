@@ -51,6 +51,17 @@ func _check() -> void:
         push_error("CHARACTER_LAB_FAIL: default camera displays character's back")
         quit(1)
         return
+    var original_zoom: float = scene.get("_zoom")
+    scene.call("_on_button", "ZOOM +")
+    if float(scene.get("_zoom")) >= original_zoom:
+        push_error("CHARACTER_LAB_FAIL: Zoom + does not bring camera closer")
+        quit(1)
+        return
+    scene.call("_on_button", "ZOOM -")
+    if not is_equal_approx(float(scene.get("_zoom")), original_zoom):
+        push_error("CHARACTER_LAB_FAIL: Zoom - fails to restore framing")
+        quit(1)
+        return
     for style in range(4):
         scene.call("_select_style", style)
         await process_frame
@@ -67,6 +78,6 @@ func _check() -> void:
         await process_frame
         scene.call("_on_button", "IDLE")
         await process_frame
-    print("AETHERFALL_CHARACTER_LAB_OK: 4 styles, imported IDLE bind pose intact, front camera, walk/run/jump UI")
+    print("AETHERFALL_CHARACTER_LAB_OK: 4 styles, idle pose, front camera, zoom, walk/run/jump UI")
     scene.queue_free()
     quit(0)
