@@ -254,7 +254,7 @@ func _refresh_diagnostics() -> void:
 func _load_town_textures() -> void:
     _town_textures.clear()
     for kind in ["cobble", "grass", "dirt", "plaster", "wood", "roof", "stone"]:
-        var filename := "res://textures/" + kind + ".bin"
+        var filename: String = "res://textures/" + String(kind) + ".bin"
         if not FileAccess.file_exists(filename):
             push_warning("Town texture not available: " + filename)
             continue
@@ -308,7 +308,6 @@ func _town_mat(name: String, color: Color, roughness: float, size: Vector3) -> S
     elif kind == "wood" or kind == "roof":
         meters = 1.9
     mat.uv1_scale = Vector3(maxf(1.0, size.x / meters), maxf(1.0, maxf(size.y, size.z) / meters), 1.0)
-    mat.texture_repeat = BaseMaterial3D.TEXTURE_REPEAT_ENABLED
     mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     return mat
 
