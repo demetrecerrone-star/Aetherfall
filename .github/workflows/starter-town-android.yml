@@ -5,6 +5,9 @@ on:
     branches: [feature/cleanroom-starter-town]
     paths:
       - "cleanroom/models/*.glb"
+      - "cleanroom/starter_town.gd"
+      - "cleanroom/export_presets.cfg"
+      - ".github/workflows/starter-town-android.yml"
   workflow_dispatch:
 
 permissions:
@@ -23,9 +26,9 @@ jobs:
           python3 - <<'PY'
           import json, struct
           from pathlib import Path
-          path = Path("cleanroom/models/tripo_adventurer.glb")
+          path = Path("cleanroom/models/anime+adventurer+3d+model (1).glb")
           if not path.is_file():
-              raise SystemExit("Missing verified character: upload cleanroom/models/tripo_adventurer.glb")
+              raise SystemExit("Missing seven-clip character GLB in cleanroom/models")
           raw = path.read_bytes()
           if raw[:4] != b"glTF" or len(raw) < 20:
               raise SystemExit("Model is not a valid binary GLB")
@@ -33,8 +36,13 @@ jobs:
           gltf = json.loads(raw[20:20+json_len].decode("utf-8").rstrip(" \x00"))
           joint_counts = [len(skin.get("joints", [])) for skin in gltf.get("skins", [])]
           animations = {str(a.get("name", "")).lower() for a in gltf.get("animations", [])}
-          if 65 not in joint_counts or not {"walk", "run"} <= animations:
-              raise SystemExit(f"Expected 65-joint Mixamo rig with walk/run, got joints={joint_counts}, clips={animations}")
+          required = {"standing_relax", "idle", "look_around", "walk", "run", "jump", "sit"}
+          if 65 not in joint_counts or not required <= animations:
+              raise SystemExit(f"Expected 65-joint Mixamo rig with all seven clips, got joints={joint_counts}, clips={animations}")
+          mesh = gltf["meshes"][0]["primitives"][0]
+          vertices = gltf["accessors"][mesh["attributes"]["POSITION"]]["count"]
+          if vertices != 15562:
+              raise SystemExit(f"Unexpected character mesh vertex count: {vertices}")
           print(f"Validated: {path.stat().st_size:,} bytes; skins={joint_counts}; animations={sorted(animations)}")
           PY
 
@@ -101,7 +109,7 @@ jobs:
           text = path.read_text()
           version = 100000000 + int(os.environ["GITHUB_RUN_NUMBER"])
           text = re.sub(r"version/code=\d+", f"version/code={version}", text, count=1)
-          text = re.sub(r'version/name="[^"]+"', f'version/name="0.2O-test.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
+          text = re.sub(r'version/name="[^"]+"', f'version/name="0.2P-test.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
           path.write_text(text)
           print("Android version code:", version)
           PY
@@ -112,11 +120,19 @@ jobs:
           godot --headless --path cleanroom --check-only --script res://starter_town.gd
           godot --headless --editor --path cleanroom --quit
 
+      - name: Runtime smoke test imported animation playback
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --quit-after 45 2>&1 | tee /tmp/starter-town-runtime.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|TRIPO_RUNTIME_FAIL:|AETHERFALL_DIAGNOSTIC|ERROR:.*(Invalid|Cannot|Failed)' /tmp/starter-town-runtime.log; then
+            exit 1
+          fi
+
       - name: Export signed Aetherfall Starter Town APK
         run: |
           mkdir -p cleanroom/builds
-          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-v0.2O.apk)
-          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2O.apk
+          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-v0.2P.apk)
+          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2P.apk
 
       - name: Verify APK signing certificate
         env:
@@ -124,7 +140,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          APK="cleanroom/builds/Aetherfall-StarterTown-v0.2O.apk"
+          APK="cleanroom/builds/Aetherfall-StarterTown-v0.2P.apk"
           "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
           ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
           EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
@@ -134,7 +150,7 @@ jobs:
       - name: Upload phone test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-StarterTown-v0.2O-Android
-          path: cleanroom/builds/Aetherfall-StarterTown-v0.2O.apk
+          name: Aetherfall-StarterTown-v0.2P-Android
+          path: cleanroom/builds/Aetherfall-StarterTown-v0.2P.apk
           if-no-files-found: error
           retention-days: 30
