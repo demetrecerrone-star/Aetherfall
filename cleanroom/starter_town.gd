@@ -52,6 +52,8 @@ var _left_arm_index := -1
 var _right_arm_index := -1
 var _left_forearm_index := -1
 var _right_forearm_index := -1
+var _left_finger_bones: Array[int] = []
+var _right_finger_bones: Array[int] = []
 var _neutral_hips_origin := Vector3.ZERO
 var _neutral_model_position := Vector3.ZERO
 var _base_actor_y := 0.0
@@ -1054,7 +1056,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2L  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2M  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1141,6 +1143,8 @@ func _load_runtime_glb() -> void:
     _right_arm_index = _find_bone_suffix("rightarm")
     _left_forearm_index = _find_bone_suffix("leftforearm")
     _right_forearm_index = _find_bone_suffix("rightforearm")
+    _left_finger_bones = _collect_finger_bones("lefthand")
+    _right_finger_bones = _collect_finger_bones("righthand")
     if _hips_index < 0 or _left_foot_index < 0 or _right_foot_index < 0 or _left_toe_index < 0 or _right_toe_index < 0:
         _fail("Required Mixamo Hips/Foot/ToeBase bones could not be located.")
         return
@@ -1182,6 +1186,47 @@ func _find_bone_suffix(suffix: String) -> int:
         if String(_skeleton.get_bone_name(i)).to_lower().ends_with(needle):
             return i
     return -1
+
+func _collect_finger_bones(hand_prefix: String) -> Array[int]:
+    var result: Array[int] = []
+    if _skeleton == null:
+        return result
+    var prefix := hand_prefix.to_lower()
+    for i in range(_skeleton.get_bone_count()):
+        var name := String(_skeleton.get_bone_name(i)).to_lower()
+        if not name.contains(prefix):
+            continue
+        if name.contains("thumb") or name.contains("index") or name.contains("middle") or name.contains("ring") or name.contains("pinky"):
+            result.append(i)
+    return result
+
+func _apply_relaxed_fingers() -> void:
+    if _skeleton == null:
+        return
+    # Mixamo finger chains are nearly straight by default. A small mirrored
+    # local-Z curl removes the splayed mannequin look without making fists.
+    for i in range(_left_finger_bones.size()):
+        var bone_index := _left_finger_bones[i]
+        var name := String(_skeleton.get_bone_name(bone_index)).to_lower()
+        var amount := 10.0
+        if name.ends_with("2"):
+            amount = 17.0
+        elif name.ends_with("3"):
+            amount = 20.0
+        elif name.contains("thumb"):
+            amount *= 0.55
+        _apply_local_rotation(bone_index, Vector3.FORWARD, amount)
+    for i in range(_right_finger_bones.size()):
+        var bone_index := _right_finger_bones[i]
+        var name := String(_skeleton.get_bone_name(bone_index)).to_lower()
+        var amount := -10.0
+        if name.ends_with("2"):
+            amount = -17.0
+        elif name.ends_with("3"):
+            amount = -20.0
+        elif name.contains("thumb"):
+            amount *= 0.55
+        _apply_local_rotation(bone_index, Vector3.FORWARD, amount)
 
 func _clip_for(mode: String) -> String:
     if _animation == null:
@@ -1236,7 +1281,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Shadow Quality • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Pose & Grounding Fix • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
@@ -1379,24 +1424,50 @@ func _sole_floor_y() -> float:
                            _bone_world_y(_right_toe_index) - toe_offset)
     return minf(left_sole, right_sole)
 
+func _ground_surface_y(world_position: Vector3) -> float:
+    var x := world_position.x
+    var z := world_position.z
+
+    # Individual road stones sit above their darker road bed. Use the stone
+    # top surface wherever the player is inside a paved gameplay region.
+    var on_entry_road := absf(x) <= 3.10 and z >= -20.0 and z <= 24.0
+    var on_cross_road := absf(x) <= 21.0 and z >= -1.80 and z <= 3.80
+    var on_market_square := absf(x) <= 8.0 and z >= -11.0 and z <= 3.0
+    if on_entry_road or on_cross_road or on_market_square:
+        return 0.105
+
+    # Dirt shoulders are only slightly above the lawn.
+    var on_entry_shoulder := absf(absf(x) - 3.30) <= 0.24 and z >= -19.75 and z <= 23.75
+    var on_cross_shoulder := absf(x) <= 20.75 and (absf(z + 2.02) <= 0.22 or absf(z - 4.02) <= 0.22)
+    if on_entry_shoulder or on_cross_shoulder:
+        return 0.036
+
+    return 0.0
+
 func _align_neutral_feet_to_floor() -> void:
+    var surface_y := _ground_surface_y(_actor.global_position)
     var sole_y := _sole_floor_y()
-    _actor.position.y += SOLE_CLEARANCE_WORLD - sole_y
-    _base_actor_y = _actor.position.y
+    _actor.position.y += surface_y + SOLE_CLEARANCE_WORLD - sole_y
+    # Store the rig's calibrated actor offset relative to a zero-height lawn,
+    # then add the current surface height dynamically during movement.
+    _base_actor_y = _actor.position.y - surface_y
 
 func _correct_foot_ground(delta: float) -> void:
     if not _loaded or _paused:
         return
+    var surface_y := _ground_surface_y(_actor.global_position)
+    var target_sole_y := surface_y + SOLE_CLEARANCE_WORLD
+    var base_on_surface := _base_actor_y + surface_y
     var sole_y := _sole_floor_y()
     var desired_y := _actor.position.y
-    if sole_y < SOLE_CLEARANCE_WORLD:
-        # Only lift to solve penetration. Never pull an airborne stride down.
-        desired_y += SOLE_CLEARANCE_WORLD - sole_y
+    if sole_y < target_sole_y:
+        # Only lift enough to solve penetration into the current walk surface.
+        desired_y += target_sole_y - sole_y
     else:
-        # Ease back toward calibrated standing height after a correction.
-        desired_y = lerpf(desired_y, _base_actor_y, clampf(delta * 2.5, 0.0, 1.0))
-    desired_y = clampf(desired_y, _base_actor_y, _base_actor_y + 0.16)
-    _actor.position.y = lerpf(_actor.position.y, desired_y, clampf(delta * 14.0, 0.0, 1.0))
+        # Ease back toward the calibrated standing height for this surface.
+        desired_y = lerpf(desired_y, base_on_surface, clampf(delta * 3.4, 0.0, 1.0))
+    desired_y = clampf(desired_y, base_on_surface, base_on_surface + 0.16)
+    _actor.position.y = lerpf(_actor.position.y, desired_y, clampf(delta * 16.0, 0.0, 1.0))
 
 func _desired_input() -> Vector2:
     var keyboard := Vector2.ZERO
@@ -1522,6 +1593,7 @@ func _process(delta: float) -> void:
             _apply_idle_offsets(delta)
         _apply_transition(delta)
         _lock_root_motion()
+        _apply_relaxed_fingers()
         _correct_foot_ground(delta)
     _update_fountain(delta)
     _update_camera(delta)
