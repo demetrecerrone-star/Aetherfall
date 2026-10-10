@@ -66,7 +66,10 @@ func _apply_appearance() -> void:
 		else:
 			item.visible = true
 		if name_value.begins_with("Hair_"):
-			item.material_override = _tint(HAIR_COLORS[int(appearance["hair"])])
+			var hair_hex: String = HAIR_COLORS[int(appearance["hair"])]
+			if name_value.contains("Shine") or name_value.contains("Sweep"):
+				hair_hex = Color(hair_hex).lightened(0.19).to_html(false)
+			item.material_override = _tint(hair_hex)
 		elif name_value.begins_with("Skin_"):
 			item.material_override = _tint(SKIN_COLORS[int(appearance["skin"])])
 		elif name_value.begins_with("Eyes_LeftIris") or name_value.begins_with("Eyes_RightIris"):
