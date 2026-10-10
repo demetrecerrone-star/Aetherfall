@@ -2,12 +2,16 @@ extends Node3D
 ## Standalone QA for a user-authored Tripo GLB, never the release Aetherfall avatar.
 ## Uses embedded Mixamo walk/run animation rather than approximate procedural poses.
 const MODEL_PATH := "res://models/tripo_adventurer.glb"
+const FOOT_TO_SOLE_SOURCE_Y := 0.067
+const TOE_TO_SOLE_SOURCE_Y := 0.017
+const SOLE_CLEARANCE_WORLD := 0.010
 
 var _actor: Node3D
 var _model: Node3D
 var _skeleton: Skeleton3D
 var _animation: AnimationPlayer
 var _neutral_pose: Array[Transform3D] = []
+var _idle_pose: Array[Transform3D] = []
 var _transition_from: Array[Transform3D] = []
 var _transition_elapsed := 0.0
 var _transitioning := false
@@ -17,6 +21,12 @@ var _spine1_index := -1
 var _head_index := -1
 var _left_foot_index := -1
 var _right_foot_index := -1
+var _left_toe_index := -1
+var _right_toe_index := -1
+var _left_arm_index := -1
+var _right_arm_index := -1
+var _left_forearm_index := -1
+var _right_forearm_index := -1
 var _neutral_hips_origin := Vector3.ZERO
 var _neutral_model_position := Vector3.ZERO
 var _base_actor_y := 0.0
@@ -144,6 +154,15 @@ func _find_rig(node: Node) -> Skeleton3D:
             return s
     return null
 
+func _find_bone_suffix(suffix: String) -> int:
+    if _skeleton == null:
+        return -1
+    var needle := suffix.to_lower()
+    for i in range(_skeleton.get_bone_count()):
+        if String(_skeleton.get_bone_name(i)).to_lower().ends_with(needle):
+            return i
+    return -1
+
 func _find_animation_player(node: Node) -> AnimationPlayer:
     if node is AnimationPlayer:
         return node as AnimationPlayer
@@ -189,11 +208,18 @@ func _load_model() -> void:
     _head_index = _find_bone_suffix("head")
     _left_foot_index = _find_bone_suffix("leftfoot")
     _right_foot_index = _find_bone_suffix("rightfoot")
-    if _hips_index < 0 or _left_foot_index < 0 or _right_foot_index < 0:
-        push_error("TRIPO_TEST_FAIL: required Hips/Foot bones missing")
+    _left_toe_index = _find_bone_suffix("lefttoebase")
+    _right_toe_index = _find_bone_suffix("righttoebase")
+    _left_arm_index = _find_bone_suffix("leftarm")
+    _right_arm_index = _find_bone_suffix("rightarm")
+    _left_forearm_index = _find_bone_suffix("leftforearm")
+    _right_forearm_index = _find_bone_suffix("rightforearm")
+    if _hips_index < 0 or _left_foot_index < 0 or _right_foot_index < 0 or _left_toe_index < 0 or _right_toe_index < 0:
+        push_error("TRIPO_TEST_FAIL: required Hips/Foot/ToeBase bones missing")
         return
     _neutral_hips_origin = _skeleton.get_bone_pose(_hips_index).origin
     _neutral_model_position = _model.position
+    _build_relaxed_idle_pose()
     _align_neutral_feet_to_floor()
     _set_motion("IDLE")
     _update_status()
@@ -255,13 +281,26 @@ func _update_status() -> void:
         return
     var joints := _skeleton.get_bone_count() if _skeleton != null else 0
     var state := "PAUSED" if _paused else _motion
-    _status.text = "AETHERFALL  |  CHARACTER PASS 2\n%s  •  %d/65 joints  •  smooth blend • living idle • grounded feet" % [state, joints]
+    _status.text = "AETHERFALL  |  CHARACTER PASS 3\n%s  •  %d/65 joints  •  smooth blend • living idle • grounded feet" % [state, joints]
 
-func _reset_idle_target() -> void:
+func _build_relaxed_idle_pose() -> void:
+    _idle_pose.clear()
     if _skeleton == null or _neutral_pose.size() != _skeleton.get_bone_count():
         return
     for i in range(_neutral_pose.size()):
         _skeleton.set_bone_pose(i, _neutral_pose[i])
+    _apply_local_rotation(_left_arm_index, Vector3.RIGHT, -72.0)
+    _apply_local_rotation(_right_arm_index, Vector3.RIGHT, 72.0)
+    _apply_local_rotation(_left_forearm_index, Vector3.BACK, 12.0)
+    _apply_local_rotation(_right_forearm_index, Vector3.BACK, -12.0)
+    for i in range(_skeleton.get_bone_count()):
+        _idle_pose.append(_skeleton.get_bone_pose(i))
+
+func _reset_idle_target() -> void:
+    if _skeleton == null or _idle_pose.size() != _skeleton.get_bone_count():
+        return
+    for i in range(_idle_pose.size()):
+        _skeleton.set_bone_pose(i, _idle_pose[i])
 
 func _apply_local_rotation(index: int, axis: Vector3, degrees: float) -> void:
     if index < 0 or index >= _neutral_pose.size():
@@ -311,23 +350,39 @@ func _lock_root_motion() -> void:
     _actor.position.x = 0.0
     _actor.position.z = 0.0
 
-func _foot_floor_y() -> float:
-    if _skeleton == null or _left_foot_index < 0 or _right_foot_index < 0:
+func _bone_world_y(index: int) -> float:
+    if _skeleton == null or index < 0:
+        return 999.0
+    return _skeleton.to_global(_skeleton.get_bone_global_pose(index).origin).y
+
+func _sole_floor_y() -> float:
+    if _skeleton == null:
         return 0.0
-    var ly := _skeleton.to_global(_skeleton.get_bone_global_pose(_left_foot_index).origin).y
-    var ry := _skeleton.to_global(_skeleton.get_bone_global_pose(_right_foot_index).origin).y
-    return minf(ly, ry)
+    var scale_y := absf(_actor.scale.y)
+    var foot_offset := FOOT_TO_SOLE_SOURCE_Y * scale_y
+    var toe_offset := TOE_TO_SOLE_SOURCE_Y * scale_y
+    var left_sole := minf(_bone_world_y(_left_foot_index) - foot_offset,
+        _bone_world_y(_left_toe_index) - toe_offset)
+    var right_sole := minf(_bone_world_y(_right_foot_index) - foot_offset,
+        _bone_world_y(_right_toe_index) - toe_offset)
+    return minf(left_sole, right_sole)
 
 func _align_neutral_feet_to_floor() -> void:
-    _actor.position.y -= _foot_floor_y()
+    var sole_y := _sole_floor_y()
+    _actor.position.y += SOLE_CLEARANCE_WORLD - sole_y
     _base_actor_y = _actor.position.y
 
 func _correct_foot_ground(delta: float) -> void:
     if _paused:
         return
-    var desired := _actor.position.y - _foot_floor_y()
-    desired = clampf(desired, _base_actor_y - 0.055, _base_actor_y + 0.085)
-    _actor.position.y = lerpf(_actor.position.y, desired, clampf(delta * 10.0, 0.0, 1.0))
+    var sole_y := _sole_floor_y()
+    var desired := _actor.position.y
+    if sole_y < SOLE_CLEARANCE_WORLD:
+        desired += SOLE_CLEARANCE_WORLD - sole_y
+    else:
+        desired = lerpf(desired, _base_actor_y, clampf(delta * 2.5, 0.0, 1.0))
+    desired = clampf(desired, _base_actor_y, _base_actor_y + 0.16)
+    _actor.position.y = lerpf(_actor.position.y, desired, clampf(delta * 14.0, 0.0, 1.0))
 
 func _process(delta: float) -> void:
     if not _paused and _skeleton != null:

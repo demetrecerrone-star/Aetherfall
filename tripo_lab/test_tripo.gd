@@ -83,9 +83,19 @@ func _check() -> void:
         return
     scene.call("_on_control", "IDLE")
     scene.call("_reset_idle_target")
+    var idle_pose: Array = scene.get("_idle_pose")
+    if idle_pose.size() != 65:
+        push_error("TRIPO_GODOT_TEST_FAIL: relaxed idle pose was not built")
+        quit(1)
+        return
     scene.call("_apply_idle_offsets", 1.1)
     if float(scene.get("_idle_time")) < 1.0:
         push_error("TRIPO_GODOT_TEST_FAIL: living idle did not advance")
+        quit(1)
+        return
+    var sole_y: float = scene.call("_sole_floor_y")
+    if sole_y < -0.005:
+        push_error("TRIPO_GODOT_TEST_FAIL: estimated boot sole penetrates floor: " + str(sole_y))
         quit(1)
         return
     var start_zoom: float = scene.get("_zoom")
@@ -99,6 +109,6 @@ func _check() -> void:
         push_error("TRIPO_GODOT_TEST_FAIL: zoom restore failed")
         quit(1)
         return
-    print("AETHERFALL_TRIPO_PASS2_OK %d joints, blends, living idle, root lock, foot grounding, tuned speeds" % rig.get_bone_count())
+    print("AETHERFALL_TRIPO_PASS3_OK %d joints, blends, living idle, root lock, foot grounding, tuned speeds" % rig.get_bone_count())
     scene.queue_free()
     quit(0)
