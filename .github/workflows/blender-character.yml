@@ -49,9 +49,9 @@ jobs:
           assert old in source
           path.write_text(source.replace(old,"res://assets/characters/aetherfall_blender_test.glb"))
           PY
-          godot --headless --editor --path . --quit
-          godot --headless --path . --script res://tests/model_asset_test.gd
-          godot --headless --path . --script res://tests/studio_preview_test.gd
+          timeout 150s godot --headless --editor --path . --quit
+          timeout 90s godot --headless --path . --script res://tests/model_asset_test.gd
+          timeout 90s godot --headless --path . --script res://tests/studio_preview_test.gd
       - name: Upload Blender working file and GLB
         uses: actions/upload-artifact@v4
         with:
