@@ -8,6 +8,7 @@ on:
       - "tools/generate_mpfb_rigify_anime.py"
       - "tests/mpfb_prototype_model_test.gd"
       - "tools/style_mpfb_anime.py"
+      - "tools/export_mpfb_runtime.py"
       - "tools/render_mpfb_prototype.py"
   workflow_dispatch:
 
@@ -71,7 +72,8 @@ jobs:
           data=json.loads(Path("builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json").read_text())
           assert data["vertices"]>10000 and data["deform_bones"]>15, data
           assert data["outfit_parts"]>=10 and len(data["styles"])==4, data
-          assert all(35<=style["game_skin_joints"]<270 for style in data["styles"].values()),data
+          assert data["mobile_deform_bones"]==96, data
+          assert all(96<=style["game_skin_joints"]<=98 for style in data["styles"].values()),data
           print("MPFB_RIGIFY_MODEL_VALID",data)
           PY
       - name: Render actual Blender hairstyle previews for geometry review
