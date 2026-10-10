@@ -28,6 +28,7 @@ var _yaw := 0.0
 var _pitch := 0.12
 var _front_camera := true
 var _mouse_dragging := false
+var _zoom := 2.85
 
 func _ready() -> void:
     _build_world()
@@ -122,7 +123,7 @@ func _build_ui() -> void:
     var help := Label.new()
     help.position = Vector2(28, 99)
     help.size = Vector2(1120, 38)
-    help.text = "Swipe to orbit • View switches front/back • Motion is procedural QA, not final animation"
+    help.text = "Swipe to orbit • Zoom in for face and outfit detail • Motion is procedural QA"
     help.add_theme_font_size_override("font_size", 16)
     help.add_theme_color_override("font_color", Color("#b7c8e4"))
     ui.add_child(help)
@@ -137,12 +138,12 @@ func _build_ui() -> void:
     bottom.offset_top = -103.0
     bottom.offset_bottom = -17.0
     bottom.alignment = BoxContainer.ALIGNMENT_CENTER
-    bottom.add_theme_constant_override("separation", 14)
+    bottom.add_theme_constant_override("separation", 8)
     ui.add_child(bottom)
-    for name in ["IDLE", "WALK", "RUN", "JUMP", "HAIR", "VIEW"]:
+    for name in ["IDLE", "WALK", "RUN", "JUMP", "HAIR", "VIEW", "ZOOM +", "ZOOM -"]:
         var button := Button.new()
         button.text = name
-        button.custom_minimum_size = Vector2(170, 76)
+        button.custom_minimum_size = Vector2(139, 76)
         button.add_theme_font_size_override("font_size", 21)
         button.pressed.connect(_on_button.bind(name))
         bottom.add_child(button)
@@ -157,6 +158,10 @@ func _on_button(name: String) -> void:
             _select_style((_style_index + 1) % HAIR_NAMES.size())
         "VIEW":
             _front_camera = not _front_camera
+        "ZOOM +":
+            _zoom = maxf(1.25, _zoom - 0.45)
+        "ZOOM -":
+            _zoom = minf(5.5, _zoom + 0.45)
     _update_status()
 
 func _find_rig(node: Node) -> Skeleton3D:
@@ -275,7 +280,7 @@ func _process(delta: float) -> void:
 func _update_camera(delta: float) -> void:
     if _camera == null or _actor == null:
         return
-    var radius := 2.85
+    var radius := _zoom
     # Blender's MPFB facial mesh looks down +Z after glTF conversion.
     # The original viewer accidentally labeled the back as the front.
     var azimuth := _yaw + (PI if _front_camera else 0.0)
