@@ -447,7 +447,7 @@ func _add_wall_segment(position: Vector3, size: Vector3) -> void:
     _box(self, "WallCap", Vector3(size.x + 0.14, 0.20, size.z + 0.14), position + Vector3(0, size.y * 0.5 + 0.10, 0), Color("#8b877d"))
 
 func _road_base(name: String, center: Vector3, size: Vector2) -> void:
-    _box(self, name, Vector3(size.x, 0.055, size.y), center + Vector3(0, 0.028, 0), Color("#77746c"), Vector3.ZERO, 0.96)
+    _box(self, name, Vector3(size.x, 0.055, size.y), center + Vector3(0, 0.028, 0), Color("#5f5c55"), Vector3.ZERO, 0.96)
 
 func _road_seams_z(center: Vector3, width: float, length: float) -> void:
     # Cross seams plus two long irregular lanes. Low node count but reads as cobbled paving from the player camera.
@@ -478,6 +478,66 @@ func _market_grid(center: Vector3, size: Vector2) -> void:
         var z := center.z - size.y * 0.5 + float(iz) * 1.65
         _box(self, "SquareJointZ", Vector3(size.x - 0.15, 0.014, 0.045), Vector3(center.x, 0.071, z), Color("#555650"))
 
+
+func _stone_tone(index: int) -> Color:
+    var tones := [
+        Color("#77736a"), Color("#817d73"), Color("#6f6c64"),
+        Color("#898479"), Color("#747168")
+    ]
+    return tones[index % tones.size()]
+
+func _road_stones_z(center: Vector3, width: float, length: float) -> void:
+    var cols := 3
+    var rows := int(length / 2.0)
+    var stone_w := (width - 0.34) / float(cols)
+    var stone_l := length / float(rows)
+    for row in range(rows):
+        var z := center.z - length * 0.5 + (float(row) + 0.5) * stone_l
+        var stagger := stone_w * 0.22 if row % 2 == 1 else 0.0
+        for col in range(cols):
+            var x := center.x - width * 0.5 + (float(col) + 0.5) * stone_w + stagger
+            if x > center.x + width * 0.5 - stone_w * 0.35:
+                x -= width
+            var inset := 0.08 + 0.025 * float((row + col) % 3)
+            _box(self, "RoadStone", Vector3(stone_w - inset, 0.045, stone_l - 0.11), Vector3(x, 0.080, z), _stone_tone(row * cols + col), Vector3.ZERO, 0.98)
+
+func _road_stones_x(center: Vector3, width: float, length: float) -> void:
+    var rows := 3
+    var cols := int(width / 2.0)
+    var stone_w := width / float(cols)
+    var stone_l := (length - 0.34) / float(rows)
+    for col in range(cols):
+        var x := center.x - width * 0.5 + (float(col) + 0.5) * stone_w
+        var stagger := stone_l * 0.22 if col % 2 == 1 else 0.0
+        for row in range(rows):
+            var z := center.z - length * 0.5 + (float(row) + 0.5) * stone_l + stagger
+            if z > center.z + length * 0.5 - stone_l * 0.35:
+                z -= length
+            var inset := 0.08 + 0.025 * float((row + col) % 3)
+            _box(self, "RoadStone", Vector3(stone_w - 0.11, 0.045, stone_l - inset), Vector3(x, 0.080, z), _stone_tone(col * rows + row + 2), Vector3.ZERO, 0.98)
+
+func _market_stones(center: Vector3, size: Vector2) -> void:
+    var cols := 8
+    var rows := 7
+    var stone_w := size.x / float(cols)
+    var stone_l := size.y / float(rows)
+    for row in range(rows):
+        var stagger := stone_w * 0.22 if row % 2 == 1 else 0.0
+        for col in range(cols):
+            var x := center.x - size.x * 0.5 + (float(col) + 0.5) * stone_w + stagger
+            if x > center.x + size.x * 0.5 - stone_w * 0.35:
+                x -= size.x
+            var z := center.z - size.y * 0.5 + (float(row) + 0.5) * stone_l
+            var inset := 0.08 + 0.02 * float((row * 3 + col) % 4)
+            _box(self, "SquareStone", Vector3(stone_w - inset, 0.048, stone_l - 0.11), Vector3(x, 0.083, z), _stone_tone(row * cols + col + 1), Vector3.ZERO, 0.98)
+
+func _road_shoulders() -> void:
+    var dirt := Color("#695744")
+    _box(self, "EntryShoulderL", Vector3(0.44, 0.028, 43.5), Vector3(-3.30, 0.022, 2.0), dirt, Vector3.ZERO, 1.0)
+    _box(self, "EntryShoulderR", Vector3(0.44, 0.028, 43.5), Vector3(3.30, 0.022, 2.0), dirt, Vector3.ZERO, 1.0)
+    _box(self, "CrossShoulderN", Vector3(41.5, 0.028, 0.42), Vector3(0, 0.022, -2.02), dirt, Vector3.ZERO, 1.0)
+    _box(self, "CrossShoulderS", Vector3(41.5, 0.028, 0.42), Vector3(0, 0.022, 4.02), dirt, Vector3.ZERO, 1.0)
+
 func _build_stage() -> void:
     _world_blockers.clear()
     _circle_blockers.clear()
@@ -507,20 +567,21 @@ func _build_stage() -> void:
     add_child(fill)
 
     # Ground: deeper grass tone with subtle patch variation around the edges.
-    _box(self, "TownGround", Vector3(58.0, 0.16, 55.0), Vector3(0, -0.08, 0), Color("#617a4b"), Vector3.ZERO, 1.0)
+    _box(self, "TownGround", Vector3(58.0, 0.16, 55.0), Vector3(0, -0.08, 0), Color("#536b45"), Vector3.ZERO, 1.0)
     for patch in [
         Vector3(-22,0,-18), Vector3(20,0,-19), Vector3(-23,0,10), Vector3(22,0,12),
         Vector3(-15,0,21), Vector3(16,0,21), Vector3(-18,0,-3), Vector3(19,0,2)
     ]:
-        _cylinder(self, "GrassPatch", 2.4, 0.018, patch + Vector3(0,0.010,0), Color("#6e8952"))
+        _cylinder(self, "GrassPatch", 2.4, 0.018, patch + Vector3(0,0.010,0), Color("#5f7750"))
 
-    # Cobble roads and square with visible joint pattern instead of flat cream slabs.
+    # Layered road beds with staggered stone courses and dirt shoulders.
+    _road_shoulders()
     _road_base("EntryRoad", Vector3(0,0,2.0), Vector2(6.2,44.0))
-    _road_seams_z(Vector3(0,0,2.0), 6.2, 44.0)
+    _road_stones_z(Vector3(0,0,2.0), 6.2, 44.0)
     _road_base("CrossRoad", Vector3(0,0,1.0), Vector2(42.0,5.6))
-    _road_seams_x(Vector3(0,0,1.0), 42.0, 5.6)
+    _road_stones_x(Vector3(0,0,1.0), 42.0, 5.6)
     _road_base("MarketSquare", Vector3(0,0,-4.0), Vector2(16.0,14.0))
-    _market_grid(Vector3(0,0,-4.0), Vector2(16.0,14.0))
+    _market_stones(Vector3(0,0,-4.0), Vector2(16.0,14.0))
 
     # Perimeter walls with caps and simple buttresses. The hard software boundary remains authoritative.
     _add_wall_segment(Vector3(-27.6, 1.7, 0), Vector3(1.2, 3.4, 52.0))
@@ -711,7 +772,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2E  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2F  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -893,7 +954,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Prop Placement Cleanup • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Ground & Road Polish • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
