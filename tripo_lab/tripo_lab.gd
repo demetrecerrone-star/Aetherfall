@@ -5,6 +5,13 @@ const MODEL_PATH := "res://models/tripo_adventurer.glb"
 const FOOT_TO_SOLE_SOURCE_Y := 0.067
 const TOE_TO_SOLE_SOURCE_Y := 0.017
 const SOLE_CLEARANCE_WORLD := 0.010
+const WALK_WORLD_SPEED := 1.75
+const RUN_WORLD_SPEED := 4.15
+const MOVE_ACCEL := 7.5
+const MOVE_DECEL := 10.5
+const TURN_RATE := 9.0
+const STICK_DEADZONE := 0.10
+const STICK_RADIUS := 68.0
 
 var _actor: Node3D
 var _model: Node3D
@@ -41,6 +48,18 @@ var _pitch := 0.08
 var _front := false
 var _drag_mouse := false
 var _last_status := -1
+var _move_input := Vector2.ZERO
+var _move_touch := -1
+var _camera_touch := -1
+var _sprint_held := false
+var _move_speed := 0.0
+var _travel_direction := Vector3(0.0, 0.0, -1.0)
+var _camera_yaw := 0.0
+var _camera_pitch := 0.18
+var _camera_distance := 4.0
+var _joystick_base: Panel
+var _joystick_knob: Panel
+var _sprint_button: Button
 
 func _ready() -> void:
     # Apply corrections after imported animation evaluation.
@@ -55,7 +74,7 @@ func _ready() -> void:
     _camera = Camera3D.new()
     _camera.name = "OrbitCamera"
     _camera.current = true
-    _camera.fov = 46.0
+    _camera.fov = 52.0
     _camera.near = 0.04
     _camera.far = 125.0
     add_child(_camera)
@@ -95,6 +114,28 @@ func _create_stage() -> void:
     floor.material_override = m
     add_child(floor)
 
+    var grid_material := StandardMaterial3D.new()
+    grid_material.albedo_color = Color("#526b82")
+    grid_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    for line in range(-15, 16):
+        for axis in range(2):
+            var guide := MeshInstance3D.new()
+            var strip := BoxMesh.new()
+            strip.size = Vector3(0.012, 0.008, 60.0) if axis == 0 else Vector3(60.0, 0.008, 0.012)
+            guide.mesh = strip
+            guide.position = Vector3(float(line) * 2.0, 0.006, 0.0) if axis == 0 else Vector3(0.0, 0.006, float(line) * 2.0)
+            guide.material_override = grid_material
+            add_child(guide)
+
+func _round_style(color: Color, radius: int) -> StyleBoxFlat:
+    var style := StyleBoxFlat.new()
+    style.bg_color = color
+    style.corner_radius_top_left = radius
+    style.corner_radius_top_right = radius
+    style.corner_radius_bottom_left = radius
+    style.corner_radius_bottom_right = radius
+    return style
+
 func _create_interface() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
@@ -105,7 +146,7 @@ func _create_interface() -> void:
 
     var back := ColorRect.new()
     back.position = Vector2(14, 12)
-    back.size = Vector2(1020, 117)
+    back.size = Vector2(1030, 120)
     back.color = Color(0.04, 0.06, 0.11, 0.85)
     back.mouse_filter = Control.MOUSE_FILTER_IGNORE
     root_control.add_child(back)
@@ -118,32 +159,67 @@ func _create_interface() -> void:
     root_control.add_child(_status)
 
     var hint := Label.new()
-    hint.position = Vector2(26, 104)
-    hint.size = Vector2(1000, 28)
-    hint.text = "REAL Tripo GLB + embedded Mixamo clips • Swipe to orbit • Zoom to inspect"
+    hint.position = Vector2(26, 82)
+    hint.size = Vector2(990, 42)
+    hint.text = "Left stick move • Hold SPRINT to run • Drag right side to look"
     hint.add_theme_font_size_override("font_size", 16)
     hint.add_theme_color_override("font_color", Color("#b5c8d9"))
     root_control.add_child(hint)
 
-    var controls := HBoxContainer.new()
-    controls.anchor_left = 0
-    controls.anchor_right = 1
-    controls.anchor_top = 1
-    controls.anchor_bottom = 1
-    controls.offset_left = 18
-    controls.offset_right = -18
-    controls.offset_top = -100
-    controls.offset_bottom = -15
-    controls.alignment = BoxContainer.ALIGNMENT_CENTER
-    controls.add_theme_constant_override("separation", 10)
-    root_control.add_child(controls)
-    for key in ["IDLE", "WALK", "RUN", "PAUSE", "VIEW", "ZOOM +", "ZOOM -"]:
-        var control := Button.new()
-        control.text = key
-        control.custom_minimum_size = Vector2(154, 72)
-        control.add_theme_font_size_override("font_size", 21)
-        control.pressed.connect(_on_control.bind(key))
-        controls.add_child(control)
+    _joystick_base = Panel.new()
+    _joystick_base.anchor_top = 1.0
+    _joystick_base.anchor_bottom = 1.0
+    _joystick_base.offset_left = 38.0
+    _joystick_base.offset_right = 206.0
+    _joystick_base.offset_top = -210.0
+    _joystick_base.offset_bottom = -42.0
+    _joystick_base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _joystick_base.add_theme_stylebox_override("panel", _round_style(Color(0.12,0.17,0.24,0.70),84))
+    root_control.add_child(_joystick_base)
+
+    _joystick_knob = Panel.new()
+    _joystick_knob.size = Vector2(70,70)
+    _joystick_knob.position = Vector2(49,49)
+    _joystick_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _joystick_knob.add_theme_stylebox_override("panel", _round_style(Color(0.62,0.73,0.84,0.88),35))
+    _joystick_base.add_child(_joystick_knob)
+
+    _sprint_button = Button.new()
+    _sprint_button.text = "SPRINT"
+    _sprint_button.anchor_left = 1.0
+    _sprint_button.anchor_right = 1.0
+    _sprint_button.anchor_top = 1.0
+    _sprint_button.anchor_bottom = 1.0
+    _sprint_button.offset_left = -202.0
+    _sprint_button.offset_right = -34.0
+    _sprint_button.offset_top = -142.0
+    _sprint_button.offset_bottom = -48.0
+    _sprint_button.add_theme_font_size_override("font_size",21)
+    _sprint_button.button_down.connect(func(): _sprint_held = true)
+    _sprint_button.button_up.connect(func(): _sprint_held = false)
+    root_control.add_child(_sprint_button)
+
+    var pause_button := Button.new()
+    pause_button.text = "PAUSE"
+    pause_button.anchor_left = 1.0
+    pause_button.anchor_right = 1.0
+    pause_button.offset_left = -202.0
+    pause_button.offset_right = -92.0
+    pause_button.offset_top = 18.0
+    pause_button.offset_bottom = 70.0
+    pause_button.pressed.connect(_toggle_pause)
+    root_control.add_child(pause_button)
+
+    var reset_button := Button.new()
+    reset_button.text = "RESET CAM"
+    reset_button.anchor_left = 1.0
+    reset_button.anchor_right = 1.0
+    reset_button.offset_left = -326.0
+    reset_button.offset_right = -210.0
+    reset_button.offset_top = 18.0
+    reset_button.offset_bottom = 70.0
+    reset_button.pressed.connect(_reset_camera)
+    root_control.add_child(reset_button)
 
 func _find_rig(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
@@ -254,34 +330,53 @@ func _set_motion(mode: String) -> void:
         _animation.play(clip_name, 0.0, speed)
     _update_status()
 
-func _on_control(key: String) -> void:
-    match key:
-        "IDLE", "WALK", "RUN":
-            _set_motion(key)
-        "PAUSE":
-            if _animation != null:
-                if _paused:
-                    _paused = false
-                    if _motion in ["WALK", "RUN"]:
-                        _animation.play()
-                else:
-                    _paused = true
-                    if _animation.is_playing():
-                        _animation.pause()
-        "VIEW":
-            _front = not _front
-        "ZOOM +":
-            _zoom = maxf(1.15, _zoom - 0.45)
-        "ZOOM -":
-            _zoom = minf(5.80, _zoom + 0.45)
+func _toggle_pause() -> void:
+    if _animation == null:
+        return
+    _paused = not _paused
+    if _paused:
+        if _animation.is_playing():
+            _animation.pause()
+    elif _motion in ["WALK", "RUN"]:
+        _animation.play()
     _update_status()
+
+func _reset_camera() -> void:
+    _camera_yaw = _actor.rotation.y if _actor != null else 0.0
+    _camera_pitch = 0.18
+    _camera_distance = 4.0
+
+func _set_joystick_visual(offset: Vector2) -> void:
+    if _joystick_base == null or _joystick_knob == null:
+        return
+    var center := _joystick_base.size * 0.5
+    _joystick_knob.position = center + offset - _joystick_knob.size * 0.5
+
+func _update_joystick(screen_position: Vector2) -> void:
+    if _joystick_base == null:
+        return
+    var center := _joystick_base.global_position + _joystick_base.size * 0.5
+    var offset := screen_position - center
+    if offset.length() > STICK_RADIUS:
+        offset = offset.normalized() * STICK_RADIUS
+    var normalized := offset / STICK_RADIUS
+    if normalized.length() < STICK_DEADZONE:
+        normalized = Vector2.ZERO
+        offset = Vector2.ZERO
+    _move_input = normalized
+    _set_joystick_visual(offset)
+
+func _release_joystick() -> void:
+    _move_input = Vector2.ZERO
+    _move_touch = -1
+    _set_joystick_visual(Vector2.ZERO)
 
 func _update_status() -> void:
     if _status == null:
         return
     var joints := _skeleton.get_bone_count() if _skeleton != null else 0
     var state := "PAUSED" if _paused else _motion
-    _status.text = "AETHERFALL  |  CHARACTER PASS 3\n%s  •  %d/65 joints  •  smooth blend • living idle • grounded feet" % [state, joints]
+    _status.text = "AETHERFALL  |  CHARACTER PASS 4\n%s  •  %.2f m/s  •  %d/65 joints  •  gameplay locomotion" % [state, _move_speed, joints]
 
 func _build_relaxed_idle_pose() -> void:
     _idle_pose.clear()
@@ -347,8 +442,6 @@ func _lock_root_motion() -> void:
         pos.x = _neutral_model_position.x
         pos.z = _neutral_model_position.z
         _model.position = pos
-    _actor.position.x = 0.0
-    _actor.position.z = 0.0
 
 func _bone_world_y(index: int) -> float:
     if _skeleton == null or index < 0:
@@ -384,7 +477,59 @@ func _correct_foot_ground(delta: float) -> void:
     desired = clampf(desired, _base_actor_y, _base_actor_y + 0.16)
     _actor.position.y = lerpf(_actor.position.y, desired, clampf(delta * 14.0, 0.0, 1.0))
 
+func _desired_input() -> Vector2:
+    var keyboard := Vector2.ZERO
+    if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+        keyboard.x -= 1.0
+    if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+        keyboard.x += 1.0
+    if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+        keyboard.y -= 1.0
+    if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+        keyboard.y += 1.0
+    if keyboard.length() > 0.01:
+        return keyboard.normalized()
+    return _move_input
+
+func _ensure_motion(mode: String) -> void:
+    if mode != _motion:
+        _set_motion(mode)
+
+func _update_gameplay_movement(delta: float) -> void:
+    if _actor == null or _skeleton == null or _paused:
+        return
+    var input_vec := _desired_input()
+    var strength := clampf(input_vec.length(), 0.0, 1.0)
+    var moving := strength > STICK_DEADZONE
+    var wants_run := _sprint_held or Input.is_key_pressed(KEY_SHIFT)
+    var target_speed := 0.0
+    if moving:
+        target_speed = (RUN_WORLD_SPEED if wants_run else WALK_WORLD_SPEED) * strength
+    var rate := MOVE_ACCEL if target_speed > _move_speed else MOVE_DECEL
+    _move_speed = move_toward(_move_speed, target_speed, rate * delta)
+
+    if moving:
+        var local_dir := Vector3(input_vec.x, 0.0, input_vec.y).normalized()
+        _travel_direction = (Basis(Vector3.UP, _camera_yaw) * local_dir).normalized()
+        var target_yaw := atan2(-_travel_direction.x, -_travel_direction.z)
+        _actor.rotation.y = lerp_angle(_actor.rotation.y, target_yaw, clampf(delta * TURN_RATE, 0.0, 1.0))
+    if _move_speed > 0.04:
+        _actor.position += _travel_direction * _move_speed * delta
+
+    var desired_motion := "IDLE"
+    if _move_speed > 0.12:
+        desired_motion = "RUN" if wants_run and _move_speed > WALK_WORLD_SPEED * 0.85 else "WALK"
+    _ensure_motion(desired_motion)
+
+    if _animation != null and _motion == "WALK":
+        _animation.speed_scale = clampf(_move_speed / WALK_WORLD_SPEED, 0.72, 1.05)
+    elif _animation != null and _motion == "RUN":
+        _animation.speed_scale = clampf(_move_speed / RUN_WORLD_SPEED, 0.82, 1.08)
+    elif _animation != null:
+        _animation.speed_scale = 1.0
+
 func _process(delta: float) -> void:
+    _update_gameplay_movement(delta)
     if not _paused and _skeleton != null:
         if _motion == "IDLE":
             _reset_idle_target()
@@ -393,36 +538,41 @@ func _process(delta: float) -> void:
         _lock_root_motion()
         _correct_foot_ground(delta)
     _update_camera(delta)
-    var fps := Engine.get_frames_per_second()
-    if fps != _last_status and _status != null and fps >= 1:
-        _last_status = fps
-        # Nonintrusive readout for testing Android performance.
-        _status.tooltip_text = "%d FPS" % fps
+    _update_status()
 
 func _update_camera(delta: float) -> void:
     if _actor == null or _camera == null:
         return
-    var angle := _yaw + (PI if _front else 0.0)
-    var radius := _zoom + (0.10 if _motion == "RUN" else 0.0)
-    var target := _actor.global_position + Vector3(0.0, 0.90, 0.0)
-    var goal := target + Vector3(sin(angle) * radius, 0.32 + _pitch * 1.65, -cos(angle) * radius)
-    _camera.global_position = goal if delta >= 1.0 else _camera.global_position.lerp(goal, clampf(delta * 8.0, 0.0, 1.0))
+    var horizontal := cos(_camera_pitch) * _camera_distance
+    var vertical := sin(_camera_pitch) * _camera_distance
+    var target := _actor.global_position + Vector3(0.0, 1.03, 0.0)
+    var goal := target + Vector3(sin(_camera_yaw) * horizontal, 0.55 + vertical, cos(_camera_yaw) * horizontal)
+    _camera.global_position = goal if delta >= 1.0 else _camera.global_position.lerp(goal, clampf(delta * 8.5, 0.0, 1.0))
     _camera.look_at(target, Vector3.UP)
 
-func _unhandled_input(event: InputEvent) -> void:
-    if event is InputEventScreenDrag:
-        _yaw -= event.relative.x * 0.006
-        _pitch = clampf(_pitch + event.relative.y * 0.002, -0.38, 0.65)
+func _input(event: InputEvent) -> void:
+    if event is InputEventScreenTouch:
+        var view := get_viewport().get_visible_rect().size
+        if event.pressed:
+            if event.position.x < view.x * 0.43 and event.position.y > view.y * 0.42 and _move_touch < 0:
+                _move_touch = event.index
+                _update_joystick(event.position)
+            elif event.position.x > view.x * 0.42 and _camera_touch < 0:
+                _camera_touch = event.index
+        else:
+            if event.index == _move_touch:
+                _release_joystick()
+            if event.index == _camera_touch:
+                _camera_touch = -1
+    elif event is InputEventScreenDrag:
+        if event.index == _move_touch:
+            _update_joystick(event.position)
+        elif event.index == _camera_touch:
+            _camera_yaw -= event.relative.x * 0.0045
+            _camera_pitch = clampf(_camera_pitch + event.relative.y * 0.0023, -0.08, 0.56)
     elif event is InputEventMouseButton:
         if event.button_index == MOUSE_BUTTON_RIGHT:
             _drag_mouse = event.pressed
     elif event is InputEventMouseMotion and _drag_mouse:
-        _yaw -= event.relative.x * 0.006
-        _pitch = clampf(_pitch + event.relative.y * 0.002, -0.38, 0.65)
-    elif event is InputEventKey and event.pressed and not event.echo:
-        match event.keycode:
-            KEY_1: _on_control("IDLE")
-            KEY_2: _on_control("WALK")
-            KEY_3: _on_control("RUN")
-            KEY_SPACE: _on_control("PAUSE")
-            KEY_C: _on_control("VIEW")
+        _camera_yaw -= event.relative.x * 0.0045
+        _camera_pitch = clampf(_camera_pitch + event.relative.y * 0.0023, -0.08, 0.56)

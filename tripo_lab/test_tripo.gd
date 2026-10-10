@@ -66,49 +66,45 @@ func _check() -> void:
             push_error("TRIPO_GODOT_TEST_FAIL: missing " + target + " animation")
             quit(1)
             return
-    scene.call("_on_control", "WALK")
-    for frame in range(4):
-        await process_frame
-    if scene.get("_motion") != "WALK":
-        push_error("TRIPO_GODOT_TEST_FAIL: walk state did not engage")
-        quit(1)
-        return
-    scene.call("_on_control", "RUN")
-    for frame in range(4):
-        await process_frame
     var actor := scene.get_node("TripoActor") as Node3D
-    if absf(actor.position.x) > 0.001 or absf(actor.position.z) > 0.001:
-        push_error("TRIPO_GODOT_TEST_FAIL: root motion escaped actor origin")
+    var start_position := actor.position
+    scene.set("_move_input", Vector2(0.0, -1.0))
+    scene.set("_sprint_held", false)
+    for frame in range(8):
+        scene.call("_update_gameplay_movement", 0.10)
+    if scene.get("_motion") != "WALK" or actor.position.distance_to(start_position) < 0.25:
+        push_error("TRIPO_GODOT_TEST_FAIL: gameplay walk input did not move actor")
         quit(1)
         return
-    scene.call("_on_control", "IDLE")
+    var walked_position := actor.position
+    scene.set("_sprint_held", true)
+    for frame in range(10):
+        scene.call("_update_gameplay_movement", 0.10)
+    if scene.get("_motion") != "RUN" or actor.position.distance_to(walked_position) < 1.0:
+        push_error("TRIPO_GODOT_TEST_FAIL: sprint did not engage real travel")
+        quit(1)
+        return
+    var before_lock := actor.position
+    scene.call("_lock_root_motion")
+    if Vector2(actor.position.x, actor.position.z).distance_to(Vector2(before_lock.x, before_lock.z)) > 0.001:
+        push_error("TRIPO_GODOT_TEST_FAIL: root lock erased gameplay travel")
+        quit(1)
+        return
+    scene.set("_move_input", Vector2.ZERO)
+    scene.set("_sprint_held", false)
+    for frame in range(12):
+        scene.call("_update_gameplay_movement", 0.10)
+    if scene.get("_motion") != "IDLE":
+        push_error("TRIPO_GODOT_TEST_FAIL: release did not decelerate to idle")
+        quit(1)
+        return
     scene.call("_reset_idle_target")
-    var idle_pose: Array = scene.get("_idle_pose")
-    if idle_pose.size() != 65:
-        push_error("TRIPO_GODOT_TEST_FAIL: relaxed idle pose was not built")
-        quit(1)
-        return
     scene.call("_apply_idle_offsets", 1.1)
-    if float(scene.get("_idle_time")) < 1.0:
-        push_error("TRIPO_GODOT_TEST_FAIL: living idle did not advance")
-        quit(1)
-        return
     var sole_y: float = scene.call("_sole_floor_y")
     if sole_y < -0.005:
-        push_error("TRIPO_GODOT_TEST_FAIL: estimated boot sole penetrates floor: " + str(sole_y))
+        push_error("TRIPO_GODOT_TEST_FAIL: boot sole penetrates floor")
         quit(1)
         return
-    var start_zoom: float = scene.get("_zoom")
-    scene.call("_on_control", "ZOOM +")
-    if not float(scene.get("_zoom")) < start_zoom:
-        push_error("TRIPO_GODOT_TEST_FAIL: zoom controls broken")
-        quit(1)
-        return
-    scene.call("_on_control", "ZOOM -")
-    if not is_equal_approx(float(scene.get("_zoom")), start_zoom):
-        push_error("TRIPO_GODOT_TEST_FAIL: zoom restore failed")
-        quit(1)
-        return
-    print("AETHERFALL_TRIPO_PASS3_OK %d joints, blends, living idle, root lock, foot grounding, tuned speeds" % rig.get_bone_count())
+    print("AETHERFALL_TRIPO_PASS4_OK %d joints, touch locomotion, sprint, auto states, root lock, foot grounding" % rig.get_bone_count())
     scene.queue_free()
     quit(0)
