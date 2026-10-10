@@ -94,6 +94,13 @@ var _startup_complete := false
 var _startup_failed := false
 const STARTUP_WATCHDOG_SECONDS := 12.0
 
+# Fountain animation state. Kept intentionally lightweight for Android.
+var _fountain_time := 0.0
+var _fountain_water: MeshInstance3D
+var _fountain_crystal: MeshInstance3D
+var _fountain_glow: OmniLight3D
+var _fountain_jets: Array[MeshInstance3D] = []
+
 func _ready() -> void:
     # Keep the same direct-scene startup path as the proven v0.1.3 build.
     # The diagnostic overlay is created first so later runtime failures remain visible.
@@ -231,6 +238,27 @@ func _mat(color: Color, roughness: float = 0.9, metallic: float = 0.0) -> Standa
     material.albedo_color = color
     material.roughness = roughness
     material.metallic = metallic
+    return material
+
+func _water_mat(color: Color, alpha: float = 0.72) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    var tinted := color
+    tinted.a = alpha
+    material.albedo_color = tinted
+    material.roughness = 0.16
+    material.metallic = 0.08
+    material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    return material
+
+func _crystal_mat(color: Color) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.roughness = 0.14
+    material.metallic = 0.05
+    material.emission_enabled = true
+    material.emission = color.lightened(0.12)
+    material.emission_energy_multiplier = 1.55
     return material
 
 func _box(parent: Node, name: String, size: Vector3, position: Vector3, color: Color, rotation_degrees: Vector3 = Vector3.ZERO, roughness: float = 0.9) -> MeshInstance3D:
@@ -729,20 +757,49 @@ func _build_stage() -> void:
     _add_house(Vector3(-10.0, 0, 17.0), Vector3(4.7, 2.8, 4.3), Color("#d8c6a4"), Color("#62443b"))
     _add_house(Vector3(10.0, 0, 17.2), Vector3(4.8, 2.9, 4.2), Color("#d2bc92"), Color("#684438"))
 
-    # Fountain: tiered stone, visible water surface and a soft magical glow.
-    _cylinder(self, "FountainBase", 2.15, 0.32, Vector3(0, 0.16, -4.0), Color("#6f7372"))
-    _cylinder(self, "FountainStep", 1.78, 0.26, Vector3(0, 0.43, -4.0), Color("#8a8f8d"))
-    _cylinder(self, "FountainBasin", 1.42, 0.46, Vector3(0, 0.72, -4.0), Color("#969b98"))
-    _cylinder(self, "FountainWater", 1.20, 0.07, Vector3(0, 0.965, -4.0), Color("#63b7c7"), 0.18)
-    _cylinder(self, "FountainColumn", 0.23, 1.62, Vector3(0, 1.70, -4.0), Color("#858b88"))
-    _sphere(self, "FountainCrystal", 0.32, Vector3(0, 2.62, -4.0), Color("#88d9e3"), 0.12)
-    var crystal_glow := OmniLight3D.new()
-    crystal_glow.position = Vector3(0, 2.62, -4.0)
-    crystal_glow.light_color = Color("#76d5e7")
-    crystal_glow.light_energy = 0.65
-    crystal_glow.omni_range = 4.2
-    crystal_glow.shadow_enabled = false
-    add_child(crystal_glow)
+    # Fountain centerpiece: deeper stonework, wet accents, animated water and light streams.
+    _cylinder(self, "FountainPlinth", 2.32, 0.20, Vector3(0, 0.10, -4.0), Color("#656966"), 0.94)
+    _cylinder(self, "FountainBase", 2.15, 0.30, Vector3(0, 0.30, -4.0), Color("#777c79"), 0.91)
+    _cylinder(self, "FountainStep", 1.82, 0.20, Vector3(0, 0.52, -4.0), Color("#8d928f"), 0.88)
+    _cylinder(self, "FountainWetStone", 1.58, 0.17, Vector3(0, 0.68, -4.0), Color("#566466"), 0.46)
+    _cylinder(self, "FountainBasinOuter", 1.52, 0.34, Vector3(0, 0.78, -4.0), Color("#999e9b"), 0.84)
+    _cylinder(self, "FountainBasinInner", 1.30, 0.18, Vector3(0, 0.89, -4.0), Color("#4f6466"), 0.48)
+
+    _fountain_water = _cylinder(self, "FountainWater", 1.21, 0.055, Vector3(0, 0.995, -4.0), Color("#55afc3"), 0.15)
+    _fountain_water.material_override = _water_mat(Color("#55b8cd"), 0.70)
+
+    _cylinder(self, "FountainColumnBase", 0.42, 0.20, Vector3(0, 1.05, -4.0), Color("#777f7c"), 0.82)
+    _cylinder(self, "FountainColumn", 0.24, 1.36, Vector3(0, 1.70, -4.0), Color("#858d89"), 0.82)
+    _cylinder(self, "FountainSpoutRing", 0.38, 0.18, Vector3(0, 2.28, -4.0), Color("#707875"), 0.74)
+
+    # Four lightweight translucent streams angle from the spout toward the basin.
+    _fountain_jets.clear()
+    var jet_data := [
+        [Vector3(0.62, 1.77, -4.0), Vector3(0, 0, -40)],
+        [Vector3(-0.62, 1.77, -4.0), Vector3(0, 0, 40)],
+        [Vector3(0, 1.77, -3.38), Vector3(40, 0, 0)],
+        [Vector3(0, 1.77, -4.62), Vector3(-40, 0, 0)]
+    ]
+    for jet_entry in jet_data:
+        var jet := _cylinder(self, "FountainJet", 0.045, 1.10, jet_entry[0], Color("#7fd5e3"), 0.10)
+        jet.rotation_degrees = jet_entry[1]
+        jet.material_override = _water_mat(Color("#89ddec"), 0.64)
+        _fountain_jets.append(jet)
+
+    _fountain_crystal = _sphere(self, "FountainCrystal", 0.34, Vector3(0, 2.68, -4.0), Color("#8ee2ec"), 0.10)
+    _fountain_crystal.material_override = _crystal_mat(Color("#78d8e7"))
+    _fountain_glow = OmniLight3D.new()
+    _fountain_glow.position = Vector3(0, 2.68, -4.0)
+    _fountain_glow.light_color = Color("#72d8e8")
+    _fountain_glow.light_energy = 0.78
+    _fountain_glow.omni_range = 4.6
+    _fountain_glow.shadow_enabled = false
+    add_child(_fountain_glow)
+
+    # Low decorative stone accents outside the collision ring keep the square open.
+    for accent_pos in [Vector3(-2.55,0.13,-5.85), Vector3(2.55,0.13,-5.85)]:
+        _cylinder(self, "FountainAccent", 0.34, 0.26, accent_pos, Color("#737873"), 0.92)
+
     _add_circle_blocker(Vector2(0,-4.0), 2.05, PLAYER_WORLD_RADIUS + 0.08)
 
     # Market and props. Vendor fronts/backs are reserved: no benches, lamps, or
@@ -907,7 +964,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2H  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2I  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1089,7 +1146,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Foliage & Landscaping • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Fountain & Water Polish • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
@@ -1343,6 +1400,25 @@ func _update_gameplay_movement(delta: float) -> void:
     elif _animation != null:
         _animation.speed_scale = 1.0
 
+func _update_fountain(delta: float) -> void:
+    if _fountain_water == null:
+        return
+    _fountain_time += delta
+    var ripple := sin(_fountain_time * 2.2)
+    _fountain_water.position.y = 0.995 + ripple * 0.012
+    _fountain_water.rotation.y = _fountain_time * 0.035
+
+    if _fountain_crystal != null:
+        _fountain_crystal.position.y = 2.68 + sin(_fountain_time * 1.6) * 0.035
+        _fountain_crystal.rotation.y += delta * 0.48
+    if _fountain_glow != null:
+        _fountain_glow.light_energy = 0.76 + (sin(_fountain_time * 1.8) + 1.0) * 0.10
+    for i in range(_fountain_jets.size()):
+        var jet := _fountain_jets[i]
+        if jet != null:
+            var pulse := sin(_fountain_time * 3.0 + float(i) * 0.9)
+            jet.scale.y = 1.0 + pulse * 0.035
+
 func _process(delta: float) -> void:
     if not _startup_complete and not _startup_failed:
         _startup_elapsed += delta
@@ -1357,6 +1433,7 @@ func _process(delta: float) -> void:
         _apply_transition(delta)
         _lock_root_motion()
         _correct_foot_ground(delta)
+    _update_fountain(delta)
     _update_camera(delta)
     if _loaded and not _paused:
         _set_status(_motion, _motion_detail())
