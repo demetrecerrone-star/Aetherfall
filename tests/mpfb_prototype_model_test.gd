@@ -25,6 +25,7 @@ func _check() -> void:
         var mesh_count := 0
         var rig_count := 0
         var bone_count := 0
+        var essential_legs := 0
         var skinned_meshes := 0
         var hair_count := 0
         var outfit_count := 0
@@ -44,14 +45,24 @@ func _check() -> void:
                     outfit_count += 1
             elif node is Skeleton3D:
                 rig_count += 1
-                bone_count = maxi(bone_count, (node as Skeleton3D).get_bone_count())
+                var skeleton := node as Skeleton3D
+                bone_count = maxi(bone_count, skeleton.get_bone_count())
+                for joint in ["DEF-thigh.L", "DEF-shin.L", "DEF-foot.L", "DEF-thigh.R", "DEF-shin.R", "DEF-foot.R"]:
+                    if skeleton.find_bone(joint) >= 0:
+                        essential_legs += 1
             for child in node.get_children():
                 stack.append(child)
         print("MPFB_GODOT_STATS %s: meshes=%d skeletons=%d bones=%d skinned=%d hair=%d outfit=%d wrong_hair=%d" % [
             style, mesh_count, rig_count, bone_count, skinned_meshes,
             hair_count, outfit_count, wrong_hair_count
         ])
-        var ok := rig_count == 1 and mesh_count >= 20 and bone_count >= 120             and bone_count < 270 and skinned_meshes == mesh_count             and hair_count >= 8 and outfit_count >= 10 and wrong_hair_count == 0
+        # A mobile-ready rig must preserve hip/knee/ankle chains, without
+        # exporting the original 181 deformation bones / 930 control bones.
+        var ok := rig_count == 1 and mesh_count >= 20 \
+            and bone_count >= 96 and bone_count <= 98 \
+            and essential_legs == 6 and skinned_meshes == mesh_count \
+            and hair_count >= 8 and outfit_count >= 10 and wrong_hair_count == 0
+        print("MPFB_GODOT_MOBILE_LEG_JOINTS %s: %d/6" % [style, essential_legs])
         character.queue_free()
         await process_frame
         if not ok:
