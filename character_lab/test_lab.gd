@@ -31,6 +31,26 @@ func _check() -> void:
             push_error("CHARACTER_LAB_FAIL: missing gait joint: " + name)
             quit(1)
             return
+    # Catch the exact issue seen on Android: the importer-supplied bind
+    # pose must survive one IDLE frame without replacing its transforms.
+    var imported_poses: Array = scene.get("_imported_bone_poses")
+    if imported_poses.size() != 96:
+        push_error("CHARACTER_LAB_FAIL: missing imported bind pose snapshot")
+        quit(1)
+        return
+    for idx in range(model_rig.get_bone_count()):
+        if not model_rig.get_bone_pose(idx).is_equal_approx(imported_poses[idx]):
+            push_error("CHARACTER_LAB_FAIL: IDLE overrides GLB imported pose at bone " + str(idx))
+            quit(1)
+            return
+    # After Blender->glTF conversion, the character's face points +Z.
+    # The front-facing QA camera must therefore be on positive Z.
+    var camera := scene.get_node("OrbitCamera") as Camera3D
+    var actor := scene.get_node("DemoActor") as Node3D
+    if camera.global_position.z <= actor.global_position.z:
+        push_error("CHARACTER_LAB_FAIL: default camera displays character's back")
+        quit(1)
+        return
     for style in range(4):
         scene.call("_select_style", style)
         await process_frame
@@ -47,6 +67,6 @@ func _check() -> void:
         await process_frame
         scene.call("_on_button", "IDLE")
         await process_frame
-    print("AETHERFALL_CHARACTER_LAB_OK: 4 styles, 96 bones, walk/run/jump UI")
+    print("AETHERFALL_CHARACTER_LAB_OK: 4 styles, imported IDLE bind pose intact, front camera, walk/run/jump UI")
     scene.queue_free()
     quit(0)
