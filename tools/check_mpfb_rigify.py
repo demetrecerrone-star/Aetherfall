@@ -13,7 +13,7 @@ assert bpy.app.version >= (4,2,0), f"MPFB requires Blender 4.2+, got {bpy.app.ve
 addons = {}
 for label, module_name in (
     ("MPFB", "bl_ext.blender_org.mpfb"),
-    ("Rigify", "bl_ext.blender_org.rigify"),
+    ("Rigify", "rigify"),
 ):
     try:
         package = importlib.import_module(module_name)
