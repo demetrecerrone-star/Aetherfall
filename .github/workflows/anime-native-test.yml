@@ -1,0 +1,157 @@
+name: Aetherfall Original Anime 3D Test APK
+
+on:
+  push:
+    branches: ["feature/blender-anime-native-character"]
+    paths:
+      - "tools/generate_anime_native.py"
+      - "anime_lab/**"
+      - ".github/workflows/anime-native-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  anime-native-android:
+    name: Sculpt, rig, import, smoke-test, export ARM64 APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout experimental branch
+        uses: actions/checkout@v4
+
+      - name: Cache Blender 4.5 LTS
+        uses: actions/cache@v4
+        with:
+          path: /tmp/aetherfall-blender-4.5
+          key: blender-4.5.13-linux-x64
+
+      - name: Install Blender 4.5 LTS for standalone native modeling
+        run: |
+          set -euo pipefail
+          if [[ ! -x /tmp/aetherfall-blender-4.5/blender ]]; then
+            curl -fL --retry 3 --connect-timeout 30 \
+              https://download.blender.org/release/Blender4.5/blender-4.5.13-linux-x64.tar.xz \
+              -o /tmp/aetherfall-blender-4.5.tar.xz
+            mkdir -p /tmp/aetherfall-blender-4.5
+            tar -xJf /tmp/aetherfall-blender-4.5.tar.xz -C /tmp/aetherfall-blender-4.5 --strip-components=1
+          fi
+          /tmp/aetherfall-blender-4.5/blender -b -t 2 --python-expr 'import bpy; print(bpy.app.version_string)'
+
+      - name: Generate entirely original Blender anime model and four hairstyles
+        run: |
+          set -euo pipefail
+          timeout 190s /tmp/aetherfall-blender-4.5/blender -b -t 2 --python tools/generate_anime_native.py \
+            2>&1 | tee builds-anime-blender.log
+          grep -q "AETHERFALL_ANIME_NATIVE_GENERATION_OK" builds-anime-blender.log
+          test -s builds/anime-native/Aetherfall-Anime-Native.blend
+          test -s builds/anime-native/anime-native-preview.png
+          for style in windswept long short ponytail; do
+            test -s "builds/anime-native/anime-$style.glb"
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("builds/anime-native/model-info.json").read_text())
+          assert d["bones"]==22 and d["mesh_count"]>75, d
+          assert len(d["style_exports"])==4, d
+          assert all(x["hair_meshes"]>=15 for x in d["style_exports"].values()),d
+          assert d["mpfb_source"] is False and d["vrm_source"] is False,d
+          print("ANIME_NATIVE_MODEL_VERIFIED",d)
+          PY
+
+      - name: Copy new models into isolated Godot test project
+        run: |
+          set -euo pipefail
+          mkdir -p anime_lab/models
+          cp builds/anime-native/anime-*.glb anime_lab/models/
+          test -f anime_lab/project.godot
+          test -f anime_lab/export_presets.cfg
+          ! grep -q 'com.demetrecerrone.aetherfall"' anime_lab/export_presets.cfg
+          grep -q "com.demetrecerrone.aetherfall.animeprototype" anime_lab/export_presets.cfg
+
+      - name: Set up Godot 4.6.3 plus Android export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import Blender glTF skins and mesh materials
+        run: |
+          set -euo pipefail
+          godot --headless --editor --path anime_lab --import --quit 2>&1 | tee builds-anime-import.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid|Cannot)' builds-anime-import.log; then exit 1; fi
+
+      - name: Verify all four hairstyles, idle rest pose, camera and gait
+        run: |
+          set -euo pipefail
+          godot --headless --path anime_lab --script res://test_lab.gd 2>&1 | tee builds-anime-tests.log
+          grep -q "AETHERFALL_CHARACTER_LAB_OK" builds-anime-tests.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid|Cannot)' builds-anime-tests.log; then exit 1; fi
+
+      - name: Smoke-launch standalone character scene
+        run: |
+          set -euo pipefail
+          godot --headless --path anime_lab --quit-after 20 2>&1 | tee builds-anime-smoke.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid|Cannot)' builds-anime-smoke.log; then exit 1; fi
+
+      - name: Set up Java 17 and Android SDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configure Godot Android SDK
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/godot"
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\n' > "$HOME/.config/godot/editor_settings-4.6.tres"
+          printf 'export/android/android_sdk_path = "%s"\n' "$ANDROID_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
+          printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+
+      - name: Use existing persistent Aetherfall signing identity
+        env:
+          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 || secrets.AETHERFALL_KEYSTORE_BASE64 }}
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo "::error::Aetherfall keystore secret is missing"; exit 1; }
+          test -n "$KEYSTORE_ALIAS" || { echo "::error::Keystore alias is missing"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "::error::Keystore password is missing"; exit 1; }
+          umask 077
+          KEYSTORE_PATH="$RUNNER_TEMP/aetherfall-anime-native.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -alias "$KEYSTORE_ALIAS" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$KEYSTORE_ALIAS" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Export and verify separately installable anime APK
+        run: |
+          set -euo pipefail
+          mkdir -p builds
+          APK="$PWD/builds/Aetherfall-Anime-Native-Test.apk"
+          godot --headless --path anime_lab --export-debug "Anime Native Test Android" "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.1/aapt" dump badging "$APK" | tee builds-anime-apk-info.log
+          grep -q "package: name='com.demetrecerrone.aetherfall.animeprototype'" builds-anime-apk-info.log
+          echo "### Original anime character test APK ready; existing Aetherfall remains untouched." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK, Blender source, all four GLBs, and preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-New-Anime-Character-Test-APK
+          path: |
+            builds/Aetherfall-Anime-Native-Test.apk
+            builds/anime-native/Aetherfall-Anime-Native.blend
+            builds/anime-native/anime-*.glb
+            builds/anime-native/anime-native-preview.png
+            builds/anime-native/model-info.json
+            builds-anime-*.log
+          if-no-files-found: error
+          retention-days: 21
