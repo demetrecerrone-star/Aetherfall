@@ -32,8 +32,8 @@ func _check() -> void:
     await process_frame
     var rig := _find_skeleton(scene)
     var player := _find_player(scene)
-    if rig == null or rig.get_bone_count() < 55:
-        push_error("TRIPO_GODOT_TEST_FAIL: Mixamo skeleton was not imported")
+    if rig == null or rig.get_bone_count() != 65:
+        push_error("TRIPO_GODOT_TEST_FAIL: expected verified 65-joint Mixamo skeleton")
         quit(1)
         return
     if player == null:
@@ -81,6 +81,6 @@ func _check() -> void:
         push_error("TRIPO_GODOT_TEST_FAIL: zoom restore failed")
         quit(1)
         return
-    print("AETHERFALL_TRIPO_IMPORT_OK %d joints, walk/run clips, controls, separate scene" % rig.get_bone_count())
+    print("AETHERFALL_TRIPO_IMPORT_OK %d joints, native walk/run clips, controls, separate scene" % rig.get_bone_count())
     scene.queue_free()
     quit(0)

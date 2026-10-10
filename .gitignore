@@ -1,6 +1,0 @@
-.godot/
-.android/
-*.tmp
-*.log
-.DS_Store
-builds/

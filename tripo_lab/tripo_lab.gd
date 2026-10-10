@@ -159,8 +159,8 @@ func _load_model() -> void:
     _actor.add_child(_model)
     _skeleton = _find_rig(_model)
     _animation = _find_animation_player(_model)
-    if _skeleton == null or _skeleton.get_bone_count() < 55:
-        push_error("TRIPO_TEST_FAIL: expected Mixamo rig with at least 55 joints")
+    if _skeleton == null or _skeleton.get_bone_count() != 65:
+        push_error("TRIPO_TEST_FAIL: expected the verified 65-joint Mixamo rig")
         return
     if _animation == null or _clip_for("walk").is_empty() or _clip_for("run").is_empty():
         push_error("TRIPO_TEST_FAIL: missing imported walk/run clips")
@@ -213,7 +213,7 @@ func _update_status() -> void:
     if _status == null:
         return
     var joints := _skeleton.get_bone_count() if _skeleton != null else 0
-    _status.text = "AETHERFALL  |  TRIPO 3D CHARACTER TEST\n%s  •  %d Mixamo joints  •  Walk + Run clips" % [_motion, joints]
+    _status.text = "AETHERFALL  |  TRIPO 3D CHARACTER TEST\n%s  •  %d/65 Mixamo joints  •  Native Walk + Run clips" % [_motion, joints]
 
 func _process(delta: float) -> void:
     _update_camera(delta)
