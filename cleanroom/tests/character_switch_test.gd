@@ -22,17 +22,17 @@ func _test_characters() -> void:
         await process_frame
     if not _assert_character(town, "female", "idle"):
         return
+    # No joystick is held in headless QA, so do not wait frames between these
+    # checks: the normal controller would correctly return the actor to idle.
     town.call("_set_motion", "WALK")
-    for i in range(4):
-        await process_frame
-    if String(town.get("_motion")) != "WALK":
-        _fail("Female walk animation did not start")
+    var walk_player := town.get("_animation") as AnimationPlayer
+    if String(town.get("_motion")) != "WALK" or walk_player == null or not String(walk_player.current_animation).to_lower().ends_with("walk"):
+        _fail("Female walk animation did not activate")
         return
     town.call("_set_motion", "RUN")
-    for i in range(4):
-        await process_frame
-    if String(town.get("_motion")) != "RUN":
-        _fail("Female run animation did not start")
+    var run_player := town.get("_animation") as AnimationPlayer
+    if String(town.get("_motion")) != "RUN" or run_player == null or not String(run_player.current_animation).to_lower().ends_with("run"):
+        _fail("Female run animation did not activate")
         return
     town.call("_set_motion", "IDLE")
     town.call("_switch_character")
