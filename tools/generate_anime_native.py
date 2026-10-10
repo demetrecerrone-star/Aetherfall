@@ -123,7 +123,9 @@ def globe(name,center,radii,material,rings=15,sides=24,region=None,style=None):
     for k in range(rings):
         for i in range(sides):
             a=k*sides+i;b=k*sides+(i+1)%sides
-            faces.append((a,b,b+sides,a+sides))
+            # Top-to-bottom UV ellipsoids need reversed winding relative
+            # to vertically ascending lofts; outward normals are essential.
+            faces.append((a,a+sides,b+sides,b))
     return mk_mesh(name,verts,faces,material,region,style)
 
 def patch(name,cx,cz,rx,rz,material,depth=.004,region="head"):
@@ -405,10 +407,13 @@ cam_data.type="ORTHO"
 cam_data.ortho_scale=2.45
 bpy.context.scene.camera=cam
 scene=bpy.context.scene
-scene.render.engine="BLENDER_EEVEE_NEXT"
+# CPU path works on headless Actions workers without libEGL.so.
+scene.render.engine="CYCLES"
+scene.cycles.device="CPU"
+scene.cycles.samples=12
 scene.render.resolution_x=600
 scene.render.resolution_y=900
-scene.render.resolution_percentage=100
+scene.render.resolution_percentage=75
 scene.render.image_settings.file_format="PNG"
 scene.render.filepath=str(OUT/"anime-native-preview.png")
 scene.world.color=(.17,.19,.24)
