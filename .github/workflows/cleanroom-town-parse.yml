@@ -1,0 +1,41 @@
+name: Cleanroom Starter Town Script QA
+
+on:
+  push:
+    branches:
+      - feature/cleanroom-starter-town
+    paths:
+      - "cleanroom/**"
+      - ".github/workflows/cleanroom-town-parse.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gdscript-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Godot 4.6.3
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Parse town controller exactly
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --check-only --script res://starter_town.gd 2>&1 | tee /tmp/town-parse.log
+      - name: Import cleanroom project
+        run: |
+          set -o pipefail
+          godot --headless --editor --path cleanroom --quit 2>&1 | tee /tmp/town-import.log
+      - name: Print diagnostics
+        if: always()
+        run: |
+          echo "===== starter_town.gd parse ====="
+          cat /tmp/town-parse.log 2>/dev/null || true
+          echo "===== cleanroom import ====="
+          cat /tmp/town-import.log 2>/dev/null || true
