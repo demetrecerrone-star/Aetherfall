@@ -52,6 +52,8 @@ var _left_arm_index := -1
 var _right_arm_index := -1
 var _left_forearm_index := -1
 var _right_forearm_index := -1
+var _left_hand_index := -1
+var _right_hand_index := -1
 var _left_finger_bones: Array[int] = []
 var _right_finger_bones: Array[int] = []
 var _neutral_hips_origin := Vector3.ZERO
@@ -1056,7 +1058,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2M  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2N  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1143,6 +1145,8 @@ func _load_runtime_glb() -> void:
     _right_arm_index = _find_bone_suffix("rightarm")
     _left_forearm_index = _find_bone_suffix("leftforearm")
     _right_forearm_index = _find_bone_suffix("rightforearm")
+    _left_hand_index = _find_bone_suffix("lefthand")
+    _right_hand_index = _find_bone_suffix("righthand")
     _left_finger_bones = _collect_finger_bones("lefthand")
     _right_finger_bones = _collect_finger_bones("righthand")
     if _hips_index < 0 or _left_foot_index < 0 or _right_foot_index < 0 or _left_toe_index < 0 or _right_toe_index < 0:
@@ -1281,7 +1285,7 @@ func _motion_detail() -> String:
     var sprint_state := "SPRINT ON" if _sprint_held else "SPRINT OFF"
     if _boundary_flash > 0.0:
         return "COLLISION • %.2f m/s • %s • solid town geometry" % [_move_speed, sprint_state]
-    return "Pose & Grounding Fix • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
+    return "Natural Idle Pose • %s • %.2f m/s • %s" % [_motion, _move_speed, sprint_state]
 
 func _on_sprint_toggled(enabled: bool) -> void:
     _sprint_held = enabled
@@ -1341,12 +1345,19 @@ func _build_relaxed_idle_pose() -> void:
     # relaxed game-ready stance. These signs are measured for this Mixamo rig.
     for i in range(_neutral_pose.size()):
         _skeleton.set_bone_pose(i, _neutral_pose[i])
-    _apply_local_rotation(_left_arm_index, Vector3.RIGHT, -72.0)
-    _apply_local_rotation(_right_arm_index, Vector3.RIGHT, 72.0)
-    # Small opposing forearm bends bring both hands slightly forward instead
-    # of leaving the elbows/arms ruler-straight at the character's sides.
-    _apply_local_rotation(_left_forearm_index, Vector3.BACK, 12.0)
-    _apply_local_rotation(_right_forearm_index, Vector3.BACK, -12.0)
+    # Bring the upper arms nearly vertical instead of leaving the residual
+    # wide/splayed stance from the imported T-pose.
+    _apply_local_rotation(_left_arm_index, Vector3.RIGHT, -83.0)
+    _apply_local_rotation(_right_arm_index, Vector3.RIGHT, 83.0)
+    # A restrained elbow bend keeps the silhouette relaxed rather than rigid.
+    _apply_local_rotation(_left_forearm_index, Vector3.BACK, 8.0)
+    _apply_local_rotation(_right_forearm_index, Vector3.BACK, -8.0)
+    # Mixamo's bind-pose wrists leave the palms facing outward after the arms
+    # are lowered. Roll the hands around their local length axis so the palms
+    # sit toward the thighs instead of presenting outward.
+    _apply_local_rotation(_left_hand_index, Vector3.RIGHT, 155.0)
+    _apply_local_rotation(_right_hand_index, Vector3.RIGHT, 155.0)
+    _apply_relaxed_fingers()
     for i in range(_skeleton.get_bone_count()):
         _idle_pose.append(_skeleton.get_bone_pose(i))
 
@@ -1593,7 +1604,6 @@ func _process(delta: float) -> void:
             _apply_idle_offsets(delta)
         _apply_transition(delta)
         _lock_root_motion()
-        _apply_relaxed_fingers()
         _correct_foot_ground(delta)
     _update_fountain(delta)
     _update_camera(delta)
