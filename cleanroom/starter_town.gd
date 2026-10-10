@@ -368,18 +368,22 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _flower_box(house, right_front_window + Vector3(0, -0.58, 0.14), 0.84)
 
     # Side elevations: timber posts/bands and one framed window per side prevent blank box walls.
-    for side in [-1.0, 1.0]:
-        var sx := side * width * 0.505
-        for z in [-depth * 0.34, 0.0, depth * 0.34]:
+    for side_index in range(2):
+        var side: float = -1.0 if side_index == 0 else 1.0
+        var sx: float = side * width * 0.505
+        for z_index in range(3):
+            var z: float = [-depth * 0.34, 0.0, depth * 0.34][z_index]
             _box(house, "SidePost", Vector3(0.17, body_size.y + 0.08, 0.15), Vector3(sx, body_center_y, z), beam)
         _box(house, "SideBandLow", Vector3(0.17, 0.14, depth * 0.92), Vector3(sx, 1.42, 0), beam)
         _box(house, "SideBandHigh", Vector3(0.17, 0.14, depth * 0.92), Vector3(sx, body_size.y + 0.26, 0), beam)
         _window_frame_side(house, Vector3(sx + side * 0.012, 2.05, -depth * 0.08), 0.74, 0.80)
 
     # Stone quoins at the four corners break up the foundation/plaster transition.
-    for sx in [-1.0, 1.0]:
-        for sz in [-1.0, 1.0]:
-            var corner := Vector3(sx * width * 0.505, 1.02, sz * depth * 0.505)
+    for sx_index in range(2):
+        var corner_x: float = -1.0 if sx_index == 0 else 1.0
+        for sz_index in range(2):
+            var corner_z: float = -1.0 if sz_index == 0 else 1.0
+            var corner: Vector3 = Vector3(corner_x * width * 0.505, 1.02, corner_z * depth * 0.505)
             _box(house, "CornerStoneLow", Vector3(0.30, 0.32, 0.30), corner, stone_light)
             _box(house, "CornerStoneHigh", Vector3(0.26, 0.28, 0.26), corner + Vector3(0, 0.36, 0), stone)
 
