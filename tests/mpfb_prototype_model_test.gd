@@ -12,7 +12,7 @@ func _check() -> void:
         "Ponytail": "ponytail.glb"
     }
     for style in variants.keys():
-        var path := "res://" + variants[style]
+        var path: String = "res://" + String(variants[style])
         var asset: PackedScene = load(path)
         if asset == null:
             push_error("MPFB_GODOT_FAIL: missing or unimported " + path)
