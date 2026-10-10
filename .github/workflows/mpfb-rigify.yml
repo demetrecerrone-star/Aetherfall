@@ -72,7 +72,7 @@ jobs:
           from pathlib import Path
           data=json.loads(Path("builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json").read_text())
           assert data["vertices"]>10000 and data["deform_bones"]>15, data
-          assert data["outfit_parts"]>=25 and len(data["styles"])==4, data
+          assert data["outfit_parts"]>=27 and len(data["styles"])==4, data
           assert data["mobile_deform_bones"]==96, data
           assert all(96<=style["game_skin_joints"]<=98 for style in data["styles"].values()),data
           print("MPFB_RIGIFY_MODEL_VALID",data)
