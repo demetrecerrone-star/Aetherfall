@@ -195,8 +195,8 @@ func _create_interface() -> void:
     _sprint_button.offset_top = -142.0
     _sprint_button.offset_bottom = -48.0
     _sprint_button.add_theme_font_size_override("font_size",21)
-    _sprint_button.button_down.connect(func(): _sprint_held = true)
-    _sprint_button.button_up.connect(func(): _sprint_held = false)
+    _sprint_button.button_down.connect(_on_sprint_down)
+    _sprint_button.button_up.connect(_on_sprint_up)
     root_control.add_child(_sprint_button)
 
     var pause_button := Button.new()
@@ -330,6 +330,12 @@ func _set_motion(mode: String) -> void:
         _animation.play(clip_name, 0.0, speed)
     _update_status()
 
+func _on_sprint_down() -> void:
+    _sprint_held = true
+
+func _on_sprint_up() -> void:
+    _sprint_held = false
+
 func _toggle_pause() -> void:
     if _animation == null:
         return
@@ -376,7 +382,7 @@ func _update_status() -> void:
         return
     var joints := _skeleton.get_bone_count() if _skeleton != null else 0
     var state := "PAUSED" if _paused else _motion
-    _status.text = "AETHERFALL  |  CHARACTER PASS 4\n%s  •  %.2f m/s  •  %d/65 joints  •  gameplay locomotion" % [state, _move_speed, joints]
+    _status.text = "AETHERFALL  |  CHARACTER PASS 4.1\n%s  •  %.2f m/s  •  %d/65 joints  •  gameplay locomotion" % [state, _move_speed, joints]
 
 func _build_relaxed_idle_pose() -> void:
     _idle_pose.clear()

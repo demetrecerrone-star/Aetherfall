@@ -1,0 +1,33 @@
+name: Tripo Lab Parser Gate
+
+on:
+  push:
+    branches: ["feature/tripo-mixamo-character-test"]
+    paths:
+      - "tripo_lab/**"
+      - ".github/workflows/tripo-lab-parse.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Parse standalone Tripo project
+        run: |
+          set -euo pipefail
+          mkdir -p builds
+          godot --headless --editor --path tripo_lab --import --quit 2>&1 | tee builds/tripo-parser.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:' builds/tripo-parser.log; then
+            exit 1
+          fi
+          echo "TRIPO_LAB_PARSE_OK"
