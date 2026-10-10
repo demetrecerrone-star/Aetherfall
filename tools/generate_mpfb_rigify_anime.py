@@ -98,20 +98,29 @@ hair_styles=("Windswept","Long","Short","Ponytail")
 assert sum(o.name.startswith("Hair_") for o in accessories)>=40
 assert sum(o.name.startswith("Outfit_Adventurer") for o in accessories)>=10
 
-# Save all hairstyles and the editable 930-bone Rigify *control* rig in Blender.
-# The separate Android GLBs contain only deform bones (no control widgets).
+# Preserve all authoring controls, deform weights and four hairstyle options
+# in .blend BEFORE making any disposable mobile-export duplicates.
 bpy.ops.wm.save_as_mainfile(filepath=str(BLEND))
+from export_mpfb_runtime import build_runtime_rig, make_mobile_mesh, MAX_RUNTIME_BONES
+mobile_rig, joint_remap = build_runtime_rig(human, rig)
+originals=[human]+accessories
+mobile_objects=[make_mobile_mesh(original,mobile_rig,joint_remap)
+                for original in originals]
+mobile_human=mobile_objects[0]
+mobile_accessories=mobile_objects[1:]
+assert len(mobile_rig.data.bones)==MAX_RUNTIME_BONES
+assert len(mobile_accessories)==len(accessories)
 exported={}
 for style in hair_styles:
     bpy.ops.object.select_all(action="DESELECT")
-    rig.select_set(True)
-    human.select_set(True)
-    for obj in accessories:
+    mobile_rig.select_set(True)
+    mobile_human.select_set(True)
+    for obj in mobile_accessories:
         if obj.name.startswith("Hair_"):
             obj.select_set(obj.name.startswith("Hair_"+style+"_"))
         else:
             obj.select_set(True)
-    bpy.context.view_layer.objects.active=rig
+    bpy.context.view_layer.objects.active=mobile_rig
     output=GLB if style=="Windswept" else OUT/("Aetherfall-MPFB-Rigify-Anime-%s.glb"%style)
     bpy.ops.export_scene.gltf(filepath=str(output),export_format="GLB",
         use_selection=True,export_animations=False,export_skins=True,
@@ -122,7 +131,7 @@ for style in hair_styles:
     json_len=struct.unpack_from("<I",payload,12)[0]
     gltf=json.loads(payload[20:20+json_len])
     joints=max((len(s["joints"]) for s in gltf.get("skins",[])),default=0)
-    assert 30<=joints<270, "Exported Rigify controllers instead of deform rig: %d"%joints
+    assert MAX_RUNTIME_BONES<=joints<=MAX_RUNTIME_BONES+2, "Mobile rig joint count unexpected: %d"%joints
     mesh_names=[m.get("name","") for m in gltf.get("meshes",[])]
     assert any(x.startswith("Outfit_Adventurer") for x in mesh_names),mesh_names
     assert any(x.startswith("Hair_"+style) for x in mesh_names),mesh_names
@@ -132,7 +141,8 @@ for style in hair_styles:
 assert BLEND.stat().st_size>100000
 stats={"generator":"MPFB","rigging":"Rigify","blender":bpy.app.version_string,
     "vertices":len(human.data.vertices),"authoring_control_bones":len(rig.data.bones),
-    "deform_bones":len(deform),"height_model_units":round(height,3),
+    "deform_bones":len(deform),"mobile_deform_bones":len(mobile_rig.data.bones),
+    "height_model_units":round(height,3),
     "outfit_parts":sum(o.name.startswith("Outfit_") for o in accessories),
     "hair_parts":{style:sum(o.name.startswith("Hair_"+style) for o in accessories)
                   for style in hair_styles},"styles":exported,
