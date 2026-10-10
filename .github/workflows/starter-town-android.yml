@@ -1,0 +1,140 @@
+name: Aetherfall Starter Town Android APK
+
+on:
+  push:
+    branches: [feature/cleanroom-starter-town]
+    paths:
+      - "cleanroom/models/*.glb"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-starter-town:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout cleanroom project
+        uses: actions/checkout@v4
+
+      - name: Verify exact runtime Mixamo GLB
+        run: |
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          path = Path("cleanroom/models/tripo_adventurer.glb")
+          if not path.is_file():
+              raise SystemExit("Missing verified character: upload cleanroom/models/tripo_adventurer.glb")
+          raw = path.read_bytes()
+          if raw[:4] != b"glTF" or len(raw) < 20:
+              raise SystemExit("Model is not a valid binary GLB")
+          json_len = struct.unpack_from("<I", raw, 12)[0]
+          gltf = json.loads(raw[20:20+json_len].decode("utf-8").rstrip(" \x00"))
+          joint_counts = [len(skin.get("joints", [])) for skin in gltf.get("skins", [])]
+          animations = {str(a.get("name", "")).lower() for a in gltf.get("animations", [])}
+          if 65 not in joint_counts or not {"walk", "run"} <= animations:
+              raise SystemExit(f"Expected 65-joint Mixamo rig with walk/run, got joints={joint_counts}, clips={animations}")
+          print(f"Validated: {path.stat().st_size:,} bytes; skins={joint_counts}; animations={sorted(animations)}")
+          PY
+
+      - name: Fetch optional licensed Poly Haven sky
+        run: |
+          mkdir -p cleanroom/environment
+          if curl -fsSL --retry 3 --connect-timeout 12 \
+              "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloppenheim_03_puresky_1k.hdr" \
+              -o cleanroom/environment/kloppenheim_03_puresky_1k.hdr; then
+            echo "4398fb83b085aed97cef788cda6f9e2d  cleanroom/environment/kloppenheim_03_puresky_1k.hdr" | md5sum -c -
+          else
+            echo "HDRI unavailable: procedural sky fallback remains enabled"
+            rm -f cleanroom/environment/kloppenheim_03_puresky_1k.hdr
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Godot 4.6.3 Android templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: true
+
+      - name: Configure Android build tools
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\n' > "$HOME/.config/godot/editor_settings-4.6.tres"
+          printf 'export/android/android_sdk_path = "%s"\n' "$ANDROID_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
+          printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+
+      - name: Verify reusable signing identity
+        env:
+          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 || secrets.AETHERFALL_KEYSTORE_BASE64 }}
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_B64" || -z "$KEYSTORE_ALIAS" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "::error::Missing Aetherfall reusable signing secrets"
+            exit 1
+          fi
+          umask 077
+          KEYSTORE_PATH="$RUNNER_TEMP/aetherfall-upload.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -alias "$KEYSTORE_ALIAS" -storepass "$KEYSTORE_PASSWORD" >/dev/null
+          {
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$KEYSTORE_PATH"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$KEYSTORE_ALIAS"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$KEYSTORE_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Increment Android version for each test
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          path = Path("cleanroom/export_presets.cfg")
+          text = path.read_text()
+          version = 100000000 + int(os.environ["GITHUB_RUN_NUMBER"])
+          text = re.sub(r"version/code=\d+", f"version/code={version}", text, count=1)
+          text = re.sub(r'version/name="[^"]+"', f'version/name="0.2O-test.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
+          path.write_text(text)
+          print("Android version code:", version)
+          PY
+
+      - name: Parse and import Starter Town
+        run: |
+          set -euo pipefail
+          godot --headless --path cleanroom --check-only --script res://starter_town.gd
+          godot --headless --editor --path cleanroom --quit
+
+      - name: Export signed Aetherfall Starter Town APK
+        run: |
+          mkdir -p cleanroom/builds
+          godot --headless --path cleanroom --export-debug Android builds/Aetherfall-StarterTown-v0.2O.apk
+          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2O.apk
+
+      - name: Verify APK signing certificate
+        env:
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          APK="cleanroom/builds/Aetherfall-StarterTown-v0.2O.apk"
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
+          ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
+          EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
+          test -n "$ACTUAL"
+          test "$ACTUAL" = "$EXPECTED"
+
+      - name: Upload phone test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-StarterTown-v0.2O-Android
+          path: cleanroom/builds/Aetherfall-StarterTown-v0.2O.apk
+          if-no-files-found: error
+          retention-days: 30
