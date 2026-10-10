@@ -14,6 +14,10 @@ const MODEL_PATHS := [
 var _model: Node3D
 var _actor: Node3D
 var _rig: Skeleton3D
+# Preserve pose transforms captured immediately after Godot GLB import.
+# Importers may initialize bone poses with nonidentity transforms; calling
+# reset_bone_poses() would overwrite that bind/rest alignment.
+var _imported_bone_poses: Array[Transform3D] = []
 var _camera: Camera3D
 var _status: Label
 var _style_index := 0
@@ -171,6 +175,10 @@ func _select_style(index: int) -> void:
     _model.name = "Character_" + HAIR_NAMES[index]
     _actor.add_child(_model)
     _rig = _find_rig(_model)
+    _imported_bone_poses.clear()
+    if _rig != null:
+        for idx in range(_rig.get_bone_count()):
+            _imported_bone_poses.append(_rig.get_bone_pose(idx))
     if _rig == null or _rig.get_bone_count() != 96:
         push_error("Character rig import did not preserve 96 deformation joints")
     _update_status()
@@ -189,16 +197,19 @@ func _pose_bone(name: String, degrees: float) -> void:
     var idx := _rig.find_bone(name)
     if idx < 0:
         return
-    # Convert the desired character-local hinge axis into this Rigify bone's
-    # rest frame. This prevents mirrored legs bending around a guessed axis.
-    var rest_basis := _rig.get_bone_global_rest(idx).basis
+    # Apply a RELATIVE rotation to the actual imported rest pose rather than
+    # overwriting it with an identity quaternion (which distorted the avatar).
+    var imported := _imported_bone_poses[idx]
+    var rest_basis := _rig.get_bone_global_rest(idx).basis.orthonormalized()
     var axis := (rest_basis.inverse() * Vector3.RIGHT).normalized()
-    _rig.set_bone_pose_rotation(idx, Quaternion(axis, deg_to_rad(degrees)))
+    var delta_rotation := Quaternion(axis, deg_to_rad(degrees))
+    _rig.set_bone_pose(idx, imported * Transform3D(Basis(delta_rotation), Vector3.ZERO))
 
 func _set_demo_pose(delta: float) -> void:
     if _rig == null:
         return
-    _rig.reset_bone_poses()
+    # The pristine imported pose is the neutral/IDLE baseline. Do not call
+    # reset_bone_poses(): it changes the default GLB bone orientation.
     var speed := 0.0
     var swing := 0.0
     var lift_left := 0.0
@@ -216,16 +227,18 @@ func _set_demo_pose(delta: float) -> void:
 
     var left := sin(phase) * swing
     var right := -left
-    var left_knee := -lift_left * (44.0 if _mode == "RUN" else 29.0)
-    var right_knee := -lift_right * (44.0 if _mode == "RUN" else 29.0)
+    # In Godot's +Z forward convention, flexing toward -Z is positive about X.
+    # Negative flexion produced the inverted/forward knee in the first APK.
+    var left_knee := lift_left * (44.0 if _mode == "RUN" else 29.0)
+    var right_knee := lift_right * (44.0 if _mode == "RUN" else 29.0)
 
     if _jump_time >= 0.0:
         _jump_time += delta
         _actor.position.y = maxf(0.0, sin(_jump_time * PI / 0.82)) * 0.78
         left = 16.0
         right = 16.0
-        left_knee = -40.0
-        right_knee = -40.0
+        left_knee = 40.0
+        right_knee = 40.0
         if _jump_time >= 0.82:
             _jump_time = -1.0
             _actor.position.y = 0.0
@@ -240,29 +253,27 @@ func _set_demo_pose(delta: float) -> void:
     _pose_bone("DEF-foot.R", -right * 0.23 - right_knee * 0.36)
     _pose_bone("DEF-upper_arm.L", -left * 0.42)
     _pose_bone("DEF-upper_arm.R", -right * 0.42)
-    _pose_bone("DEF-forearm.L", -11.0 - lift_left * 9.0)
-    _pose_bone("DEF-forearm.R", -11.0 - lift_right * 9.0)
+    _pose_bone("DEF-forearm.L", -lift_left * 9.0)
+    _pose_bone("DEF-forearm.R", -lift_right * 9.0)
 
 func _process(delta: float) -> void:
     _time += delta
-    var moving := _mode == "WALK" or _mode == "RUN"
-    if moving:
-        var velocity := 1.25 if _mode == "WALK" else 2.45
-        _actor.position.z = clampf(_actor.position.z - velocity * delta, -65.0, 20.0)
-        if _actor.position.z <= -64.9:
-            _actor.position.z = 0.0
+    # Keep the test subject at the center of the review stage. Walk and run
+    # preview skeletal deformation in place until actual root motion is baked.
     _set_demo_pose(delta)
     _update_camera(delta)
 
 func _update_camera(delta: float) -> void:
     if _camera == null or _actor == null:
         return
-    var radius := 4.2
-    var azimuth := _yaw + (0.0 if _front_camera else PI)
+    var radius := 2.85
+    # Blender's MPFB facial mesh looks down +Z after glTF conversion.
+    # The original viewer accidentally labeled the back as the front.
+    var azimuth := _yaw + (PI if _front_camera else 0.0)
     var center := _actor.global_position + Vector3(0.0, 1.0, 0.0)
     var destination := center + Vector3(sin(azimuth) * radius,
-        1.0 + _pitch * 2.3, -cos(azimuth) * radius)
-    _camera.global_position = _camera.global_position.lerp(destination, clampf(delta * 8.0, 0.0, 1.0))
+        0.45 + _pitch * 1.5, -cos(azimuth) * radius)
+    _camera.global_position = destination if delta >= 1.0 else _camera.global_position.lerp(destination, clampf(delta * 8.0, 0.0, 1.0))
     _camera.look_at(center, Vector3.UP)
 
 func _unhandled_input(event: InputEvent) -> void:
