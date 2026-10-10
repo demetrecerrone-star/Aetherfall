@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Aetherfall Android emulator QA for v0.3.2 rig, gait and visual silhouette.
+# Aetherfall Android emulator QA for v0.3.3 rig, gait and visual silhouette.
 set -euo pipefail
 mkdir -p qa-results
 
@@ -20,7 +20,7 @@ function verify_foreground() {
     return 1
   fi
 }
-APK="${APK:-builds/Aetherfall-v0.3.2-emulator-x86_64-debug.apk}"
+APK="${APK:-builds/Aetherfall-v0.3.3-emulator-x86_64-debug.apk}"
 test -s "$APK"
 adb wait-for-device
 echo "=== Android device ===" | tee qa-results/test-summary.txt
