@@ -64,7 +64,8 @@ human.data.update()
 # Create a visible, neutral, non-transparent skin material for the model
 # preview; hairstyles and fantasy costume will be authored next.
 skin=bpy.data.materials.new("Aetherfall_Warm_Skin")
-skin.diffuse_color=(.72,.49,.38,1)
+# Slightly deeper warm skin value survives strong Android mobile lighting.
+skin.diffuse_color=(.58,.385,.305,1)
 skin.use_nodes=True
 bsdf=skin.node_tree.nodes.get("Principled BSDF")
 if bsdf is not None:
