@@ -146,7 +146,7 @@ def patch(name,cx,cz,rx,rz,material,depth=.004,region="head"):
 # Original anime character body: compact torso, longer tapered legs, large
 # tapered face, articulated arms and hands; all beneath the skinned coat.
 ellipse_loft("Skin_Torso",[
-    (.82,0,.006,.170,.114),(.97,0,.005,.172,.128),
+    (.79,0,.006,.170,.114),(.97,0,.005,.172,.128),
     (1.08,0,0,.159,.127),(1.20,0,0,.224,.135),
     (1.33,0,.003,.218,.132),(1.39,0,.008,.129,.107)],skin,32,"torso")
 ellipse_loft("Skin_Neck",[(1.335,0,0,.062,.059),
@@ -181,11 +181,12 @@ patch("Face_Lower_Lip",0,1.493,.023,.006,lips,.009)
 
 # Fitted original adventurer outfit and separately skinned sleeves/boots.
 ellipse_loft("Outfit_Tunic",[
-    (.84,0,0,.183,.130),(.97,0,0,.185,.145),
+    (.775,0,0,.190,.140),(.97,0,0,.185,.145),
     (1.10,0,0,.169,.145),(1.22,0,.003,.233,.155),
-    (1.327,0,.004,.227,.152)],coat,32,"torso")
+    (1.327,0,.004,.228,.158),
+    (1.377,0,.008,.173,.124),(1.428,0,.005,.101,.092)],coat,32,"torso")
 ellipse_loft("Outfit_Leather_Surcoat",[
-    (.935,0,-.001,.189,.154),(1.020,0,-.001,.174,.154),
+    (.847,0,-.001,.192,.155),(.935,0,-.001,.189,.154),(1.020,0,-.001,.174,.154),
     (1.145,0,0,.239,.160),(1.269,0,0,.225,.158)],leather,32,"torso")
 ellipse_loft("Outfit_Embroidered_Collar",[
     (1.332,0,0,.076,.074),(1.369,0,0,.079,.074),
@@ -207,20 +208,20 @@ for side,label in [(-1,"L"),(1,"R")]:
          [(side*.242,-.127,1.292),(side*.254,-.134,1.260),
           (side*.261,-.122,1.230)], [.009,.008,.006],trim,10,"arm_"+label)
     ellipse_loft("Outfit_Trousers_"+label,[
-         (.34,side*.124,.011,.075,.077),
+         (.270,side*.124,.011,.075,.079),
          (.48,side*.130,.009,.091,.086),
          (.68,side*.124,0,.111,.107),
-         (.84,side*.112,0,.127,.126)],coat,20,"leg_"+label)
+         (.915,side*.112,0,.127,.126)],coat,20,"leg_"+label)
     ellipse_loft("Outfit_Boot_"+label,[
          (.055,side*.124,-.023,.091,.133),
          (.12,side*.125,-.015,.086,.112),
-         (.29,side*.124,.015,.075,.087),
-         (.42,side*.128,.019,.076,.086)],boots,20,"leg_"+label)
-    globe("Outfit_ClosedToe_"+label,(side*.124,-.099,.066),
-          (.092,.128,.051),boots,12,20,"foot_"+label)
+         (.29,side*.124,.015,.082,.094),
+         (.482,side*.128,.019,.085,.099)],boots,20,"leg_"+label)
+    globe("Outfit_ClosedToe_"+label,(side*.124,-.084,.064),
+          (.108,.188,.079),boots,12,20,"foot_"+label)
     ellipse_loft("Outfit_BootUpperGold_"+label,[
-         (.391,side*.128,.019,.080,.091),
-         (.411,side*.128,.019,.080,.091)],trim,20,"leg_"+label)
+         (.457,side*.128,.019,.091,.104),
+         (.476,side*.128,.019,.091,.104)],trim,20,"leg_"+label)
     # Long asymmetric cloth tails with folds; double-sided material in Godot.
     tube("Outfit_SplitTail_"+label,
          [(side*.120,.119,.953),(side*.136,.153,.77),
@@ -243,8 +244,8 @@ def create_hair(style):
         u=(i/(sizes[style]-1)-.5)
         x=u*.232
         flip=(.025 if style=="Windswept" else -.006)
-        tip_z={"Windswept":1.590,"Long":1.560,
-               "Short":1.643,"Ponytail":1.607}[style]
+        tip_z={"Windswept":1.635,"Long":1.607,
+               "Short":1.668,"Ponytail":1.644}[style]
         strand_end=(x+flip+math.sin(i*1.8)*.009,
                     -.142-math.sin(i*.7)*.012,
                     tip_z+math.cos(i*1.9)*.024)
@@ -357,6 +358,18 @@ for ob in PARTS:
     mod=ob.modifiers.new("Anime deform","ARMATURE")
     mod.object=RIG
     assert len(ob.data.vertices)>0
+
+# Original Aetherfall characters target modern anime, not chibi proportions.
+# Re-proportion all *head-related* mesh geometry coherently, including eyes,
+# eyebrows, individual locks, scalp, ears and neck. Do this before binding/export
+# so no skin/rig mismatch is introduced. Body and limb lengths stay unchanged.
+for item in PARTS:
+    if item.get("region")=="head":
+        for vertex in item.data.vertices:
+            vertex.co.x*=.915
+            vertex.co.y*=.93
+            vertex.co.z=1.402+(vertex.co.z-1.402)*.77
+        item.data.update()
 
 # Save fully editable Blender authoring source and four Godot-friendly GLBs.
 bpy.ops.wm.save_as_mainfile(filepath=str(OUT/"Aetherfall-Anime-Native.blend"))
