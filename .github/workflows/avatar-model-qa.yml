@@ -1,0 +1,33 @@
+name: Anime Character Model QA (no APK)
+on:
+  push:
+    paths:
+      - ".github/workflows/avatar-model-qa.yml"
+      - "tools/generate_avatar_v033.py"
+      - "tests/test_avatar_v033.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check-model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Check out original Aetherfall project
+        uses: actions/checkout@v4
+      - name: Generate second-pass anime character without exporting APK
+        run: |
+          set -euo pipefail
+          python3 tools/generate_avatar_v033.py
+          test -s assets/characters/aetherfall_adventurer.gltf
+      - name: Verify knee bend points backward relative to facing direction
+        run: python3 tests/test_avatar_v033.py
+      - name: Save reviewable original rigged model
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-v0.3.3-Anime-Character-WIP
+          path: assets/characters/aetherfall_adventurer.gltf
+          retention-days: 14
+          if-no-files-found: error
