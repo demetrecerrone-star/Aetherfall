@@ -71,7 +71,7 @@ func _ready() -> void:
 	header_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(header_stack)
 	header_stack.add_child(_make_label("AETHERFALL  /  AVATAR 3D", 20, Color("d9c188")))
-	header_stack.add_child(_make_label("Anime adventurer  •  v0.3.2", 13, Color("acc6d9")))
+	header_stack.add_child(_make_label("Anime adventurer  •  v0.3.3", 13, Color("acc6d9")))
 
 	_status_label = _make_label("MOVE  0.0 m/s", 15, Color("d5f4ff"))
 	_status_label.anchor_left = 0.015
