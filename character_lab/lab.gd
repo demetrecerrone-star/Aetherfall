@@ -52,19 +52,21 @@ func _build_world() -> void:
     env.background_color = Color("#192539")
     env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     env.ambient_light_color = Color("#bdcbea")
-    env.ambient_light_energy = 0.80
+    # Prevent facial/hand highlights washing out to white on mobile GL.
+    env.ambient_light_energy = 0.36
+    env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
     world.environment = env
     add_child(world)
 
     var key_light := DirectionalLight3D.new()
     key_light.rotation_degrees = Vector3(-48, -28, 0)
-    key_light.light_energy = 1.35
+    key_light.light_energy = 0.75
     key_light.shadow_enabled = true
     add_child(key_light)
 
     var fill_light := DirectionalLight3D.new()
     fill_light.rotation_degrees = Vector3(-28, 155, 0)
-    fill_light.light_energy = 0.40
+    fill_light.light_energy = 0.20
     fill_light.light_color = Color("#91b5ff")
     add_child(fill_light)
 
@@ -102,6 +104,13 @@ func _build_ui() -> void:
     ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
     layer.add_child(ui)
+
+    var heading_back := ColorRect.new()
+    heading_back.position = Vector2(14, 12)
+    heading_back.size = Vector2(1110, 125)
+    heading_back.color = Color(0.055, 0.085, 0.14, 0.80)
+    heading_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    ui.add_child(heading_back)
 
     _status = Label.new()
     _status.position = Vector2(28, 22)
