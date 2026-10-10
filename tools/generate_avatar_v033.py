@@ -70,7 +70,6 @@ for side, label in ((-1, "Left"), (1, "Right")):
         ("Detail_ShoulderGuard", .34 * side, .76),
         ("Detail_Shoulder", .34 * side, .79),
         ("Detail_BootTop", boot_centre, .83),
-        ("Detail_BootCuff", boot_centre, .83),
         ("Detail_KneeWrap", boot_centre, .87),
         ("Detail_KneeRidge", boot_centre, .86),
     ):
@@ -189,8 +188,6 @@ for style in ("Windswept","Long","Short","Ponytail"):
                 (x*1.12,1.70,.251),
                 (x*1.20,1.43,.217)],.084,"HairMain")
     if style=="Ponytail":
-        hair_tuft("Hair_PonytailBackVolume","HairMain" if False else [
-            (0,2.09,.17)],.04,"HairMain") if False else None
         for i in range(5):
             x=(i-2)*.032
             hair_tuft("Hair_PonytailCascade%02d"%i,[
