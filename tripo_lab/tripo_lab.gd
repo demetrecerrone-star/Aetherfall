@@ -213,7 +213,7 @@ func _update_status() -> void:
     if _status == null:
         return
     var joints := _skeleton.get_bone_count() if _skeleton != null else 0
-    _status.text = "AETHERFALL  |  TRIPO 3D CHARACTER TEST\n%s  •  %d/65 Mixamo joints  •  Native Walk + Run clips" % [_motion, joints]
+    _status.text = "AETHERFALL  |  TRIPO 3D CHARACTER TEST\n%s  •  %d/65 Mixamo joints  •  Native Walk + Run • Root locked" % [_motion, joints]
 
 func _process(delta: float) -> void:
     _update_camera(delta)

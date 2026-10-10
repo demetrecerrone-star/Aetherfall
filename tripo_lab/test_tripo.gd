@@ -81,6 +81,6 @@ func _check() -> void:
         push_error("TRIPO_GODOT_TEST_FAIL: zoom restore failed")
         quit(1)
         return
-    print("AETHERFALL_TRIPO_IMPORT_OK %d joints, native walk/run clips, controls, separate scene" % rig.get_bone_count())
+    print("AETHERFALL_TRIPO_IMPORT_OK %d joints, native walk/run clips, root lock, front camera, controls" % rig.get_bone_count())
     scene.queue_free()
     quit(0)
