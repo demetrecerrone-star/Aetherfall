@@ -282,7 +282,7 @@ func _town_texture_group(name: String) -> String:
         return "stone"
     if n.contains("foundation") or n.contains("cornerstone") or n.contains("wallcap") or n.contains("buttress") or n == "townwall" or n.begins_with("gatetower") or n.begins_with("chimney") or n == "rock":
         return "stone"
-    for prefix in ["frontpost", "sidepost", "frontband", "sideband", "brace", "eavetrim", "fascia", "windowtrim", "sidewindowtrim", "windowcross", "sidewindowcross", "door", "shutter", "flowerbox", "counter", "shelf", "gatebar", "gatecrossbar", "barrel", "trunk", "branch", "shop", "bench"]:
+    for prefix in ["frontpost", "sidepost", "frontband", "sideband", "brace", "eavetrim", "fascia", "windowtrim", "sidewindowtrim", "windowcross", "sidewindowcross", "door", "shutter", "flowerbox", "counter", "shelf", "gatebar", "gatecrossbar", "barrel", "trunk", "branch", "shop", "bench", "stallpost", "crate"]:
         if n.begins_with(prefix):
             return "wood"
     return ""
@@ -294,20 +294,34 @@ func _town_mat(name: String, color: Color, roughness: float, size: Vector3) -> S
     if kind.is_empty() or not _town_textures.has(kind):
         return mat
     mat.albedo_texture = _town_textures[kind] as Texture2D
-    var strength := 0.18
-    if kind == "plaster" or kind == "roof":
+    # Pale source grass needs a stronger green tint; hold stone/plaster neutral.
+    var strength := 0.22
+    if kind == "grass":
+        strength = 0.64
+    elif kind == "dirt":
+        strength = 0.42
+    elif kind == "plaster":
         strength = 0.36
+    elif kind == "roof":
+        strength = 0.52
     elif kind == "wood":
-        strength = 0.27
+        strength = 0.31
     elif kind == "cobble" or kind == "stone":
-        strength = 0.23
+        strength = 0.25
     mat.albedo_color = Color.WHITE.lerp(color, strength)
     var meters := 2.3
     if kind == "plaster":
         meters = 2.8
     elif kind == "wood" or kind == "roof":
         meters = 1.9
+    elif kind == "cobble":
+        meters = 1.65
     mat.uv1_scale = Vector3(maxf(1.0, size.x / meters), maxf(1.0, maxf(size.y, size.z) / meters), 1.0)
+    # Cylinder UVs stretch the stone into visible bands; use object-space projection
+    # for fountain masonry only (not the translucent water or glowing crystal).
+    if name.to_lower().begins_with("fountain") and kind == "stone":
+        mat.uv1_triplanar = true
+        mat.uv1_scale = Vector3(1.1, 1.1, 1.1)
     mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     return mat
 
@@ -504,6 +518,16 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _box(house, "RoofLeft", Vector3(width * 0.64, 0.34, depth + 1.05), Vector3(-width * 0.245, body_size.y + 1.08, 0), roof_color, Vector3(0, 0, 25), 0.82)
     _box(house, "RoofRight", Vector3(width * 0.64, 0.34, depth + 1.05), Vector3(width * 0.245, body_size.y + 1.08, 0), roof_color, Vector3(0, 0, -25), 0.82)
     _box(house, "RoofRidge", Vector3(0.26, 0.30, depth + 1.12), Vector3(0, body_size.y + 1.62, 0), roof_color.darkened(0.18), Vector3.ZERO, 0.78)
+    # Thin, subdued tile courses make each pitched roof read as shingles.
+    # These are visual details only; the building dimensions and blockers stay fixed.
+    var roof_courses := maxi(4, mini(9, int(ceil(depth / 0.85))))
+    for course_i in range(1, roof_courses):
+        var z_course := -depth * 0.5 + float(course_i) * depth / float(roof_courses)
+        for side_i in [-1, 1]:
+            var side: float = float(side_i)
+            var roof_angle := -25.0 if side > 0.0 else 25.0
+            var ridge := _box(house, "RoofCourse", Vector3(width * 0.60, 0.016, 0.035), Vector3(side * width * 0.245, body_size.y + 1.269, z_course), roof_color.darkened(0.21), Vector3(0, 0, roof_angle), 0.96)
+            ridge.material_override = _mat(roof_color.darkened(0.20), 0.93)
     _box(house, "FasciaFront", Vector3(width + 0.58, 0.16, 0.18), Vector3(0, body_size.y + 0.76, depth * 0.57), beam)
     _box(house, "FasciaBack", Vector3(width + 0.58, 0.16, 0.18), Vector3(0, body_size.y + 0.76, -depth * 0.57), beam)
     _box(house, "EaveTrimL", Vector3(0.14, 0.18, depth + 1.02), Vector3(-width * 0.51, body_size.y + 0.78, 0), beam)
@@ -607,9 +631,11 @@ func _add_market_stall(position: Vector3, awning: Color) -> void:
     var dark_wood := Color("#3e2b22")
     _box(stall, "Counter", Vector3(2.55, 0.20, 1.25), Vector3(0, 1.05, 0), wood)
     _box(stall, "Shelf", Vector3(2.35, 0.14, 0.75), Vector3(0, 0.54, 0.18), dark_wood)
+    _box(stall, "CounterFront", Vector3(2.42, 0.24, 0.12), Vector3(0, 0.84, 0.60), dark_wood)
+    _box(stall, "CounterEdge", Vector3(2.61, 0.055, 1.30), Vector3(0, 1.18, 0), wood.lightened(0.12))
     for x in [-1.08, 1.08]:
         for z in [-0.46, 0.46]:
-            _box(stall, "Post", Vector3(0.12, 2.50, 0.12), Vector3(float(x), 1.28, float(z)), dark_wood)
+            _box(stall, "StallPost", Vector3(0.12, 2.50, 0.12), Vector3(float(x), 1.28, float(z)), dark_wood)
     # Striped awning reads much better than a single floating slab.
     for stripe in range(5):
         var sx := -1.06 + float(stripe) * 0.53
@@ -663,7 +689,14 @@ func _add_wall_segment(position: Vector3, size: Vector3) -> void:
     _box(self, "WallCap", Vector3(size.x + 0.14, 0.20, size.z + 0.14), position + Vector3(0, size.y * 0.5 + 0.10, 0), Color("#8b877d"))
 
 func _road_base(name: String, center: Vector3, size: Vector2) -> void:
-    _box(self, name, Vector3(size.x, 0.055, size.y), center + Vector3(0, 0.028, 0), Color("#5f5c55"), Vector3.ZERO, 0.96)
+    # One fully textured cobbled plane per region. Small height offsets avoid
+    # z-fighting where roads and square intersect without raised block paving.
+    var lift := 0.0
+    if name == "CrossRoad":
+        lift = 0.012
+    elif name == "MarketSquare":
+        lift = 0.024
+    _box(self, name, Vector3(size.x, 0.055, size.y), center + Vector3(0, 0.0275 + lift, 0), Color("#68675f"), Vector3.ZERO, 0.95)
 
 func _road_seams_z(center: Vector3, width: float, length: float) -> void:
     # Cross seams plus two long irregular lanes. Low node count but reads as cobbled paving from the player camera.
@@ -866,22 +899,22 @@ func _build_stage() -> void:
     fill.shadow_enabled = false
     add_child(fill)
 
-    # Ground: deeper grass tone with subtle patch variation around the edges.
-    _box(self, "TownGround", Vector3(58.0, 0.16, 55.0), Vector3(0, -0.08, 0), Color("#536b45"), Vector3.ZERO, 1.0)
-    for patch in [
+    # Greener, softly varied lawn; the cobblestone itself is already in the road texture.
+    _box(self, "TownGround", Vector3(58.0, 0.16, 55.0), Vector3(0, -0.08, 0), Color("#70965b"), Vector3.ZERO, 1.0)
+    var patch_positions := [
         Vector3(-22,0,-18), Vector3(20,0,-19), Vector3(-23,0,10), Vector3(22,0,12),
         Vector3(-15,0,21), Vector3(16,0,21), Vector3(-18,0,-3), Vector3(19,0,2)
-    ]:
-        _cylinder(self, "GrassPatch", 2.4, 0.018, patch + Vector3(0,0.010,0), Color("#5f7750"))
+    ]
+    for patch_i in range(patch_positions.size()):
+        var patch: Vector3 = patch_positions[patch_i]
+        var patch_color := Color("#628b51") if patch_i % 2 == 0 else Color("#81a568")
+        _cylinder(self, "GrassPatch", 2.4, 0.018, patch + Vector3(0,0.010,0), patch_color)
 
-    # Layered road beds with staggered stone courses and dirt shoulders.
+    # Unified tiling instead of 150+ giant textured slabs sitting on cobbles.
     _road_shoulders()
     _road_base("EntryRoad", Vector3(0,0,2.0), Vector2(6.2,44.0))
-    _road_stones_z(Vector3(0,0,2.0), 6.2, 44.0)
     _road_base("CrossRoad", Vector3(0,0,1.0), Vector2(42.0,5.6))
-    _road_stones_x(Vector3(0,0,1.0), 42.0, 5.6)
     _road_base("MarketSquare", Vector3(0,0,-4.0), Vector2(16.0,14.0))
-    _market_stones(Vector3(0,0,-4.0), Vector2(16.0,14.0))
 
     # Perimeter walls with caps and simple buttresses. The hard software boundary remains authoritative.
     _add_wall_segment(Vector3(-27.6, 1.7, 0), Vector3(1.2, 3.4, 52.0))
@@ -1156,7 +1189,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2S  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2T  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1602,13 +1635,16 @@ func _ground_surface_y(world_position: Vector3) -> float:
     var x := world_position.x
     var z := world_position.z
 
-    # Individual road stones sit above their darker road bed. Use the stone
-    # top surface wherever the player is inside a paved gameplay region.
+    # Grounding matches the actual visible surfaces, not the removed slabs.
     var on_entry_road := absf(x) <= 3.10 and z >= -20.0 and z <= 24.0
     var on_cross_road := absf(x) <= 21.0 and z >= -1.80 and z <= 3.80
     var on_market_square := absf(x) <= 8.0 and z >= -11.0 and z <= 3.0
-    if on_entry_road or on_cross_road or on_market_square:
-        return 0.105
+    if on_market_square:
+        return 0.079
+    if on_cross_road:
+        return 0.067
+    if on_entry_road:
+        return 0.055
 
     # Dirt shoulders are only slightly above the lawn.
     var on_entry_shoulder := absf(absf(x) - 3.30) <= 0.24 and z >= -19.75 and z <= 23.75
