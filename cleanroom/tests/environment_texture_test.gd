@@ -80,7 +80,11 @@ func _run_check() -> void:
     if flowering == null:
         _fail("Flowering foliage was not imported")
         return
-    var bush_mesh := flowering.find_child("*", "MeshInstance3D", true, false) as MeshInstance3D
+    var bush_meshes := flowering.find_children("*", "MeshInstance3D", true, false)
+    if bush_meshes.is_empty():
+        _fail("Flowering bush has no mesh")
+        return
+    var bush_mesh := bush_meshes[0] as MeshInstance3D
     if bush_mesh == null:
         _fail("Flowering bush has no mesh")
         return
