@@ -7,6 +7,7 @@ const GraphicsQuality = preload("res://graphics_quality.gd")
 # Runtime .bin holds the same optimized GLB bytes and is explicitly
 # bundled in the Android export (Godot does not reliably preload raw .glb).
 const FOUNTAIN_RUNTIME_PATH := "res://models/fountain/MedievalFountain.bin"
+const FountainWater = preload("res://fountain_water.gd")
 # Midpoint between market stall rows (z=-6.10 and z=+2.45), x=0.
 const FOUNTAIN_CENTER := Vector2(0.0, -1.825)
 const FOUNTAIN_SCALE := 3.55 # +10.9% from approved Pass 9 size
@@ -1127,6 +1128,12 @@ func _add_town_fountain() -> void:
     fountain_mesh.name = "ImportedMedievalFountain"
     fountain_mesh.scale = Vector3.ONE * FOUNTAIN_SCALE
     fountain.add_child(fountain_mesh)
+    # Water layers use the fountain's approved Pass 10 local dimensions.
+    # Never disturb the real Tripo model, its scale or the market position.
+    var fountain_water := FountainWater.new()
+    fountain_water.name = "FountainWaterEffects"
+    fountain.add_child(fountain_water)
+    fountain.set_meta("fountain_water_effects_enabled", true)
 
     # User-approved fountain made about 11% larger and centered precisely
     # between the two rows of market stalls. Preserve circular collision
