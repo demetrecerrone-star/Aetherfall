@@ -969,20 +969,35 @@ func _build_stage() -> void:
     _add_wall_segment(Vector3(0, 1.7, -25.6), Vector3(56.4, 3.4, 1.2))
     _add_wall_segment(Vector3(-15.3, 1.7, 25.6), Vector3(25.8, 3.4, 1.2))
     _add_wall_segment(Vector3(15.3, 1.7, 25.6), Vector3(25.8, 3.4, 1.2))
+    # Decorative buttresses project in front of the long wall plane.
+    # Give each visible support a tightly fitting player and camera blocker.
+    # The broad world bounds still handle the wall between supports.
     for z in range(-21, 22, 6):
-        _box(self, "WallButtressL", Vector3(0.55, 2.4, 0.85), Vector3(-26.72,1.2,float(z)), Color("#625f59"))
-        _box(self, "WallButtressR", Vector3(0.55, 2.4, 0.85), Vector3(26.72,1.2,float(z)), Color("#625f59"))
+        for wall_x in [-26.72, 26.72]:
+            var side: String = "L" if wall_x < 0.0 else "R"
+            var pillar_center := Vector3(wall_x, 1.2, float(z))
+            var pillar_size := Vector3(0.55, 2.4, 0.85)
+            _box(self, "WallButtress" + side, pillar_size, pillar_center, Color("#625f59"))
+            _add_blocker(Vector2(wall_x, float(z)), Vector2(0.55, 0.85), PLAYER_WORLD_RADIUS + 0.025)
+            _add_camera_obstacle(pillar_center, pillar_size)
     for x in range(-22, 23, 6):
-        _box(self, "WallButtressN", Vector3(0.85, 2.4, 0.55), Vector3(float(x),1.2,-24.72), Color("#625f59"))
+        var pillar_center := Vector3(float(x), 1.2, -24.72)
+        var pillar_size := Vector3(0.85, 2.4, 0.55)
+        _box(self, "WallButtressN", pillar_size, pillar_center, Color("#625f59"))
+        _add_blocker(Vector2(float(x), -24.72), Vector2(0.85, 0.55), PLAYER_WORLD_RADIUS + 0.025)
+        _add_camera_obstacle(pillar_center, pillar_size)
 
     # Gatehouse towers, roofs and closed portcullis.
     _cylinder(self, "GateTowerL", 2.3, 6.0, Vector3(-4.1, 3.0, 24.6), Color("#706e68"))
     _cylinder(self, "GateTowerR", 2.3, 6.0, Vector3(4.1, 3.0, 24.6), Color("#706e68"))
     _tapered_cylinder(self, "GateRoofL", 2.65, 0.08, 2.2, Vector3(-4.1, 7.05, 24.6), Color("#5d3931"))
     _tapered_cylinder(self, "GateRoofR", 2.65, 0.08, 2.2, Vector3(4.1, 7.05, 24.6), Color("#5d3931"))
-    # Preserve original gate clearance.
-    _add_circle_blocker(Vector2(-4.1,24.6), 2.35, 0.68)
-    _add_circle_blocker(Vector2(4.1,24.6), 2.35, 0.68)
+    # Match the actual 2.30 m tower radius plus player clearance.
+    # 0.2U used 2.35 + 0.68 m and stopped the actor far from visible stone.
+    _add_circle_blocker(Vector2(-4.1,24.6), 2.30, PLAYER_WORLD_RADIUS + 0.035)
+    _add_circle_blocker(Vector2(4.1,24.6), 2.30, PLAYER_WORLD_RADIUS + 0.035)
+    # The portcullis is a closed solid barrier, even after tightening towers.
+    _add_blocker(Vector2(0.0, 25.0), Vector2(4.4, 0.24), PLAYER_WORLD_RADIUS + 0.035)
     _add_camera_obstacle(Vector3(-4.1, 3.0, 24.6), Vector3(4.6, 6.0, 4.6))
     _add_camera_obstacle(Vector3(4.1, 3.0, 24.6), Vector3(4.6, 6.0, 4.6))
     _add_camera_obstacle(Vector3(0.0, 1.63, 25.0), Vector3(4.5, 3.25, 0.28))
@@ -1240,7 +1255,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2U  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2V  |  " + title
     if _detail != null:
         _detail.text = detail
 

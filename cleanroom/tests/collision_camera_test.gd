@@ -53,10 +53,38 @@ func _check() -> void:
     if not bool(town.call("_world_point_blocked", Vector2(-4.1, 24.0))):
         _fail("Gate tower is no longer blocked")
         return
+    # Tower: 2.3m physical radius + 0.34m player + 0.035m skin.
+    # Points 2.65m and 2.75m from tower center straddle this boundary.
+    if not bool(town.call("_world_point_blocked", Vector2(-4.1, 21.95))):
+        _fail("Approach clips through the gate tower")
+        return
+    if bool(town.call("_world_point_blocked", Vector2(-4.1, 21.85))):
+        _fail("Gate tower still has too large an invisible collision halo")
+        return
+    if not bool(town.call("_world_point_blocked", Vector2(0.0, 24.65))):
+        _fail("Closed portcullis is passable")
+        return
+    # Each visible town-wall support has fitted collision, without
+    # blocking empty air beyond its own projection.
+    for wall_x in [-26.72, 26.72]:
+        var approaching_x := -26.30 if wall_x < 0.0 else 26.30
+        var free_x := -25.80 if wall_x < 0.0 else 25.80
+        if not bool(town.call("_world_point_blocked", Vector2(approaching_x, -21.0))):
+            _fail("Side wall buttress is missing its collision")
+            return
+        if bool(town.call("_world_point_blocked", Vector2(free_x, -21.0))):
+            _fail("Side wall buttress blocks empty space")
+            return
+    if not bool(town.call("_world_point_blocked", Vector2(-22.0, -24.20))):
+        _fail("North wall buttress is missing its collision")
+        return
+    if bool(town.call("_world_point_blocked", Vector2(-22.0, -23.80))):
+        _fail("North wall buttress blocks empty air")
+        return
     if not bool(town.get("_loaded")):
         _fail("Character loading failed")
         return
-    print("AETHERFALL_COLLISION_CAMERA_02U_OK: close house walls, camera shell, gate, door handle, and grounded stairs")
+    print("AETHERFALL_COLLISION_CAMERA_02U_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells")
     town.queue_free()
     quit(0)
 
