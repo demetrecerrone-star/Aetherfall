@@ -5,6 +5,7 @@ signal jump_tapped
 signal camera_reset_tapped
 signal hair_tapped
 signal outfit_tapped
+signal menu_tapped
 
 const JOYSTICK_SCRIPT = preload("res://scripts/virtual_joystick.gd")
 var _joystick: Variant
@@ -72,6 +73,16 @@ func _ready() -> void:
 	header.add_child(header_stack)
 	header_stack.add_child(_make_label("AETHERFALL  /  AVATAR 3D", 20, Color("d9c188")))
 	header_stack.add_child(_make_label("Anime adventurer  •  v0.3.3", 13, Color("acc6d9")))
+
+	var menu := _make_button("MENU", 115, 47)
+	menu.anchor_left = .37
+	menu.anchor_right = .37
+	menu.anchor_top = .13
+	menu.anchor_bottom = .13
+	menu.offset_right = 115
+	menu.offset_bottom = 47
+	menu.pressed.connect(func() -> void: menu_tapped.emit())
+	root.add_child(menu)
 
 	_status_label = _make_label("MOVE  0.0 m/s", 15, Color("d5f4ff"))
 	_status_label.anchor_left = 0.015
