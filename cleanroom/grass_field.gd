@@ -1,4 +1,5 @@
 extends RefCounted
+const NatureReplacement = preload("res://nature_replacements.gd")
 ## Low, soft, curved meadow grass batched into 8m chunks for mobile rendering.
 ## Five-leaf tuft ribbons replace spike-like triangles. Roads stay clear.
 const CELL_SIZE := 8.0
@@ -49,7 +50,12 @@ static func _blade_mesh() -> ArrayMesh:
     return mesh
 
 static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int:
-    var mesh := _blade_mesh()
+    # Import the genuine Quaternius short grass, preserving native leaf shapes
+    # and textures. Fall back to the previous soft procedural grass if the
+    # optional CC0 bundle has not been uploaded to this branch.
+    var native_mesh := NatureReplacement.grass_mesh()
+    var native_enabled := native_mesh != null
+    var mesh: ArrayMesh = native_mesh if native_enabled else _blade_mesh()
     var rng := RandomNumberGenerator.new()
     rng.seed = 20261011
     var total := 0
@@ -77,7 +83,13 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                     var scale_factor := rng.randf_range(0.92, 1.15)
                     var blade_height := rng.randf_range(0.85, 1.20)
                     var angle := rng.randf_range(0.0, TAU)
-                    var basis := Basis(Vector3.UP, angle).scaled(Vector3(scale_factor, blade_height, scale_factor))
+                    # The imported glTF grass is ~1.31m tall. Scale its
+                    # geometry down to maintained village-lawn height ~0.19m.
+                    var planted_size := Vector3(
+                        scale_factor * (0.29 if native_enabled else 1.0),
+                        blade_height * (0.145 if native_enabled else 1.0),
+                        scale_factor * (0.29 if native_enabled else 1.0))
+                    var basis := Basis(Vector3.UP, angle).scaled(planted_size)
                     transforms.append(Transform3D(basis, Vector3(x - float(tx), 0.008, z - float(tz))))
                     colors.append(Color(
                         rng.randf_range(0.86, 1.04),
@@ -105,7 +117,8 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
             total += transforms.size()
     town.set_meta("grass_instance_count", total)
     town.set_meta("grass_chunk_count", tile_index)
-    town.set_meta("grass_style", "soft_curved_meadow_grass")
+    town.set_meta("grass_style", "quaternius_textured_short_grass" if native_enabled else "soft_curved_meadow_grass")
+    town.set_meta("grass_nature_model_loaded", native_enabled)
     town.set_meta("grass_spacing_m", TUFT_SPACING)
     town.set_meta("grass_blade_nominal_height_m", 0.184)
     return total
