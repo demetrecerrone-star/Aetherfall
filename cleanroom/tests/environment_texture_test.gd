@@ -102,7 +102,7 @@ func _run_check() -> void:
         return
     for ring in rings:
         var ring_visual := ring as MeshInstance3D
-        if Vector2(ring_visual.position.x, ring_visual.position.z + 4.0).length() > 0.80:
+        if Vector2(ring_visual.position.x, ring_visual.position.z + 4.0).length() > 0.90:
             _fail("Ripple center is not close to the falling water")
             return
 
