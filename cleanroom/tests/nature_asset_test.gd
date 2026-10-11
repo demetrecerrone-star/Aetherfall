@@ -32,6 +32,41 @@ func _run() -> void:
             return
         obj.free()
 
+    # Bush_Common ships with red Leaves_TwistedTree in the Standard archive.
+    # Verify the *embedded bitmap pixels*, not merely a green material tint:
+    # a green multiply of the red source still produced red bushes in Pass 5.
+    var shrub_scene := load("res://models/nature/Bush_Common.glb") as PackedScene
+    if shrub_scene == null:
+        _fail("Dark-green Bush_Common model failed to import")
+        return
+    var shrub := shrub_scene.instantiate() as Node3D
+    root.add_child(shrub)
+    var opaque_leaf_pixels := 0
+    for visual in NatureReplacement._mesh_nodes(shrub):
+        if visual.mesh == null:
+            continue
+        for surface in range(visual.mesh.get_surface_count()):
+            var material := visual.get_active_material(surface) as StandardMaterial3D
+            if material == null or material.albedo_texture == null:
+                continue
+            var leaf_image := material.albedo_texture.get_image()
+            if leaf_image == null:
+                _fail("Cannot read the imported shrub leaf bitmap")
+                return
+            for px in range(0, leaf_image.get_width(), 13):
+                for py in range(0, leaf_image.get_height(), 13):
+                    var leaf := leaf_image.get_pixel(px, py)
+                    if leaf.a < 0.85:
+                        continue
+                    opaque_leaf_pixels += 1
+                    if not (leaf.g > leaf.r * 1.14 and leaf.g > leaf.b * 1.06):
+                        _fail("Bush_Common still embeds red instead of dark-green foliage pixels")
+                        return
+    shrub.free()
+    if opaque_leaf_pixels < 25:
+        _fail("No opaque foliage samples were found in the shrub texture")
+        return
+
     for plant_model in ["Grass_Common_Short", "Grass_Wispy_Short", "Clover_1", "Fern_1"]:
         var native_grass := NatureReplacement.grass_mesh(plant_model)
         if native_grass == null or native_grass.get_surface_count() == 0:
