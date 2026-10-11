@@ -67,7 +67,10 @@ static func _emit_quad(tool: SurfaceTool, start_x: float, end_x: float, start_z:
     var p1 := Vector3(start_x, height, end_z)
     var p2 := Vector3(end_x, height, start_z)
     var p3 := Vector3(end_x, height, end_z)
-    for vertex in [p0, p1, p2, p2, p1, p3]:
+    # Godot's clockwise-front SurfaceTool convention is the reverse of
+    # the old top-down order. The previous quads were back-face culled from
+    # above on Android, so road collisions existed but the paving vanished.
+    for vertex in [p0, p2, p1, p2, p3, p1]:
         tool.set_normal(Vector3.UP)
         tool.set_uv(Vector2(vertex.x / tile_size, vertex.z / tile_size))
         tool.add_vertex(vertex)
@@ -120,6 +123,10 @@ static func build(town: Node3D, regions: Array[Rect2], cobble_material: Standard
     # share one continuous stone pattern, including every doorstep.
     cobble_material.uv1_scale = Vector3.ONE
     dirt_material.uv1_scale = Vector3.ONE
+    # Safeguard against platform-specific winding/culling differences in
+    # GL Compatibility so a future geometry refactor cannot erase the roads.
+    cobble_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    dirt_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     var cobble_quads := _surface(town, "UnifiedCobblestoneRoad", regions, cobble_material, false)
     var verge_quads := _surface(town, "UnifiedDirtRoadVerge", regions, dirt_material, true)
     town.set_meta("road_style", "weathered_medieval_cobblestone")
