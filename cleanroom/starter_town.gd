@@ -4,6 +4,8 @@ const NatureReplacement = preload("res://nature_replacements.gd")
 const GateAshlar = preload("res://gate_ashlar.gd")
 const GrassField = preload("res://grass_field.gd")
 const GraphicsQuality = preload("res://graphics_quality.gd")
+# Static preload guarantees the user's GLB is included in Android export packs.
+const FOUNTAIN_SCENE = preload("res://models/fountain/MedievalFountain.glb")
 const RoadNetwork = preload("res://road_network.gd")
 const MountainValley = preload("res://mountain_valley.gd")
 const ZoneTransfer = preload("res://zone_transfer.gd")
@@ -1100,7 +1102,7 @@ func _add_town_fountain() -> void:
     # The 11,226-triangle mesh and all three embedded PBR maps are preserved;
     # textures are optimized for mobile before they are committed to GitHub.
     var fountain_path := "res://models/fountain/MedievalFountain.glb"
-    var fountain_scene := load(fountain_path) as PackedScene
+    var fountain_scene := FOUNTAIN_SCENE as PackedScene
     if fountain_scene == null:
         push_error("AETHERFALL_FOUNTAIN_MISSING: " + fountain_path)
         return
