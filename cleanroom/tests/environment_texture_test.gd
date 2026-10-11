@@ -122,6 +122,13 @@ func _run_check() -> void:
     if flowering == null:
         _fail("Flowering foliage was not imported")
         return
+    var shrub_root := flowering.get_parent() as Node3D
+    if shrub_root == null or not bool(shrub_root.get_meta("grounded", false)):
+        _fail("Imported shrub has no ground attachment marker")
+        return
+    if float(shrub_root.get_meta("scenery_ground_sink", 0.0)) < 0.25:
+        _fail("Imported shrub is still too high above the grass")
+        return
     var bush_meshes := flowering.find_children("*", "MeshInstance3D", true, false)
     if bush_meshes.is_empty():
         _fail("Flowering bush has no mesh")
