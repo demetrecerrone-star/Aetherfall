@@ -22,7 +22,6 @@ func _check() -> void:
     if stalls.size() != 4:
         _fail("Existing four market stalls changed count")
         return
-    _print_native_stall_counter_probe(stalls[0] as Node3D)
     var good_count := 0
     for name in EXPECTED_STALLS:
         var stand := town.get_node_or_null(name) as Node3D
@@ -32,25 +31,39 @@ func _check() -> void:
         if stand.get_node_or_null("Quaternius_MarketStand_1") == null:
             _fail("Market stall replaced with a placeholder")
             return
-        if String(stand.get_meta("market_wares_style", "")) != "plaza_facing_front_counter_display":
-            _fail("Stall doesn't use current licensed crate assets: " + name)
+        if String(stand.get_meta("market_wares_style", "")) != "single_integrated_market_counter":
+            _fail("Stall still has an inserted display table instead of an integral counter: " + name)
             return
-        var rack := stand.get_node_or_null("FrontCounterMerchandiseRack") as Node3D
-        if rack == null or rack.get_node_or_null("OakDisplayShelf") == null:
-            _fail("Visible oak display shelf missing on " + name)
+        if stand.get_node_or_null("FrontCounterMerchandiseRack") != null or stand.get_node_or_null("RaisedMerchandiseRack") != null:
+            _fail("Extra freestanding display table survived removal: " + name)
             return
-        if not rack.get_node_or_null("DisplayFrontLip") or not rack.get_node_or_null("ShelfSupport"):
-            _fail("Merchandise rack is not supported or trimmed on " + name)
+        var counter := stand.get_node_or_null("IntegratedMerchantCountertop") as MeshInstance3D
+        var fascia := stand.get_node_or_null("IntegratedCounterFrontFascia") as MeshInstance3D
+        var ledgers := stand.find_children("IntegratedPostLedger", "MeshInstance3D", false, false)
+        if counter == null or fascia == null or ledgers.size() != 2:
+            _fail("One integrated merchant counter must be physically joined to the native stall posts: " + name)
             return
-        var shelf := rack.get_node_or_null("OakDisplayShelf") as MeshInstance3D
-        if absf(float(stand.get_meta("market_wares_shelf_height_m", 0.0)) - 1.045) > 0.01:
-            _fail("The shelf is still above the actual counter and near canopy")
+        var counter_mesh := counter.mesh as BoxMesh
+        if counter_mesh == null or counter_mesh.size.x < 2.05:
+            _fail("Built-in counter does not reach imported stall frame width")
             return
-        if shelf == null or absf(shelf.position.z - 0.59) > 0.01 or shelf.position.y > 1.1:
-            _fail("Display shelf must sit on the plaza-facing, LOW front counter")
+        if absf((counter.position.y + counter_mesh.size.y * 0.5) - 1.02) > 0.012:
+            _fail("Merchandise surface is not one integrated waist-height counter")
+            return
+        if absf((counter.position.z + counter_mesh.size.z * 0.5) - 0.785) > 0.015:
+            _fail("Integral counter front doesn't reach native stall post line")
+            return
+        if absf(fascia.position.z - 0.755) > 0.01:
+            _fail("Integral counter fascia is not tied to the front stall pillars")
+            return
+        if not bool(stand.get_meta("market_counter_frame_integrated", false)):
+            _fail("Counter is not marked structural; old second-table approach may return")
+            return
+        if bool(stand.get_meta("native_stall_has_counter", true)):
+            _fail("Test incorrectly assumes imported market model already has a waist-height counter")
             return
         if not bool(stand.get_meta("market_wares_canopy_clearance", false)):
-            _fail("Market display does not guarantee clearance below its canopy")
+            _fail("Market goods clearance under canopy lost")
             return
         var forward: Vector3 = stand.transform.basis * Vector3(0, 0, 1)
         var market_center := Vector2(0.0, -1.825)
@@ -71,15 +84,15 @@ func _check() -> void:
             if expected_asset not in ["Crate_Wooden", "FarmCrate_Apple"] or imported == null:
                 _fail("Not using the genuine existing Quaternius goods: " + name)
                 return
-            if absf(stock.position.y - 1.075) > 0.015 or stock.position.z < 0.50:
-                _fail("Crate is still too high / too far back, visually on the awning")
+            if absf(stock.position.y - 1.025) > 0.01 or absf(stock.position.z - 0.23) > 0.015:
+                _fail("Crate is not resting on the single integrated counter")
                 return
-            if stock.position.y + 0.40 >= 1.65:
-                _fail("Merchandise silhouette is not well below the canopy")
+            if stock.position.y + 0.35 >= 1.50:
+                _fail("Crate intersects roof-edge clearance region")
                 return
             good_count += 1
     if good_count != 12:
-        _fail("Expected 12 low, plaza-facing goods across four stall shelves")
+        _fail("Expected 12 items on built-in counters across four stalls")
         return
     var additions := town.find_children("ShopStock_*", "Node3D", false, false)
     if not additions.is_empty():
@@ -115,7 +128,7 @@ func _check() -> void:
     if town.find_children("TownFountain", "Node3D", false, false).size() != 1:
         _fail("Original centered fountain missing")
         return
-    print("AETHERFALL_MARKET_DECOR_OK: 12 original Quaternius crate wares below canopy on front-facing shelves, no grass crates, original decor and walks retained")
+    print("AETHERFALL_MARKET_DECOR_OK: 12 Quaternius crate wares directly on native-frame-integrated counters, zero extra tables/grass crates, original decor and paths retained")
     town.queue_free()
     quit(0)
 
@@ -123,67 +136,3 @@ func _fail(message: String) -> void:
     push_error("AETHERFALL_MARKET_DECOR_FAIL: " + message)
     quit(1)
 
-# One-time native geometry audit used to eliminate the wrongly inserted
-# second table. Print approximate level bands of upward-facing surfaces.
-func _print_native_stall_counter_probe(stall: Node3D) -> void:
-    var imported := stall.get_node_or_null("Quaternius_MarketStand_1") as Node3D
-    if imported == null:
-        return
-    print("AF_STALL_PROBE start imported_scale=", imported.scale,
-        " imported_rotation=", imported.rotation_degrees, " imported_pos=", imported.position)
-    var mesh_parts := imported.find_children("*", "MeshInstance3D", true, false)
-    var by_level: Dictionary = {}
-    for part in mesh_parts:
-        var mesh_part := part as MeshInstance3D
-        if mesh_part.mesh == null:
-            continue
-        var bound := mesh_part.get_aabb()
-        var l0: Vector3 = stall.to_local(mesh_part.to_global(bound.position))
-        var l1: Vector3 = stall.to_local(mesh_part.to_global(bound.end))
-        print("AF_STALL_MESH name=", mesh_part.name, " surfaces=", mesh_part.mesh.get_surface_count(),
-            " approx_local_bound=", l0, " through ", l1)
-        for surface in range(mesh_part.mesh.get_surface_count()):
-            var arrays := mesh_part.mesh.surface_get_arrays(surface)
-            if arrays.is_empty():
-                continue
-            var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-            var ids: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-            var tri_count := ids.size() / 3 if not ids.is_empty() else verts.size() / 3
-            for tri in range(tri_count):
-                var ia: int = ids[tri * 3] if not ids.is_empty() else tri * 3
-                var ib: int = ids[tri * 3 + 1] if not ids.is_empty() else tri * 3 + 1
-                var ic: int = ids[tri * 3 + 2] if not ids.is_empty() else tri * 3 + 2
-                var a: Vector3 = stall.to_local(mesh_part.to_global(verts[ia]))
-                var b: Vector3 = stall.to_local(mesh_part.to_global(verts[ib]))
-                var c: Vector3 = stall.to_local(mesh_part.to_global(verts[ic]))
-                var normal := (b - a).cross(c - a)
-                if normal.length_squared() < 0.000001 or absf(normal.normalized().y) < 0.94:
-                    continue
-                var mean := (a + b + c) / 3.0
-                if mean.y < 0.45 or mean.y > 1.7:
-                    continue
-                var height := roundi(mean.y * 20.0)
-                var front := roundi(mean.z * 5.0)
-                var key := "%s_%s" % [height, front]
-                var prev: Dictionary = by_level.get(key, {"area": 0.0, "xmin": 100.0,
-                    "xmax": -100.0, "zmin": 100.0, "zmax": -100.0})
-                prev["area"] = float(prev["area"]) + normal.length() * 0.5
-                prev["xmin"] = minf(float(prev["xmin"]), minf(a.x, minf(b.x, c.x)))
-                prev["xmax"] = maxf(float(prev["xmax"]), maxf(a.x, maxf(b.x, c.x)))
-                prev["zmin"] = minf(float(prev["zmin"]), minf(a.z, minf(b.z, c.z)))
-                prev["zmax"] = maxf(float(prev["zmax"]), maxf(a.z, maxf(b.z, c.z)))
-                by_level[key] = prev
-    var records: Array = []
-    for key in by_level.keys():
-        var parts := String(key).split("_")
-        var level := float(parts[0]) / 20.0
-        var front := float(parts[1]) / 5.0
-        var stats: Dictionary = by_level[key]
-        if float(stats["area"]) >= 0.06:
-            records.append({"level": level, "front": front,
-                "area": snappedf(float(stats["area"]), 0.001),
-                "xmin": stats["xmin"], "xmax": stats["xmax"],
-                "zmin": stats["zmin"], "zmax": stats["zmax"]})
-    records.sort_custom(func(x: Dictionary, y: Dictionary) -> bool:
-        return float(x["area"]) > float(y["area"]))
-    print("AF_STALL_COUNTER_SURFACE_PROBE_TOP=", records.slice(0, 24))
