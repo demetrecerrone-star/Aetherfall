@@ -528,7 +528,7 @@ func _flower_box(parent: Node, center: Vector3, width: float) -> void:
 
 func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_color: Color, title: String = "") -> Node3D:
     var house := Node3D.new()
-    house.name = title if not title.is_empty() else "House"
+    house.name = title if not title.is_empty() else "House_%d_%d" % [roundi(position.x * 100.0), roundi(position.z * 100.0)]
     house.position = position
     add_child(house)
     var width := body_size.x
