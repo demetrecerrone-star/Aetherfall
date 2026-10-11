@@ -959,6 +959,38 @@ func _add_rock(position: Vector3, scale_factor: float = 1.0) -> void:
     _sphere(rock, "Rock", 0.26 * scale_factor, Vector3(0, 0.18 * scale_factor, 0), Color("#686861"), 1.0)
     rock.scale = Vector3(1.25, 0.70, 0.95)
 
+# Correct the Quaternius market stand's elevated display platform to the
+# underlying timber desk. The original MarketStand_1.glb has 192 Wood vertices
+# on an elevated plank at Y=0.468838..0.500725. Its desk top is Y=0.255298.
+# Only the elevated shelf moves: canopy, legs, arches and posts are untouched.
+# A separate ArrayMesh prevents modifying the shared imported mesh resource.
+func _align_imported_stall_display_with_desk(imported_stand: Node3D) -> bool:
+    var wood := imported_stand.find_child("Wood", true, false) as MeshInstance3D
+    if wood == null or wood.mesh == null or wood.mesh.get_surface_count() != 1:
+        push_warning("Market stall shelf alignment: missing single-surface Wood mesh.")
+        return false
+    var source_mesh := wood.mesh
+    var arrays := source_mesh.surface_get_arrays(0)
+    var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+    var adjusted := 0
+    for index in range(vertices.size()):
+        var point := vertices[index]
+        if point.y > 0.42 and point.y < 0.54:
+            point.y -= 0.245427
+            vertices[index] = point
+            adjusted += 1
+    # Refuse to edit a differently authored mesh by mistake.
+    if adjusted != 192:
+        push_warning("Market stall shelf alignment: expected 192 vertices, found %d." % adjusted)
+        return false
+    arrays[Mesh.ARRAY_VERTEX] = vertices
+    var corrected := ArrayMesh.new()
+    corrected.add_surface_from_arrays(source_mesh.surface_get_primitive_type(0), arrays)
+    corrected.surface_set_material(0, source_mesh.surface_get_material(0))
+    wood.mesh = corrected
+    imported_stand.set_meta("merchandise_platform_desk_aligned", true)
+    return true
+
 func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     var stall := Node3D.new()
     stall.position = position
@@ -986,7 +1018,10 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     # All vendors share the fully backed, striped awning version. The left
     # market stand was the approved reference in the 0.2Z phone screenshots.
     var stall_asset := "MarketStand_1"
-    SceneryReplacement.place(stall, stall_asset, Vector3(2.60, 2.65, 1.65), PackedStringArray(), 90.0)
+    if SceneryReplacement.place(stall, stall_asset, Vector3(2.60, 2.65, 1.65), PackedStringArray(), 90.0):
+        var imported_stand := stall.get_node_or_null("Quaternius_" + stall_asset) as Node3D
+        if imported_stand != null:
+            _align_imported_stall_display_with_desk(imported_stand)
     stall.set_meta("vendor_stall_style", "backed_awning")
     # The canopy is walk-under; solid collision belongs to the COUNTER and
     # four posts. Rotate the footprint with the model so visitors can loop

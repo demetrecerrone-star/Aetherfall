@@ -22,3 +22,11 @@ Source: Quaternius Medieval Village Pack (2020), Medieval Village MegaKit,
 Fantasy Props MegaKit, and the supplied glTF vegetation collection.
 Each pack's included license should be retained alongside its archive.
 No player-character replacement is intended in this pass.
+
+## Pass 3 merchandise-display fix
+The source `MarketStand_1.glb` includes a raised display shelf above its own
+lower wooden desk. `starter_town.gd` now lowers exactly 192 imported wood
+vertices by 0.245427 source-model units, flush with the desk, at runtime.
+The roof/canopy, frame, legs, and original collision volumes remain untouched.
+This remains effective when the original 20-model archive is unpacked in CI.
+The scenery asset regression checks the shelf geometry on each signed APK build.
