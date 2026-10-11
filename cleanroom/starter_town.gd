@@ -295,7 +295,11 @@ func _load_town_textures() -> void:
 
 func _town_texture_group(name: String) -> String:
     var n := name.to_lower()
-    if n in ["townground", "grasspatch"]:
+    if n == "townground":
+        # The multi-mesh grass is actual vegetation. Soil showing between its
+        # stems must be dark earth, not a stretched green lawn bitmap.
+        return "dirt"
+    if n == "grasspatch":
         return "grass"
     if n.contains("shoulder") or n == "treedirt":
         return "dirt"
@@ -326,7 +330,9 @@ func _town_mat(name: String, color: Color, roughness: float, size: Vector3) -> S
     if kind == "grass":
         strength = 0.64
     elif kind == "dirt":
-        strength = 0.42
+        # Source texture is quite light; favour a warm brown soil tint so
+        # sand/olive tones do not dominate the exposed meadow ground.
+        strength = 0.83
     elif kind == "plaster":
         strength = 0.36
     elif kind == "roof":
@@ -1357,12 +1363,12 @@ func _build_stage() -> void:
     fill.shadow_enabled = false
     add_child(fill)
 
-    # The leafy-grass texture already has natural variation. 0.2T/0.2U
-    # drew raised cylinder discs over it; even 1.8 cm high they produced
-    # hard circular seams and dark edges on mobile. Keep one seamless lawn
-    # mesh instead of geometry overlays. Future color variation should be
-    # blended inside the material, never another exposed circular mesh.
-    _box(self, "TownGround", Vector3(58.0, 0.16, 55.0), Vector3(0, -0.08, 0), Color("#70965b"), Vector3.ZERO, 1.0)
+    # Actual instanced leaves now define the meadow, so the visible ground
+    # underneath them is one seamless, finely tiled dark earthen soil surface.
+    # No separate circular terrain patches or additional physics collision.
+    _box(self, "TownGround", Vector3(58.0, 0.16, 55.0),
+        Vector3(0, -0.08, 0), Color("#614831"), Vector3.ZERO, 1.0)
+    set_meta("town_ground_material", "textured_warm_brown_soil")
 
     # Road, square and house-side branches are generated together after
     # scenery placement so imported building entrances drive their endpoints.
@@ -1477,7 +1483,7 @@ func _build_stage() -> void:
     # shallow dirt verge. All ten doors receive a connected walking path.
     _road_regions = RoadNetwork.plan(_road_door_anchors)
     var cobble_material := _town_mat("EntryRoad", Color("#aaa397"), 0.99, Vector3.ONE)
-    var verge_material := _town_mat("EntryShoulderL", Color("#81765e"), 1.0, Vector3.ONE)
+    var verge_material := _town_mat("EntryShoulderL", Color("#75563b"), 1.0, Vector3.ONE)
     RoadNetwork.build(self, _road_regions, cobble_material, verge_material)
 
     # Old fountain and its collision are removed: the center square is walkable.
