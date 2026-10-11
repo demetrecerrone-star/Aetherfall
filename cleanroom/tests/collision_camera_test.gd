@@ -230,10 +230,12 @@ func _check() -> void:
             return
     # The authentic fountain is intentionally SOLID at the centre, but
     # the aisles around its basin must remain traversable.
-    if not bool(town.call("_world_point_blocked", Vector2(0, -4))):
-        _fail("Authentic stone fountain is pass-through")
+    if not bool(town.call("_world_point_blocked", Vector2(0, -1.825))):
+        _fail("Centered stone fountain is pass-through")
         return
-    for aisle in [Vector2(0, -1.8), Vector2(0, -6.1), Vector2(0, 2.45), Vector2(-2.0, -2.0), Vector2(2.0, -2.0), Vector2(-2.5, -4.0), Vector2(2.5, -4.0)]:
+    for aisle in [Vector2(0, -4.55), Vector2(0, 0.95), Vector2(0, -6.1),
+        Vector2(0, 2.45), Vector2(-2.75, -1.825), Vector2(2.75, -1.825),
+        Vector2(-2.75, -2.0), Vector2(2.75, -2.0)]:
         if bool(town.call("_world_point_blocked", aisle)):
             _fail("Market browsing circuit is blocked beside fountain at " + str(aisle))
             return
