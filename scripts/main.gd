@@ -19,6 +19,16 @@ func _ready() -> void:
 	hud.hair_tapped.connect(func() -> void: player.get_node("Avatar").cycle_hair())
 	hud.outfit_tapped.connect(func() -> void: player.get_node("Avatar").cycle_outfit())
 
+	# Keep the existing gameplay scene untouched except for menu navigation and
+	# optionally opening the already-working character studio on arrival.
+	hud.menu_tapped.connect(func() -> void:
+		get_tree().change_scene_to_file("res://scenes/title_screen.tscn")
+	)
+	if bool(get_tree().get_meta("aetherfall_open_studio", false)):
+		character_studio._set_open(true)
+	if get_tree().has_meta("aetherfall_open_studio"):
+		get_tree().remove_meta("aetherfall_open_studio")
+
 func _mat(color_code: String, roughness: float = 0.90) -> StandardMaterial3D:
 	if _materials.has(color_code):
 		return _materials[color_code]

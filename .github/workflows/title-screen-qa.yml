@@ -1,0 +1,55 @@
+name: Aetherfall Title and Loader QA
+
+on:
+  push:
+    branches: ["ui/title-loader-foundation"]
+    paths:
+      - "scripts/title_screen.gd"
+      - "scripts/title_backdrop.gd"
+      - "scripts/menu_ambience.gd"
+      - "scripts/loading_screen.gd"
+      - "scripts/main.gd"
+      - "scripts/touch_hud.gd"
+      - "scenes/title_screen.tscn"
+      - "scenes/loading_screen.tscn"
+      - "project.godot"
+      - "tests/title_flow_test.gd"
+      - ".github/workflows/title-screen-qa.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  title-and-loader:
+    name: Godot 4.6 title → loading → studio smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout Aetherfall
+        uses: actions/checkout@v4
+
+      - name: Install Godot 4.6.3
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+
+      - name: Generate avatar for existing starter town
+        run: python3 tools/generate_avatar_v033.py
+
+      - name: Import project, scripts and assets
+        run: godot --headless --editor --path . --quit
+
+      - name: Boot title screen and reject Godot runtime errors
+        run: |
+          set -o pipefail
+          godot --headless --path . --quit-after 20 2>&1 | tee title-smoke.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Invalid|Cannot|Failed)' title-smoke.log; then
+            exit 1
+          fi
+
+      - name: Test title, threaded loading, character studio and menu return
+        run: godot --headless --path . --script res://tests/title_flow_test.gd

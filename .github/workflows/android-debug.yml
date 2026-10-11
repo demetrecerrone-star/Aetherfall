@@ -3,6 +3,9 @@ name: Aetherfall Android Debug APK
 on:
   push:
     branches: [main, "fix/**", "feature/**"]
+  # Internal release-test PRs expose a visible run and are guarded against forked secrets.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -11,6 +14,7 @@ permissions:
 jobs:
   build-android:
     name: Export Android ARM64 APK
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -105,11 +109,14 @@ jobs:
       - name: Test character studio live preview and local save
         run: godot --headless --path . --script res://tests/studio_preview_test.gd
 
+      - name: Verify title, loader and character studio navigation
+        run: godot --headless --path . --script res://tests/title_flow_test.gd
+
       - name: Export signed Android debug APK
         run: |
           mkdir -p builds
-          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.3-debug.apk"
-          test -s builds/Aetherfall-v0.3.3-debug.apk
+          godot --headless --path . --export-debug "Android" "builds/Aetherfall-v0.3.4-debug.apk"
+          test -s builds/Aetherfall-v0.3.4-debug.apk
 
       - name: Verify release APK carries the configured signing certificate
         env:
@@ -117,7 +124,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          APK="builds/Aetherfall-v0.3.3-debug.apk"
+          APK="builds/Aetherfall-v0.3.4-debug.apk"
           "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
           ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
           EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
@@ -126,12 +133,12 @@ jobs:
             exit 1
           fi
           echo "Signing certificate SHA-256: $ACTUAL"
-          echo "### Aetherfall v0.3.3 APK uses the configured persistent signing identity." >> "$GITHUB_STEP_SUMMARY"
+          echo "### Aetherfall v0.3.4 APK uses the configured persistent signing identity." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish source model glTF for inspection
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3.3-Source-Rigged-Model
+          name: Aetherfall-v0.3.4-Source-Rigged-Model
           path: assets/characters/aetherfall_adventurer.gltf
           if-no-files-found: error
           retention-days: 30
@@ -139,7 +146,7 @@ jobs:
       - name: Upload installable debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3.3-Android-Debug
-          path: builds/Aetherfall-v0.3.3-debug.apk
+          name: Aetherfall-v0.3.4-Android-Debug
+          path: builds/Aetherfall-v0.3.4-debug.apk
           if-no-files-found: error
           retention-days: 30

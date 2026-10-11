@@ -3,9 +3,12 @@
 config_version=5
 
 [application]
-config/name="Aetherfall | Character Lab"
-run/main_scene="res://scenes/main.tscn"
+config/name="Aetherfall"
+run/main_scene="res://scenes/title_screen.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
+
+[autoload]
+AetherfallAmbience="*res://scripts/menu_ambience.gd"
 
 [display]
 window/size/viewport_width=1280

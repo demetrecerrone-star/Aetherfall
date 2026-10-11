@@ -10,6 +10,17 @@ on:
       - "tools/generate_avatar.py"
       - "tools/generate_avatar_v033.py"
       - "scripts/avatar_v03.gd"
+      - "scripts/title_screen.gd"
+      - "scripts/title_backdrop.gd"
+      - "scripts/menu_ambience.gd"
+      - "scripts/loading_screen.gd"
+      - "scripts/main.gd"
+      - "scripts/touch_hud.gd"
+      - "scenes/title_screen.tscn"
+      - "scenes/loading_screen.tscn"
+      - "project.godot"
+      - "tests/title_flow_test.gd"
+      - "export_presets.cfg"
       - "tests/test_avatar_v033.py"
 
 permissions:
@@ -66,8 +77,8 @@ jobs:
           PY
           godot --headless --editor --path . --quit
           mkdir -p builds
-          godot --headless --path . --export-debug Android builds/Aetherfall-v0.3.3-emulator-x86_64-debug.apk
-          test -s builds/Aetherfall-v0.3.3-emulator-x86_64-debug.apk
+          godot --headless --path . --export-debug Android builds/Aetherfall-v0.3.4-emulator-x86_64-debug.apk
+          test -s builds/Aetherfall-v0.3.4-emulator-x86_64-debug.apk
 
       - name: Enable hardware virtualization for Android emulator
         run: |
@@ -94,7 +105,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-v0.3.3-Emulator-Visual-QA
+          name: Aetherfall-v0.3.4-Emulator-Visual-QA
           path: qa-results/
           if-no-files-found: warn
           retention-days: 14
