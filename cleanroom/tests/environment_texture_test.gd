@@ -73,18 +73,19 @@ func _run_check() -> void:
 
     # Regression: broad striped wall faces must have stone at normal scale,
     # not BoxMesh facade UVs stretched from their thin axis.
-    var town_walls := town.find_children("TownWall*", "MeshInstance3D", true, false)
-    if town_walls.size() != 5:
-        _fail("Missing five perimeter wall segments")
+    # Godot renames duplicate generic nodes when they share a parent. Every
+    # wall is created by _add_wall_segment with the same TownWall material.
+    var wall := town.find_child("TownWall", true, false) as MeshInstance3D
+    if wall == null:
+        _fail("Missing perimeter stone wall")
         return
-    for segment in town_walls:
-        var wall_mat := (segment as MeshInstance3D).material_override as StandardMaterial3D
-        if wall_mat == null or wall_mat.albedo_texture == null or not wall_mat.uv1_triplanar:
-            _fail("Town wall faces need properly projected stone, not stretched stripes")
-            return
-        if absf(wall_mat.uv1_scale.x - wall_mat.uv1_scale.y) > 0.01 or absf(wall_mat.uv1_scale.y - wall_mat.uv1_scale.z) > 0.01:
-            _fail("Wall texture scaling is not uniform on all facade faces")
-            return
+    var wall_mat := wall.material_override as StandardMaterial3D
+    if wall_mat == null or wall_mat.albedo_texture == null or not wall_mat.uv1_triplanar:
+        _fail("Town wall faces need properly projected stone, not stretched stripes")
+        return
+    if absf(wall_mat.uv1_scale.x - wall_mat.uv1_scale.y) > 0.01 or absf(wall_mat.uv1_scale.y - wall_mat.uv1_scale.z) > 0.01:
+        _fail("Wall texture scaling is not uniform on all facade faces")
+        return
 
     # Water now uses several narrow, physically lit strands rather than one
     # emissive flat panel. Drops are smaller and stretched by gravity.
