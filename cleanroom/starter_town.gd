@@ -36,6 +36,9 @@ const TOWN_MIN_Z := -25.0
 const TOWN_MAX_Z := 25.0
 const PLAYER_WORLD_RADIUS := 0.34
 const CAMERA_WALL_GAP := 0.16
+const CAMERA_FADE_START := 1.85
+const CAMERA_FADE_FULL := 0.95
+const CAMERA_FADE_RETURN_SPEED := 3.0
 
 var _actor: Node3D
 var _model: Node3D
@@ -97,6 +100,11 @@ var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
 var _house_blockers: Array[Dictionary] = []
 var _camera_obstacles: Array[AABB] = []
+# Towers are round; square camera volumes erroneously envelop players at corners.
+var _camera_cylinders: Array[Dictionary] = []
+# Per-surface material overrides allow alpha fade in GL Compatibility on Android.
+var _camera_fade_surfaces: Array[Dictionary] = []
+var _camera_fade_alpha := 1.0
 var _door_step_surfaces: Array[Dictionary] = []
 var _boundary_flash := 0.0
 
@@ -422,23 +430,66 @@ func _add_camera_obstacle(center: Vector3, size: Vector3) -> void:
     _camera_obstacles.append(AABB(center - size * 0.5, size))
 
 
+func _add_camera_cylinder(center: Vector3, radius: float, height: float) -> void:
+    _camera_cylinders.append({"center": center, "radius": radius, "height": height})
+
+
+func _camera_cylinder_hit_distance(target: Vector3, direction: Vector3, max_distance: float, cylinder: Dictionary) -> float:
+    # Check curved sides AND top/bottom caps. Unlike a box, an empty corner
+    # beside the cylindrical gate tower cannot trigger a false camera hit.
+    var center: Vector3 = cylinder["center"]
+    var radius: float = cylinder["radius"]
+    var half_height: float = float(cylinder["height"]) * 0.5
+    var bottom := center.y - half_height
+    var top := center.y + half_height
+    var radial := Vector2(target.x - center.x, target.z - center.z)
+    var planar_dir := Vector2(direction.x, direction.z)
+    if radial.length_squared() <= radius * radius and target.y >= bottom and target.y <= top:
+        return 0.0
+    var nearest := max_distance
+    var a := planar_dir.length_squared()
+    if a > 0.000001:
+        var b := 2.0 * radial.dot(planar_dir)
+        var c := radial.length_squared() - radius * radius
+        var discriminant := b * b - 4.0 * a * c
+        if discriminant >= 0.0:
+            var root := sqrt(discriminant)
+            for t in [(-b - root) / (2.0 * a), (-b + root) / (2.0 * a)]:
+                if t >= 0.0 and t <= nearest:
+                    var hit_y := target.y + t * direction.y
+                    if hit_y >= bottom and hit_y <= top:
+                        nearest = t
+    if absf(direction.y) > 0.000001:
+        for cap_y in [bottom, top]:
+            var t := (cap_y - target.y) / direction.y
+            if t >= 0.0 and t <= nearest:
+                var hit := target + direction * t
+                if Vector2(hit.x - center.x, hit.z - center.z).length_squared() <= radius * radius:
+                    nearest = t
+    return nearest
+
+
 func _add_door_step_surface(center: Vector2, size: Vector2, height: float) -> void:
     _door_step_surfaces.append({"rect": Rect2(center - size * 0.5, size), "height": height})
 
 
 func _camera_safe_goal(target: Vector3, desired: Vector3) -> Vector3:
-    # The camera uses actual building/town-wall shells, not gameplay clearance.
+    # Keep the camera in front of obstacles; towers use their actual curved
+    # footprint, rather than the diagonally oversized AABB they previously had.
     var offset := desired - target
     var distance := offset.length()
     if distance < 0.001:
         return desired
+    var direction := offset / distance
     var nearest := distance
     for obstacle in _camera_obstacles:
         var hit: Variant = obstacle.intersects_segment(target, desired)
         if hit is Vector3:
             nearest = minf(nearest, target.distance_to(hit as Vector3))
+    for cylinder in _camera_cylinders:
+        nearest = minf(nearest, _camera_cylinder_hit_distance(target, direction, distance, cylinder))
     if nearest < distance:
-        return target + offset / distance * maxf(0.12, nearest - CAMERA_WALL_GAP)
+        return target + direction * maxf(0.12, nearest - CAMERA_WALL_GAP)
     return desired
 
 
@@ -890,6 +941,7 @@ func _build_stage() -> void:
     _circle_blockers.clear()
     _house_blockers.clear()
     _camera_obstacles.clear()
+    _camera_cylinders.clear()
     _door_step_surfaces.clear()
 
     # Concentrate mobile shadow resolution near the player.
@@ -1003,8 +1055,8 @@ func _build_stage() -> void:
     _add_circle_blocker(Vector2(4.1,24.6), 2.30, PLAYER_WORLD_RADIUS + 0.035)
     # The portcullis is a closed solid barrier, even after tightening towers.
     _add_blocker(Vector2(0.0, 25.0), Vector2(4.4, 0.24), PLAYER_WORLD_RADIUS + 0.035)
-    _add_camera_obstacle(Vector3(-4.1, 3.0, 24.6), Vector3(4.6, 6.0, 4.6))
-    _add_camera_obstacle(Vector3(4.1, 3.0, 24.6), Vector3(4.6, 6.0, 4.6))
+    _add_camera_cylinder(Vector3(-4.1, 3.0, 24.6), 2.30, 6.0)
+    _add_camera_cylinder(Vector3(4.1, 3.0, 24.6), 2.30, 6.0)
     _add_camera_obstacle(Vector3(0.0, 1.63, 25.0), Vector3(4.5, 3.25, 0.28))
     for x in range(-2, 3):
         _box(self, "GateBar", Vector3(0.18, 3.25, 0.22), Vector3(float(x) * 0.75, 1.63, 25.0), Color("#3e2c24"))
@@ -1318,6 +1370,9 @@ func _load_runtime_glb() -> void:
     # Rotate only the generated model, not gameplay/world motion.
     _model.rotation.y = PI
     _polish_actor_materials(_model)
+    _camera_fade_surfaces.clear()
+    _camera_fade_alpha = 1.0
+    _cache_camera_fade_surfaces(_model)
     _skeleton = _find_skeleton(_model)
     _animation = _find_animation_player(_model)
 
@@ -1415,6 +1470,52 @@ func _polish_actor_materials(node: Node) -> void:
         _polish_actor_materials(child)
 
 
+func _cache_camera_fade_surfaces(node: Node) -> void:
+    # The game uses GL Compatibility: GeometryInstance3D.transparency is not
+    # supported there, so cache duplicate per-surface StandardMaterial3D
+    # overrides and swap them only while the actor needs to fade.
+    if node is MeshInstance3D:
+        var visual := node as MeshInstance3D
+        if visual.mesh != null:
+            for surface in range(visual.mesh.get_surface_count()):
+                var active := visual.get_active_material(surface)
+                if not (active is StandardMaterial3D):
+                    continue
+                var fade_mat := (active as StandardMaterial3D).duplicate() as StandardMaterial3D
+                fade_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+                _camera_fade_surfaces.append({
+                    "mesh": visual, "surface": surface,
+                    "original_override": visual.get_surface_override_material(surface),
+                    "fade_material": fade_mat, "base_color": fade_mat.albedo_color
+                })
+    for child in node.get_children():
+        _cache_camera_fade_surfaces(child)
+
+
+func _apply_camera_fade(alpha: float) -> void:
+    alpha = clampf(alpha, 0.0, 1.0)
+    if absf(alpha - _camera_fade_alpha) < 0.0001:
+        return
+    var was_opaque := _camera_fade_alpha >= 0.995
+    var now_opaque := alpha >= 0.995
+    for entry in _camera_fade_surfaces:
+        var visual := entry["mesh"] as MeshInstance3D
+        if not is_instance_valid(visual):
+            continue
+        var surface: int = entry["surface"]
+        if now_opaque:
+            if not was_opaque:
+                visual.set_surface_override_material(surface, entry["original_override"] as Material)
+        else:
+            var material := entry["fade_material"] as StandardMaterial3D
+            var color: Color = entry["base_color"]
+            color.a *= alpha
+            material.albedo_color = color
+            if was_opaque:
+                visual.set_surface_override_material(surface, material)
+    _camera_fade_alpha = alpha
+
+
 func _find_skeleton(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
         return node as Skeleton3D
@@ -1508,6 +1609,8 @@ func _switch_character() -> void:
         _actor.remove_child(_model)
         _model.queue_free()
         _model = null
+    _camera_fade_surfaces.clear()
+    _camera_fade_alpha = 1.0
     _skeleton = null
     _animation = null
     _neutral_pose.clear()
@@ -1910,10 +2013,19 @@ func _update_camera(delta: float) -> void:
     if delta >= 1.0:
         _camera.global_position = goal
     else:
-        # Clamp both the target and smoothed position to prevent wall clipping.
-        var smoothed := _camera.global_position.lerp(goal, clampf(delta * 8.5, 0.0, 1.0))
+        # Pull inward promptly when blocked and glide back outward gradually.
+        var closing := goal.distance_to(target) < _camera.global_position.distance_to(target)
+        var follow_speed := 18.0 if closing else 6.0
+        var smoothed := _camera.global_position.lerp(goal, clampf(delta * follow_speed, 0.0, 1.0))
         _camera.global_position = _camera_safe_goal(target, smoothed)
     _camera.look_at(target, Vector3.UP)
+    # Never show the camera inside clothing. Fade immediately when obstructed,
+    # then restore the normal opaque model smoothly once the view is clear.
+    var visible_alpha := smoothstep(CAMERA_FADE_FULL, CAMERA_FADE_START, _camera.global_position.distance_to(target))
+    if visible_alpha < _camera_fade_alpha:
+        _apply_camera_fade(visible_alpha)
+    else:
+        _apply_camera_fade(move_toward(_camera_fade_alpha, visible_alpha, delta * CAMERA_FADE_RETURN_SPEED))
 
 func _input(event: InputEvent) -> void:
     if event is InputEventScreenTouch:
