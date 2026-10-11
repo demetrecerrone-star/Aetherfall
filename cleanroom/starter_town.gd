@@ -20,7 +20,8 @@ const IDLE_OPTIONS := ["standing_relax", "idle", "look_around"]
 const MOTION_BLEND_TIME := 0.24
 const WALK_SPEED := 0.92
 const RUN_SPEED := 1.06
-const ACTOR_SCALE := 1.70
+const ACTOR_SCALE := 1.62
+# Shared male/female scale: ~4.7% smaller without altering rig or foot-sole math.
 # Mixamo joint origins sit above the visible boot sole in this specific model.
 # Source-model measurements: Foot ~= 0.067 m above sole, ToeBase ~= 0.017 m.
 const FOOT_TO_SOLE_SOURCE_Y := 0.067
@@ -668,6 +669,9 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     house.set_meta("collision_half", core_half)
     house.set_meta("collision_center", core_center)
     house.set_meta("covered_walkway_clearance", true)
+    # Preserve the covered passage, but give its upright timber supports their
+    # own compact blockers instead of restoring solid collision to the roof.
+    _register_house_awning_supports(house, wall_footprint)
     # Build the pedestrian path from the imported ground-floor masonry edge.
     # The route ends at the door, not meters short of its porch or steps.
     var door_anchor := Vector2(position.x, core_center.y + core_half.y + PLAYER_WORLD_RADIUS + 0.13)
@@ -680,6 +684,64 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
         Vector3(wall_footprint.size.x, collision_size.y * 0.90, wall_footprint.size.y)
     )
     return house
+
+# Awnings extend past the stone/plaster wall, so their individual uprights
+# must be solid without treating the entire sheltered space as a wall.
+# Prefer actual slender imported mesh pieces; older combined-mesh houses
+# receive just two compact blockers near the FRONT edge of the overhang.
+func _register_house_awning_supports(house: Node3D, wall_footprint: Rect2) -> void:
+    var posts: Array[Vector2] = []
+    var imported := house.find_child("Quaternius_*", true, false) as Node3D
+    if imported != null:
+        for node in imported.find_children("*", "MeshInstance3D", true, false):
+            var visual := node as MeshInstance3D
+            if visual == null or visual.mesh == null:
+                continue
+            var bounds := visual.get_aabb()
+            var local_min := Vector3(INF, INF, INF)
+            var local_max := Vector3(-INF, -INF, -INF)
+            for cx in [0.0, 1.0]:
+                for cy in [0.0, 1.0]:
+                    for cz in [0.0, 1.0]:
+                        var corner := bounds.position + bounds.size * Vector3(cx, cy, cz)
+                        var local_point := house.to_local(visual.to_global(corner))
+                        local_min = local_min.min(local_point)
+                        local_max = local_max.max(local_point)
+            var size := local_max - local_min
+            var footprint := Vector2((local_min.x + local_max.x) * 0.5,
+                (local_min.z + local_max.z) * 0.5)
+            # Ignore wide facades, canopy surfaces, elevated decoration and
+            # timber that is already inside the registered masonry blocker.
+            if local_min.y > 0.30 or size.y < 1.25 or size.x > 0.56 or size.z > 0.56:
+                continue
+            if wall_footprint.grow(0.04).has_point(footprint):
+                continue
+            var unique := true
+            for existing in posts:
+                if existing.distance_to(footprint) < 0.28:
+                    unique = false
+                    break
+            if unique:
+                posts.append(footprint)
+    # Some Quaternius houses merge the porch frame into one wide mesh. In
+    # that case estimate only the two edge uprights from the fitted front
+    # overhang; NEVER block the open middle or the full roof footprint.
+    if posts.is_empty() and imported != null:
+        var model_size: Vector3 = house.get_meta("scenery_model_size", Vector3.ZERO)
+        var front_overhang := model_size.z * 0.5 - wall_footprint.end.y
+        if front_overhang >= 0.35:
+            for fraction in [0.14, 0.86]:
+                posts.append(Vector2(
+                    wall_footprint.position.x + wall_footprint.size.x * float(fraction),
+                    wall_footprint.end.y + minf(0.40, front_overhang * 0.72)
+                ))
+    var world_posts: Array[Vector2] = []
+    for local_post in posts:
+        var wp := house.to_global(Vector3(local_post.x, 0.0, local_post.y))
+        var center := Vector2(wp.x, wp.z)
+        _add_circle_blocker(center, 0.11, PLAYER_WORLD_RADIUS + 0.015)
+        world_posts.append(center)
+    house.set_meta("awning_support_positions", world_posts)
 
 func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
     var tree := Node3D.new()
@@ -728,8 +790,12 @@ func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) 
         _sphere(shrub, "ShrubC", 0.31 * scale_factor, Vector3(0.31, 0.31, 0.05), light)
         _sphere(shrub, "ShrubD", 0.22 * scale_factor, Vector3(0.12, 0.58, 0.00), mid)
     var shrub_asset := "Bush" if variant % 3 == 0 else ("Bush_Large" if variant % 3 == 1 else "Bush_Flowers")
-    SceneryReplacement.place(shrub, shrub_asset, Vector3(1.3, 1.15, 1.3) * scale_factor, PackedStringArray(), 0.0, 0.145)
+    # Alpha-cutout foliage has a sparse lower silhouette above its mesh bounds.
+    # Embed the mesh a little deeper so the actual leaves meet the lawn.
+    var leaf_ground_sink := 0.30 * scale_factor
+    SceneryReplacement.place(shrub, shrub_asset, Vector3(1.3, 1.15, 1.3) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
     shrub.set_meta("grounded", true)
+    shrub.set_meta("leaf_ground_sink_m", leaf_ground_sink)
 
 func _add_grass_clump(position: Vector3, scale_factor: float = 1.0) -> void:
     var clump := Node3D.new()
@@ -795,10 +861,14 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     # between diagonal stalls without hitting invisible rectangular corners.
     _add_oriented_blocker(Vector2(position.x, position.z), Vector2(2.43, 1.02), yaw, PLAYER_WORLD_RADIUS + 0.025)
     var rotation := Basis(Vector3.UP, deg_to_rad(yaw))
+    var post_positions: Array[Vector2] = []
     for px in [-1.08, 1.08]:
         for pz in [-0.46, 0.46]:
             var wp := position + rotation * Vector3(float(px), 0.0, float(pz))
-            _add_circle_blocker(Vector2(wp.x, wp.z), 0.08, PLAYER_WORLD_RADIUS + 0.02)
+            var post_center := Vector2(wp.x, wp.z)
+            _add_circle_blocker(post_center, 0.08, PLAYER_WORLD_RADIUS + 0.02)
+            post_positions.append(post_center)
+    stall.set_meta("support_post_positions", post_positions)
     stall.set_meta("facing_degrees", yaw)
     _add_camera_obstacle(position + Vector3(0, 1.0, 0), Vector3(2.75, 2.0, 2.75))
 
