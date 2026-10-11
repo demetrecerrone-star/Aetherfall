@@ -31,10 +31,20 @@ func _check() -> void:
         if stand.get_node_or_null("Quaternius_MarketStand_1") == null:
             _fail("Market stall replaced with a placeholder")
             return
-        if String(stand.get_meta("market_wares_style", "")) != "curated_existing_quaternius_crates":
+        if String(stand.get_meta("market_wares_style", "")) != "curated_raised_oak_merchandise_rack":
             _fail("Stall doesn't use current licensed crate assets: " + name)
             return
-        for label in ["CounterStock_Primary", "CounterStock_Secondary"]:
+        var rack := stand.get_node_or_null("RaisedMerchandiseRack") as Node3D
+        if rack == null or rack.get_node_or_null("OakDisplayShelf") == null:
+            _fail("Visible oak display shelf missing on " + name)
+            return
+        if not rack.get_node_or_null("DisplayFrontLip") or not rack.get_node_or_null("ShelfSupport"):
+            _fail("Merchandise rack is not supported or trimmed on " + name)
+            return
+        if absf(float(stand.get_meta("market_wares_shelf_height_m", 0.0)) - 1.4425) > 0.01:
+            _fail("Market goods rack remains sunken at original counter height")
+            return
+        for label in ["CounterStock_Primary", "CounterStock_Secondary", "CounterStock_Third"]:
             var stock := stand.get_node_or_null(label) as Node3D
             if stock == null or stock.get_child_count() < 1:
                 _fail("Missing market goods: " + label + " in " + name)
@@ -47,27 +57,17 @@ func _check() -> void:
             if expected_asset not in ["Crate_Wooden", "FarmCrate_Apple"] or imported == null:
                 _fail("Not using the genuine existing Quaternius goods: " + name)
                 return
-            if absf(stock.position.y - 1.18) > 0.01:
-                _fail("Merchandise isn't placed on the existing stall counter")
+            if absf(stock.position.y - 1.455) > 0.01:
+                _fail("Merchandise isn't raised above the stall counter")
                 return
             good_count += 1
-    if good_count != 8:
-        _fail("Expected exactly eight curated wares across four market stalls")
+    if good_count != 12:
+        _fail("Expected 12 visible wares across four raised stall shelves")
         return
     var additions := town.find_children("ShopStock_*", "Node3D", false, false)
-    if additions.size() != 2:
-        _fail("Expected two restrained shop-side stock piles, not new clutter")
+    if not additions.is_empty():
+        _fail("Phone-feedback: solitary crates must not be scattered through grass")
         return
-    for stock in additions:
-        var node := stock as Node3D
-        var asset: String = str(node.get_meta("model", ""))
-        if node.get_node_or_null("Quaternius_" + asset) == null:
-            _fail("Loose shop stock must use the existing CC0 scenery pack")
-            return
-        if not bool(town.call("_world_point_blocked",
-                Vector2(node.position.x, node.position.z))):
-            _fail("New grounded crate can be walked through")
-            return
     if town.find_children("TownBench_*", "Node3D", false, false).size() != 2:
         _fail("Existing two plaza benches changed")
         return
@@ -98,7 +98,7 @@ func _check() -> void:
     if town.find_children("TownFountain", "Node3D", false, false).size() != 1:
         _fail("Original centered fountain missing")
         return
-    print("AETHERFALL_MARKET_DECOR_OK: 8 authentic stall wares, 2 shop crates, old barrels/benches/lamps retained, plaza clear")
+    print("AETHERFALL_MARKET_DECOR_OK: 12 genuine Quaternius crates on raised oak market racks, no loose grass crates, original decor and walks retained")
     town.queue_free()
     quit(0)
 
