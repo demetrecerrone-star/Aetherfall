@@ -46,9 +46,15 @@ static func _polish_foliage(node: Node) -> void:
                 continue
             var polished := (original as StandardMaterial3D).duplicate() as StandardMaterial3D
             polished.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-            polished.alpha_scissor_threshold = 0.55
+            polished.alpha_scissor_threshold = 0.56
             polished.cull_mode = BaseMaterial3D.CULL_DISABLED
             polished.roughness = 0.94
+            # Genuine leafy textures already provide shape and definition.
+            # Darken just the foliage, never the trunk/bark or visible flowers.
+            var tint: Color = polished.albedo_color
+            if label.contains("leave") or label.contains("leaf"):
+                polished.albedo_color = Color(tint.r * 0.78, tint.g * 0.81,
+                    tint.b * 0.75, tint.a)
             visual.set_surface_override_material(surface, polished)
 
 static func place(parent: Node3D, asset: String, target_size: Vector3, ground_sink: float = 0.06) -> bool:
