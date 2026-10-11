@@ -3,6 +3,9 @@ name: Aetherfall Android Debug APK
 on:
   push:
     branches: [main, "fix/**", "feature/**"]
+  # Internal release-test PRs expose a visible run and are guarded against forked secrets.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -11,6 +14,7 @@ permissions:
 jobs:
   build-android:
     name: Export Android ARM64 APK
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
