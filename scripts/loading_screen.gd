@@ -2,8 +2,11 @@ extends Control
 ## Native scene loader with Godot's actual threaded ResourceLoader progress.
 const WORLD_PATH := "res://scenes/main.tscn"
 const TITLE_PATH := "res://scenes/title_screen.tscn"
+const BACKDROP_SCRIPT = preload("res://scripts/title_backdrop.gd")
 
-var _elapsed := 0.0
+var _entered_ms := 0
+var _veil: ColorRect
+var _transitioning := false
 var _loading_done := false
 var _failed := false
 var _status: Label
@@ -12,14 +15,18 @@ var _bar: ProgressBar
 var _buttons: HBoxContainer
 
 func _ready() -> void:
+	_entered_ms = Time.get_ticks_msec()
+	_install_backdrop()
 	_build_ui()
+	_install_veil()
+	AetherfallAmbience.play_menu()
+	var fade := create_tween()
+	fade.tween_property(_veil, "modulate:a", 0.0, .45)
 	var request := ResourceLoader.load_threaded_request(WORLD_PATH, "PackedScene")
 	if request != OK:
 		_fail("Unable to start the world loader (error %d)." % request)
 
-func _process(delta: float) -> void:
-	_elapsed += delta
-	queue_redraw()
+func _process(_delta: float) -> void:
 	if _failed or _loading_done:
 		return
 	var progress: Array = []
@@ -39,25 +46,23 @@ func _process(delta: float) -> void:
 		ResourceLoader.THREAD_LOAD_FAILED, ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 			_fail("The starter town could not be loaded.")
 
-func _draw() -> void:
-	var w := size.x
-	var h := size.y
-	if w <= 1 or h <= 1:
-		return
-	draw_rect(Rect2(Vector2.ZERO,size),Color("071426"))
-	for i in range(20):
-		var t := float(i) / 20.0
-		draw_rect(Rect2(0,h*t,w,h/20.0+1),Color("0b223c").lerp(Color("254c67"),t*.7))
-	var point := Vector2(w*.50,h*.47)
-	for i in range(5,0,-1):
-		draw_circle(point,float(i)*h*.085,Color(.2,.66,.88,.02))
-	for i in range(3):
-		var radius := h*(.22 + float(i)*.037)
-		draw_arc(point,radius,_elapsed*.1+i,_elapsed*.1+i+TAU*.79,100,Color(.54,.88,.95,.36),2.0,true)
-	for i in range(28):
-		var x := fposmod(float(i*877+21),w)
-		var y := fposmod(float(i*239+41),h*.78)
-		draw_circle(Vector2(x,y),1.3,Color(.8,.94,1,.24+.2*sin(_elapsed+i)))
+func _install_backdrop() -> void:
+	var vista := Control.new()
+	vista.name = "LoadingLandscape"
+	vista.set_script(BACKDROP_SCRIPT)
+	vista.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vista.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vista.set("dimmed", true)
+	add_child(vista)
+
+func _install_veil() -> void:
+	_veil = ColorRect.new()
+	_veil.name = "LoadingTransitionVeil"
+	_veil.color = Color("081321")
+	_veil.modulate.a = 1.0
+	_veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_veil)
 
 func _panel_style() -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
@@ -117,19 +122,38 @@ func _build_ui() -> void:
 	_buttons.add_child(back)
 
 func _enter_world() -> void:
+	if _transitioning or _failed:
+		return
+	_transitioning = true
 	var resource := ResourceLoader.load_threaded_get(WORLD_PATH)
 	var world := resource as PackedScene
 	if world == null:
 		_fail("The loaded world is not a scene.")
 		return
-	# Leave one rendered frame for the actual 100% state before swapping scenes.
-	await get_tree().process_frame
+	# Show real resource completion before fading. This is a visual minimum,
+	# not a fabricated progress percentage or a claim about procedural meshes.
+	var elapsed := float(Time.get_ticks_msec() - _entered_ms) / 1000.0
+	if elapsed < .65:
+		await get_tree().create_timer(.65-elapsed).timeout
+	if not is_inside_tree():
+		return
+	_veil.mouse_filter = Control.MOUSE_FILTER_STOP
+	AetherfallAmbience.fade_out()
+	var fade := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	fade.tween_property(_veil, "modulate:a", 1.0, .45)
+	await fade.finished
+	if not is_inside_tree():
+		return
 	var code := get_tree().change_scene_to_packed(world)
 	if code != OK:
 		_fail("Unable to enter the starter town (error %d)." % code)
 
 func _fail(message: String) -> void:
 	_failed = true
+	_transitioning = false
+	if is_instance_valid(_veil):
+		_veil.modulate.a = 0.0
+		_veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_loading_done = true
 	_status.text = "THE GATE COULD NOT OPEN"
 	_details.text = message
