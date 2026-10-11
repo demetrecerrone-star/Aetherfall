@@ -71,77 +71,91 @@ func _run_check() -> void:
                 _fail("Bench wood-grain texture was not applied")
                 return
 
-    # Flowing water sheets, little beads, and wave-textured basin should replace
-    # the old rigid angled FountainJet cylinders.
+    # Regression: broad striped wall faces must have stone at normal scale,
+    # not BoxMesh facade UVs stretched from their thin axis.
+    var town_walls := town.find_children("TownWall*", "MeshInstance3D", true, false)
+    if town_walls.size() != 5:
+        _fail("Missing five perimeter wall segments")
+        return
+    for segment in town_walls:
+        var wall_mat := (segment as MeshInstance3D).material_override as StandardMaterial3D
+        if wall_mat == null or wall_mat.albedo_texture == null or not wall_mat.uv1_triplanar:
+            _fail("Town wall faces need properly projected stone, not stretched stripes")
+            return
+        if absf(wall_mat.uv1_scale.x - wall_mat.uv1_scale.y) > 0.01 or absf(wall_mat.uv1_scale.y - wall_mat.uv1_scale.z) > 0.01:
+            _fail("Wall texture scaling is not uniform on all facade faces")
+            return
+
+    # Water now uses several narrow, physically lit strands rather than one
+    # emissive flat panel. Drops are smaller and stretched by gravity.
     if town.find_child("FountainJet", true, false) != null:
-        _fail("Old rigid fountain water rods are still present")
+        _fail("Old fountain water rods are still present")
         return
     var sheets := town.find_children("FountainCascade*", "MeshInstance3D", true, false)
     var droplets := town.find_children("FountainDroplet*", "MeshInstance3D", true, false)
-    var rings := town.find_children("FountainRipple*", "MeshInstance3D", true, false)
-    if sheets.size() != 8 or droplets.size() != 16 or rings.size() != 8:
-        _fail("Water cascade, droplets, or landing-point ripple rings missing")
+    var fake_rings := town.find_children("FountainRipple*", "MeshInstance3D", true, false)
+    if sheets.size() != 8 or droplets.size() != 24 or fake_rings.size() != 0:
+        _fail("Expected eight strand groups, 24 small falling droplets and no flat ripple decals")
         return
+    for flow in sheets:
+        var visual := flow as MeshInstance3D
+        var stream_mat := visual.material_override as StandardMaterial3D
+        var flow_vertices: PackedVector3Array = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+        var flow_colors: PackedColorArray = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
+        if flow_vertices.size() < 400 or flow_colors.size() != flow_vertices.size():
+            _fail("Fountain returned to broad panels instead of separate shaded filaments")
+            return
+        if stream_mat == null or not stream_mat.vertex_color_use_as_albedo or stream_mat.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
+            _fail("Flowing water is not softly shaded and varied along each filament")
+            return
+    var small_drop := droplets[0] as MeshInstance3D
+    var drop_mesh := small_drop.mesh as SphereMesh
+    if drop_mesh == null or drop_mesh.radius > 0.016 or drop_mesh.height < 0.045:
+        _fail("Fountain droplets are still oversized round beads")
+        return
+
+    # Real impact ripples displace a densely tessellated circular water surface.
+    # They originate below eight falling streams, not from a scrolling decal.
     var pool := town.find_child("FountainWater", true, false) as MeshInstance3D
     if pool == null:
         _fail("Fountain basin surface missing")
         return
-    var water_mat := pool.material_override as StandardMaterial3D
-    if water_mat == null or water_mat.albedo_texture == null:
-        _fail("Basin needs its procedural wave texture")
+    var water_mat := pool.material_override as ShaderMaterial
+    var pool_mesh := pool.mesh as ArrayMesh
+    if water_mat == null or pool_mesh == null or water_mat.shader == null:
+        _fail("Fountain basin is missing animated impact-wave geometry")
         return
-    var prior_uv := water_mat.uv1_offset
-    var ripple := rings[0] as MeshInstance3D
-    var prior_scale := ripple.scale.x
+    var mesh_vertices: PackedVector3Array = pool_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+    if mesh_vertices.size() < 2000:
+        _fail("Water surface does not have enough geometry for actual ripple displacement")
+        return
+    var shader_code := water_mat.shader.code
+    if not shader_code.contains("VERTEX.y +=") or not shader_code.contains("impact"):
+        _fail("Water surface ripples are not driven by droplet impact positions")
+        return
+    var initial_time := float(water_mat.get_shader_parameter("flow_time"))
     town.call("_update_fountain", 0.30)
-    if water_mat.uv1_offset.distance_to(prior_uv) < 0.0001:
-        _fail("Wave texture is not moving")
+    var next_time := float(water_mat.get_shader_parameter("flow_time"))
+    if next_time < initial_time + 0.29:
+        _fail("Physical fountain waves are not moving")
         return
-    if absf(ripple.scale.x - prior_scale) < 0.0001:
-        _fail("Ripple ring does not expand across the water")
-        return
-    for ring in rings:
-        var ring_visual := ring as MeshInstance3D
-        if Vector2(ring_visual.position.x, ring_visual.position.z + 4.0).length() > 0.90:
-            _fail("Ripple center is not close to the falling water")
-            return
 
     # The upper disk top is y=2.37 with a radius of 0.38m. Streams must
-    # actually spill from its outer lip and land OUTSIDE the central column.
+    # spill over its outer lip and land inside the basin outside the column.
     var disk_start: Vector3 = town.call("_fountain_flow_point", 0.0, 0.0, 0)
     var stream_end: Vector3 = town.call("_fountain_flow_point", 0.0, 1.0, 0)
     var start_radius := Vector2(disk_start.x, disk_start.z + 4.0).length()
     var end_radius := Vector2(stream_end.x, stream_end.z + 4.0).length()
     if absf(start_radius - 0.395) > 0.01 or absf(disk_start.y - 2.375) > 0.015:
-        _fail("Fountain flow no longer begins at the raised disk's outer rim")
+        _fail("Fountain flow no longer begins at the raised disk rim")
         return
     if end_radius < 0.78 or end_radius > 0.86 or absf(stream_end.y - 1.035) > 0.01:
-        _fail("Fountain runoff does not fall into the basin away from the column")
+        _fail("Fountain runoff does not land inside the basin away from the column")
         return
-    var cascade_vertices: PackedVector3Array = (sheets[0] as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-    if cascade_vertices.size() < 50:
-        _fail("Fountain sheets have lost their smooth falling curves")
+    var first_vertices: PackedVector3Array = (sheets[0] as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+    if first_vertices[0].y < 2.36 or first_vertices[56].y > 1.05:
+        _fail("Fountain stream filaments no longer span disk to basin")
         return
-    if cascade_vertices[0].y < 2.36 or cascade_vertices[cascade_vertices.size() - 1].y > 1.05:
-        _fail("Fountain sheets no longer span disk lip to basin")
-        return
-    var ripple_mesh: ArrayMesh = (rings[0] as MeshInstance3D).mesh as ArrayMesh
-    var ripple_arrays: Array = ripple_mesh.surface_get_arrays(0)
-    var ripple_vertices: PackedVector3Array = ripple_arrays[Mesh.ARRAY_VERTEX]
-    var ripple_colors: PackedColorArray = ripple_arrays[Mesh.ARRAY_COLOR]
-    if ripple_vertices.size() < 400 or ripple_colors.size() != ripple_vertices.size():
-        _fail("Impact ripple still has coarse triangular geometry or no feathered vertex alpha")
-        return
-    var fade_mat := (rings[0] as MeshInstance3D).material_override as StandardMaterial3D
-    if fade_mat == null or not fade_mat.vertex_color_use_as_albedo:
-        _fail("Impact ripple has lost smooth transparent feathering")
-        return
-    for i in range(rings.size()):
-        var ring_position: Vector3 = (rings[i] as MeshInstance3D).position
-        var expected: Vector3 = town.call("_fountain_flow_point", TAU * float(i) / 8.0, 1.0, i)
-        if ring_position.distance_to(expected) > 0.015:
-            _fail("Ripple does not match cascade water impact number " + str(i))
-            return
 
     print("AETHERFALL_ENVIRONMENT_02T_OK: Seam-free textured lawn, unified cobbles, triplanar fountain, tiled roofs, textured stall posts and three ground heights")
     town.queue_free()
