@@ -396,7 +396,7 @@ func _add_fountain_cascade(angle: float, index: int) -> void:
     var cascade_mesh := ArrayMesh.new()
     cascade_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
     var flow := MeshInstance3D.new()
-    flow.name = "FountainCascade"
+    flow.name = "FountainCascade%02d" % index
     flow.mesh = cascade_mesh
     var flow_mat := _water_mat(Color("#b1eaf2"), 0.35)
     flow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -416,7 +416,7 @@ func _add_fountain_ripple(where: Vector3, phase: float) -> void:
     ripple_mesh.rings = 3
     ripple_mesh.ring_segments = 20
     var ripple := MeshInstance3D.new()
-    ripple.name = "FountainRipple"
+    ripple.name = "FountainRipple%02d" % _fountain_ripples.size()
     ripple.mesh = ripple_mesh
     ripple.position = where
     ripple.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -825,7 +825,7 @@ func _add_market_stall(position: Vector3, awning: Color) -> void:
 
 func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
     var bench := Node3D.new()
-    bench.name = "TownBench"
+    bench.name = "TownBench_%d_%d" % [roundi(position.x * 100.0), roundi(position.z * 100.0)]
     bench.position = position
     bench.rotation_degrees.y = yaw
     add_child(bench)
@@ -835,14 +835,14 @@ func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
     for row in range(3):
         var z := -0.20 + float(row) * 0.20
         var shade := wood.lightened(0.055) if row == 1 else wood
-        _box(bench, "BenchSeatSlat", Vector3(2.0, 0.14, 0.17), Vector3(0, 0.62, z), shade, Vector3.ZERO, 0.82)
+        _box(bench, "BenchSeatSlat%02d" % row, Vector3(2.0, 0.14, 0.17), Vector3(0, 0.62, z), shade, Vector3.ZERO, 0.82)
     # Seating faces local -Z; +10 degrees leans the back AWAY from the sitter.
     # The prior -8 degrees leaned into the sitter's shoulders.
     for row in range(3):
         var y := 0.87 + float(row) * 0.22
         var z := 0.31 + (y - 0.78) * tan(deg_to_rad(10.0))
         var shade := wood.lightened(0.035) if row == 1 else wood.darkened(0.05)
-        _box(bench, "BenchBackSlat", Vector3(2.0, 0.16, 0.11), Vector3(0, y, z), shade, Vector3(10, 0, 0), 0.85)
+        _box(bench, "BenchBackSlat%02d" % row, Vector3(2.0, 0.16, 0.11), Vector3(0, y, z), shade, Vector3(10, 0, 0), 0.85)
     for x in [-0.79, 0.79]:
         _box(bench, "IronLeg", Vector3(0.13, 0.59, 0.13), Vector3(x, 0.295, -0.12), iron)
         _box(bench, "IronRearLeg", Vector3(0.13, 0.59, 0.13), Vector3(x, 0.295, 0.24), iron)
@@ -1202,7 +1202,7 @@ func _build_stage() -> void:
         var angle := TAU * float(stream) / 8.0
         _add_fountain_cascade(angle, stream)
         for bead in range(2):
-            var drip := _sphere(self, "FountainDroplet", 0.035, Vector3(0, 1.1, -4), Color("#a6ecf2"), 0.1)
+            var drip := _sphere(self, "FountainDroplet_%d_%d" % [stream, bead], 0.035, Vector3(0, 1.1, -4), Color("#a6ecf2"), 0.1)
             drip.material_override = _water_mat(Color("#b0f2fa"), 0.59)
             drip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
             _fountain_drips.append(drip)
