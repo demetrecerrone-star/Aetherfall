@@ -1,6 +1,7 @@
 extends Node3D
 const SceneryReplacement = preload("res://scenery_replacements.gd")
 const NatureReplacement = preload("res://nature_replacements.gd")
+const GateAshlar = preload("res://gate_ashlar.gd")
 const GrassField = preload("res://grass_field.gd")
 const RoadNetwork = preload("res://road_network.gd")
 const MountainValley = preload("res://mountain_valley.gd")
@@ -1347,52 +1348,67 @@ func _build_stage() -> void:
         _add_camera_obstacle(Vector3(float(side) * 16.55, 2.05, 24.64),
             Vector3(20.8, 4.10, 0.64))
 
-    # Weathered stone sentry towers echo the foundations of the timber-and-
-    # plaster houses. Preserve the proven 2.30 m cylindrical player/camera
-    # footprint; only the rendered masonry is new. Keep wooden roofs and gate.
+    # Keep the exact same physical/camera tower cylinders and 2.30 m radii.
+    # Only the finish changes: a single batched staggered ashlar mesh reads
+    # as carved defensive stone, not the pebbly ground paving texture.
     for side in [-1, 1]:
         var tower_x := float(side) * 4.1
-        _cylinder(self, "StoneGateTower_%s" % ("Left" if side < 0 else "Right"), 2.30, 5.85,
-            Vector3(tower_x, 2.925, 24.6), Color("#777873"))
+        var tower := _cylinder(self, "StoneGateTower_%s" % ("Left" if side < 0 else "Right"), 2.30, 5.85,
+            Vector3(tower_x, 2.925, 24.6), Color("#535855"))
+        tower.material_override = _mat(Color("#525753"), 1.0)
         for band_y in [0.46, 4.92, 5.62]:
-            _cylinder(self, "StoneGateCourse", 2.315, 0.17,
-                Vector3(tower_x, float(band_y), 24.6), Color("#666862"))
-        _tapered_cylinder(self, "TimberGateRoof", 2.65, 0.10, 2.05,
-            Vector3(tower_x, 6.82, 24.6), Color("#51372b"))
+            var course := _cylinder(self, "StoneGateCourse", 2.32, 0.14,
+                Vector3(tower_x, float(band_y), 24.6), Color("#7c807b"))
+            course.material_override = _mat(Color("#838780"), 0.98)
+        var wood_texture := _town_textures.get("wood", null) as Texture2D
+        var roof := _tapered_cylinder(self, "TimberGateRoof", 2.65, 0.10, 2.05,
+            Vector3(tower_x, 6.82, 24.6), Color("#765437"))
+        roof.material_override = MountainValley._log_material(wood_texture, Color("#765437"))
         for edge in [-1, 1]:
-            _box(self, "GatePierStone", Vector3(0.28, 5.25, 0.30),
-                Vector3(tower_x + float(edge) * 1.63, 2.63, 22.99), Color("#646760"))
+            var pier := _box(self, "GatePierStone", Vector3(0.28, 5.25, 0.30),
+                Vector3(tower_x + float(edge) * 1.63, 2.63, 22.99), Color("#92928b"))
+            pier.material_override = _mat(Color("#92928b"), 0.98)
         _add_circle_blocker(Vector2(tower_x, 24.6), 2.30,
             PLAYER_WORLD_RADIUS + 0.035)
         _add_camera_cylinder(Vector3(tower_x, 2.925, 24.6), 2.30, 5.85)
-    set_meta("gate_tower_material", "weathered_stone")
+    GateAshlar.build(self)
 
-    # TWO continuous solid wooden leaves; their planks overlap the tower
-    # opening so there are no sight-lines to an unbuilt exterior map.
+    # Same textured timber and exact tint as the exterior palisade logs.
+    # Cross-bracing uses the same darker palette as its support beams.
+    var gate_wood_texture := _town_textures.get("wood", null) as Texture2D
+    var palisade_wood := Color("#92704e")
+    var palisade_beam := Color("#715238")
     for side in [-1, 1]:
         var half_x := float(side) * 1.125
-        _box(self, "ClosedWoodGateLeaf_%s" % ("Left" if side < 0 else "Right"), Vector3(2.28, 4.60, 0.42),
-            Vector3(half_x, 2.30, 24.62), Color("#62412c"))
+        var leaf := _box(self, "ClosedWoodGateLeaf_%s" % ("Left" if side < 0 else "Right"), Vector3(2.28, 4.60, 0.42),
+            Vector3(half_x, 2.30, 24.62), palisade_wood)
+        leaf.material_override = MountainValley._log_material(gate_wood_texture, palisade_wood)
         for groove in range(5):
             var gx := half_x - 0.95 + float(groove) * 0.47
-            _box(self, "ClosedWoodGatePlank", Vector3(0.045, 4.43, 0.055),
-                Vector3(gx, 2.32, 24.37), Color("#392c24"))
+            var plank := _box(self, "ClosedWoodGatePlank", Vector3(0.045, 4.43, 0.055),
+                Vector3(gx, 2.32, 24.37), palisade_beam)
+            plank.material_override = MountainValley._log_material(gate_wood_texture, palisade_beam)
         for bar_y in [1.05, 3.35]:
-            _box(self, "ClosedWoodGateIronStrap", Vector3(2.33, 0.16, 0.10),
+            var strap := _box(self, "ClosedWoodGateIronStrap", Vector3(2.33, 0.16, 0.10),
                 Vector3(half_x, float(bar_y), 24.34), Color("#363a3a"))
-        _box(self, "GateDiagonalBrace", Vector3(0.23, 3.55, 0.13),
-            Vector3(half_x, 2.35, 24.30), Color("#48301f"),
+            strap.material_override = _mat(Color("#363a3a"), 0.68, 0.32)
+        var brace := _box(self, "GateDiagonalBrace", Vector3(0.23, 3.55, 0.13),
+            Vector3(half_x, 2.35, 24.30), palisade_beam,
             Vector3(0, 0, 24.0 * float(side)))
+        brace.material_override = MountainValley._log_material(gate_wood_texture, palisade_beam)
         for hinge_y in [1.10, 3.36]:
             _cylinder(self, "GateIronHinge", 0.095, 0.12,
                 Vector3(half_x + float(side) * 0.89, float(hinge_y), 24.26),
                 Color("#313332"))
-    _box(self, "GateCentralJoin", Vector3(0.18, 4.76, 0.48),
-        Vector3(0.0, 2.38, 24.59), Color("#38281f"))
-    _box(self, "GatehouseHeavyLintel", Vector3(10.9, 0.95, 1.65),
-        Vector3(0.0, 5.20, 24.68), Color("#594029"))
-    _box(self, "GatehouseSign", Vector3(4.20, 0.60, 0.16),
-        Vector3(0.0, 5.40, 23.73), Color("#30261d"))
+    var join := _box(self, "GateCentralJoin", Vector3(0.18, 4.76, 0.48),
+        Vector3(0.0, 2.38, 24.59), palisade_beam)
+    join.material_override = MountainValley._log_material(gate_wood_texture, palisade_beam)
+    var lintel := _box(self, "GatehouseHeavyLintel", Vector3(10.9, 0.95, 1.65),
+        Vector3(0.0, 5.20, 24.68), palisade_wood)
+    lintel.material_override = MountainValley._log_material(gate_wood_texture, palisade_wood)
+    var gate_sign := _box(self, "GatehouseSign", Vector3(4.20, 0.60, 0.16),
+        Vector3(0.0, 5.40, 23.73), palisade_beam)
+    gate_sign.material_override = MountainValley._log_material(gate_wood_texture, palisade_beam)
     _add_blocker(Vector2(0.0, 24.64), Vector2(4.55, 0.50),
         PLAYER_WORLD_RADIUS + 0.035)
     _add_camera_obstacle(Vector3(0.0, 2.30, 24.62), Vector3(4.55, 4.60, 0.50))
