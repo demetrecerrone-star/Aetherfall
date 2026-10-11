@@ -1,5 +1,6 @@
 extends Node3D
 const SceneryReplacement = preload("res://scenery_replacements.gd")
+const NatureReplacement = preload("res://nature_replacements.gd")
 const GrassField = preload("res://grass_field.gd")
 const RoadNetwork = preload("res://road_network.gd")
 const MountainValley = preload("res://mountain_valley.gd")
@@ -776,7 +777,16 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -
         Vector3(0, 0.009, 0), Color("#5b4937"), 1.0)
     var is_pine := variant % 3 == 1 or variant == 8
     if is_pine:
-        _add_pine_tree(tree, scale_factor, variant)
+        var pine_types := ["Pine_1", "Pine_2", "Pine_4", "Pine_5"]
+        var pine_name: String = pine_types[variant % pine_types.size()]
+        var pine_height := (8.35 if pine_name == "Pine_4" else 7.35) * scale_factor
+        if NatureReplacement.place(tree, pine_name,
+            Vector3(4.30, pine_height / scale_factor, 4.15) * scale_factor, 0.07):
+            tree.name = "PineTree_%02d" % variant
+            tree.set_meta("foliage_style", "textured_nature_pine")
+            tree.set_meta("tree_height_m", pine_height)
+        else:
+            _add_pine_tree(tree, scale_factor, variant)
         _add_circle_blocker(Vector2(position.x, position.z), 0.23 * scale_factor,
             PLAYER_WORLD_RADIUS + 0.035)
         return
@@ -784,9 +794,15 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -
     tree.name = "BroadleafTree_%02d" % variant
     # Proven Quaternius birch and maple imports now receive darkened, solid
     # cutout leaves. Trunks remain bark-coloured and tree collision unchanged.
-    var tree_asset := "BirchTree_1" if variant % 4 == 0 else "MapleTree_1"
-    var installed := SceneryReplacement.place(tree, tree_asset,
-        Vector3(3.3, 5.6, 3.3) * scale_factor, PackedStringArray(), 0.0, 0.035)
+    var native_trees := ["CommonTree_1", "CommonTree_2", "CommonTree_3"]
+    var tree_asset: String = native_trees[variant % native_trees.size()]
+    var installed := NatureReplacement.place(tree, tree_asset,
+        Vector3(3.9, 6.5, 3.9) * scale_factor, 0.075)
+    if not installed:
+        # Existing imported Quaternius birch/maple stays as the safe fallback.
+        tree_asset = "BirchTree_1" if variant % 4 == 0 else "MapleTree_1"
+        installed = SceneryReplacement.place(tree, tree_asset,
+            Vector3(3.3, 5.6, 3.3) * scale_factor, PackedStringArray(), 0.0, 0.035)
     if not installed:
         # Asset import unavailable: keep a small solid-leaved fallback.
         _tapered_cylinder(tree, "Trunk", 0.25 * scale_factor, 0.17 * scale_factor,
@@ -848,6 +864,23 @@ func _add_trimmed_hedge(root: Node3D, scale_factor: float, variant: int) -> void
     # intentionally walk-through, but grass below it should not poke through.
     root.set_meta("foliage_style", "low_rectangular_hedge")
     root.set_meta("hedge_dimensions", Vector3(length, height, depth))
+    # Two overlapping real textured bushes create an elongated hip-high
+    # hedge, retaining the rectangular shape of the approved mockup.
+    var foliage_loaded := 0
+    for side in [-1.0, 1.0]:
+        var segment := Node3D.new()
+        segment.name = "HedgeFoliageSegment"
+        segment.position.x = float(side) * length * 0.23
+        root.add_child(segment)
+        if NatureReplacement.place(segment, "Bush_Common",
+            Vector3(length * 0.61, height, depth * 1.05), 0.08):
+            foliage_loaded += 1
+    if foliage_loaded == 2:
+        for child in root.get_children():
+            if child is MeshInstance3D:
+                (child as MeshInstance3D).visible = false
+        root.set_meta("foliage_style", "textured_hip_high_hedge")
+        root.set_meta("nature_hedge_imported", true)
     _foliage_grass_masks.append(Rect2(
         Vector2(root.position.x - length * 0.51, root.position.z - depth * 0.55),
         Vector2(length * 1.02, depth * 1.10)))
@@ -908,12 +941,16 @@ func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) 
         shrub.name = "TownFlowerBush_%02d" % variant
         # Keep some naturally grown, muted flowering bushes for variety.
         var leaf_ground_sink := 0.31 * scale_factor
-        var installed := SceneryReplacement.place(shrub, "Bush_Flowers",
-            Vector3(1.42, 1.49, 1.42) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
-        if installed:
-            _mute_imported_shrub(shrub)
-        else:
+        var installed := NatureReplacement.place(shrub, "Bush_Common_Flowers",
+            Vector3(1.60, 1.20, 1.60) * scale_factor, leaf_ground_sink)
+        if not installed:
+            installed = SceneryReplacement.place(shrub, "Bush_Flowers",
+                Vector3(1.42, 1.49, 1.42) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
+            if installed:
+                _mute_imported_shrub(shrub)
+        if not installed:
             _add_trimmed_hedge(shrub, scale_factor, variant)
+        shrub.set_meta("scenery_ground_sink", leaf_ground_sink)
         _foliage_grass_masks.append(Rect2(
             Vector2(chosen.x - 0.53 * scale_factor, chosen.z - 0.53 * scale_factor),
             Vector2.ONE * (1.06 * scale_factor)))
@@ -1408,6 +1445,8 @@ func _build_stage() -> void:
 
     # Coverage is split into small instanced chunks for mobile frustum culling.
     GrassField.populate(self, Callable(self, "_grass_point_blocked"), Callable(self, "_ground_surface_y"))
+    set_meta("nature_pack_loaded", NatureReplacement.available("Pine_1") and
+        NatureReplacement.available("Bush_Common") and NatureReplacement.available("Grass_Common_Short"))
 
 func _round_style(color: Color, radius: int) -> StyleBoxFlat:
     var style := StyleBoxFlat.new()
