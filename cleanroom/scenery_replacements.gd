@@ -110,6 +110,12 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
     # Two-sided alpha SCISSOR keeps depth writes while preserving leaf edges.
     if asset.begins_with("Bush"):
         _opaque_cutout_foliage(model)
+    elif asset.begins_with("BirchTree") or asset.begins_with("MapleTree"):
+        # Existing tree cards were blended and looked see-through from the
+        # player's camera. Use opaque depth-writing cutouts like the bushes,
+        # with a darker forest-green tint on the foliage surfaces only.
+        _opaque_cutout_foliage(model, true)
+        owner.set_meta("tree_leaf_cutout_fixed", true)
     # Preserve original mesh nodes for QA and safe fallback. Physics blockers
     # belong to the town controller and are deliberately never removed.
     for child in owner.get_children():
@@ -117,17 +123,26 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
             (child as MeshInstance3D).visible = false
     return true
 
-static func _opaque_cutout_foliage(node: Node) -> void:
+static func _opaque_cutout_foliage(node: Node, darken_tree: bool = false) -> void:
     if node is MeshInstance3D:
         var mesh_instance := node as MeshInstance3D
         if mesh_instance.mesh != null:
             for index in range(mesh_instance.mesh.get_surface_count()):
                 var source := mesh_instance.get_active_material(index)
                 if source is StandardMaterial3D:
+                    var label := (mesh_instance.name + " " + String(source.resource_name)).to_lower()
+                    var woody := label.contains("bark") or label.contains("trunk") or label.contains("wood") or label.contains("stem")
+                    if darken_tree and woody:
+                        continue
                     var mat := (source as StandardMaterial3D).duplicate() as StandardMaterial3D
                     mat.cull_mode = BaseMaterial3D.CULL_DISABLED
                     mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-                    mat.alpha_scissor_threshold = 0.50
+                    mat.alpha_scissor_threshold = 0.52 if darken_tree else 0.50
+                    if darken_tree:
+                        var original: Color = mat.albedo_color
+                        mat.albedo_color = Color(original.r * 0.66, original.g * 0.75,
+                            original.b * 0.68, original.a)
+                        mat.roughness = maxf(mat.roughness, 0.86)
                     mesh_instance.set_surface_override_material(index, mat)
     for child in node.get_children():
-        _opaque_cutout_foliage(child)
+        _opaque_cutout_foliage(child, darken_tree)
