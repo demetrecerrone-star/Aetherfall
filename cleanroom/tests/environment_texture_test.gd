@@ -141,49 +141,62 @@ func _run_check() -> void:
             _fail("Medieval lamp missing heavy oak column")
             return
     var native_nature: bool = town.get_meta("nature_pack_loaded", false)
-    var flowering := town.find_child(
-        "QuaterniusNature_Bush_Common_Flowers" if native_nature else "Quaternius_Bush_Flowers",
-        true, false)
-    if flowering == null:
-        _fail("Flowering foliage was not imported")
+    # No bright red flowering bushes and no old 3D sphere-on-stick blooms.
+    if not town.find_children("FlowerHead*", "MeshInstance3D", true, false).is_empty():
+        _fail("Prototype spherical flower heads remain in the starter town")
         return
-    var shrub_root := flowering.get_parent() as Node3D
-    if shrub_root == null or not bool(shrub_root.get_meta("grounded", false)):
-        _fail("Imported shrub has no ground attachment marker")
+    if not town.find_children("FlowerStem*", "MeshInstance3D", true, false).is_empty():
+        _fail("Prototype box flower stems remain in the starter town")
         return
-    if float(shrub_root.get_meta("scenery_ground_sink", 0.0)) < 0.25:
-        _fail("Imported shrub is still too high above the grass")
+    if not town.find_children("TownFlowerBush_*", "Node3D", true, false).is_empty():
+        _fail("Old reddish bushes are still planted")
         return
-    if native_nature and String(shrub_root.get_meta("nature_asset", "")) != "Bush_Common_Flowers":
-        _fail("The MegaKit's real flowering bush was not placed")
+    if not town.find_children("QuaterniusNature_Bush_Common_Flowers", "Node3D", true, false).is_empty():
+        _fail("Flower-coloured bush asset was not replaced by plain green foliage")
         return
-    var bush_meshes := flowering.find_children("*", "MeshInstance3D", true, false)
-    if bush_meshes.is_empty():
-        _fail("Flowering bush has no mesh")
+    var plain_bushes := town.find_children("TownGreenBush_*", "Node3D", true, false)
+    if plain_bushes.size() < 2:
+        _fail("Additional green-rounded bush variety is missing")
         return
-    var bush_mesh := bush_meshes[0] as MeshInstance3D
-    if bush_mesh == null:
-        _fail("Flowering bush has no mesh")
-        return
-    var bush_material := bush_mesh.get_active_material(0) as StandardMaterial3D
-    if bush_material == null or bush_material.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
-        _fail("See-through bush blend mode was not fixed")
-        return
-    if bush_material.cull_mode != BaseMaterial3D.CULL_DISABLED:
-        _fail("Foliage leaf cards are still one-sided")
-        return
-
-    # No planted ornamentals may sit on road stone or their dirt verges.
+    for bush in plain_bushes:
+        if not bool((bush as Node3D).get_meta("green_bush_only", false)):
+            _fail("Rounded bushes must use the green-only palette")
+            return
+        if native_nature and (bush as Node3D).find_children("QuaterniusNature_Bush_Common", "Node3D", true, false).is_empty():
+            _fail("Green bush failed to import its genuine foliage model")
+            return
     var all_shrubs := town.find_children("TownHedge_*", "Node3D", true, false)
-    all_shrubs.append_array(town.find_children("TownFlowerBush_*", "Node3D", true, false))
+    all_shrubs.append_array(plain_bushes)
+    if all_shrubs.size() < 10:
+        _fail("Additional green hedges and bushes were not installed")
+        return
     for plant in all_shrubs:
         var root_plant := plant as Node3D
         if not bool(root_plant.get_meta("planted_in_lawn", false)):
-            _fail("Ornamental bush was not placed in a real lawn bed")
+            _fail("Ornamental bush was not planted in a grass bed")
             return
-        var is_flower := root_plant.name.begins_with("TownFlowerBush")
-        if not bool(town.call("_shrub_fits_lawn", root_plant.position, 0.9, is_flower)):
-            _fail("A bush overhangs the cobblestone/dirt verge: " + root_plant.name)
+        var is_round := root_plant.name.begins_with("TownGreenBush")
+        if not bool(town.call("_shrub_fits_lawn", root_plant.position, 0.9, is_round)):
+            _fail("A bush overlaps the road or dirt verge: " + root_plant.name)
+            return
+    var wildflowers := town.find_children("WildflowerPatch_*", "Node3D", true, false)
+    if wildflowers.size() < 12:
+        _fail("Not enough imported wildflower clusters were planted in the lawn")
+        return
+    for bloom in wildflowers:
+        var flower_root := bloom as Node3D
+        if not bool(flower_root.get_meta("planted_in_lawn", false)):
+            _fail("Wildflowers are not grounded in grass")
+            return
+        if not bool(town.call("_flower_patch_fits_lawn", flower_root.position, 0.45)):
+            _fail("Wildflower cluster overlaps cobblestones or a doorway")
+            return
+        var source: String = flower_root.get_meta("flower_group_asset", "")
+        if source != "Flower_3_Group" and source != "Flower_4_Group":
+            _fail("Prototype or unknown flower model has returned")
+            return
+        if native_nature and flower_root.find_children("QuaterniusNature_Flower_*", "Node3D", true, false).is_empty():
+            _fail("Real Quaternius wildflower geometry failed to import")
             return
 
     var hedges := town.find_children("TownHedge_*", "Node3D", true, false)
@@ -338,7 +351,7 @@ func _run_check() -> void:
     if grass_count < 9000 or chunk_count < 20 or chunk_count > 64:
         _fail("Missing thick lawn coverage: %d instances / %d batches" % [grass_count, chunk_count])
         return
-    var expected_grass_style := "quaternius_textured_short_grass" if native_nature else "soft_curved_meadow_grass"
+    var expected_grass_style := "quaternius_mixed_fantasy_meadow" if native_nature else "soft_curved_meadow_grass"
     if String(town.get_meta("grass_style", "")) != expected_grass_style:
         _fail("Wrong grass style for selected vegetation assets: " + expected_grass_style)
         return
@@ -360,6 +373,20 @@ func _run_check() -> void:
     if tuft.get_faces().size() > (600 if native_nature else 75):
         _fail("Grass tuft exceeds its mobile-poly budget")
         return
+    if native_nature:
+        var species: Array = town.get_meta("grass_species_counts", [])
+        if species.size() != 4:
+            _fail("Common grass, wispy grass, clover and ferns were not all registered")
+            return
+        if int(species[0]) < 7500 or int(species[1]) < 700 or int(species[2]) < 200 or int(species[3]) < 1:
+            _fail("Organic grass species did not reach natural-looking mix: " + str(species))
+            return
+        if town.find_children("MeadowAccent_*", "MultiMeshInstance3D", true, false).size() < 10:
+            _fail("Grass accents are not instanced as mobile-friendly MultiMesh batches")
+            return
+        if int(town.get_meta("grass_draw_batches", 0)) > 190:
+            _fail("Meadow uses too many separate draw batches for Android")
+            return
     if float(town.get_meta("grass_spacing_m", 1.0)) > 0.205:
         _fail("Latest grass pass reverted to sparse planting")
         return
