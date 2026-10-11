@@ -63,6 +63,37 @@ func _check() -> void:
     if not bool(fountain.get_meta("fountain_imported", false)):
         _fail("Fountain was replaced with temporary geometry")
         return
+    var water := fountain.get_node_or_null("FountainWaterEffects") as Node3D
+    if water == null:
+        _fail("Fountain water surfaces were not installed")
+        return
+    if not bool(water.get_meta("water_mobile_compatible", false)):
+        _fail("Water shaders were not configured for Android Compatibility")
+        return
+    if int(water.get_meta("upper_and_lower_water_surfaces", 0)) != 2:
+        _fail("Both tiers need moving basin water")
+        return
+    for name in ["UpperBowlWater", "LowerBasinWater"]:
+        var surface := water.get_node_or_null(name) as MeshInstance3D
+        if surface == null or surface.mesh == null or not (surface.material_override is ShaderMaterial):
+            _fail("Missing real moving pool: " + name)
+            return
+        var material := surface.material_override as ShaderMaterial
+        if material.shader == null or material.get_shader_parameter("wave_texture") == null:
+            _fail("Wave surface is missing the animated Binbun-type noise")
+            return
+    if int(water.get_meta("cascade_count", 0)) != 8 or int(water.get_meta("ripple_impact_count", 0)) != 8:
+        _fail("Fountain needs eight continuous upper-to-lower jets and splash sites")
+        return
+    for i in range(8):
+        var jet := water.get_node_or_null("FountainCascade_%02d" % i) as MeshInstance3D
+        var ripple := water.get_node_or_null("FountainImpactRipple_%02d" % i) as MeshInstance3D
+        if jet == null or ripple == null:
+            _fail("Missing actual flow or basin splash on outlet %d" % i)
+            return
+        if not bool(jet.get_meta("flow_from_upper_bowl", false)) or not bool(ripple.get_meta("splash_replacement_point", false)):
+            _fail("An upper flow does not connect to its lower-water impact")
+            return
     if absf(float(fountain.get_meta("fountain_visual_scale", 0.0)) - 3.55) > 0.01:
         _fail("Fountain is the wrong scale for a walkable medieval square")
         return
