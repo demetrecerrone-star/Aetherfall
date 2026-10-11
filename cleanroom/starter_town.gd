@@ -454,16 +454,17 @@ func _camera_cylinder_hit_distance(target: Vector3, direction: Vector3, max_dist
         var discriminant := b * b - 4.0 * a * c
         if discriminant >= 0.0:
             var root := sqrt(discriminant)
-            for t in [(-b - root) / (2.0 * a), (-b + root) / (2.0 * a)]:
+            for candidate in [(-b - root) / (2.0 * a), (-b + root) / (2.0 * a)]:
+                var t: float = float(candidate)
                 if t >= 0.0 and t <= nearest:
-                    var hit_y := target.y + t * direction.y
+                    var hit_y: float = target.y + t * direction.y
                     if hit_y >= bottom and hit_y <= top:
                         nearest = t
     if absf(direction.y) > 0.000001:
         for cap_y in [bottom, top]:
-            var t := (cap_y - target.y) / direction.y
+            var t: float = (float(cap_y) - target.y) / direction.y
             if t >= 0.0 and t <= nearest:
-                var hit := target + direction * t
+                var hit: Vector3 = target + direction * t
                 if Vector2(hit.x - center.x, hit.z - center.z).length_squared() <= radius * radius:
                     nearest = t
     return nearest
