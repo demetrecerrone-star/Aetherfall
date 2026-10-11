@@ -23,7 +23,17 @@ func _run_check() -> void:
     var grass_material := grass.material_override as StandardMaterial3D
     var post_material := stall_post.material_override as StandardMaterial3D
     if grass_material == null or grass_material.albedo_texture == null:
-        _fail("Grass texture is missing")
+        _fail("Meadow ground needs a textured soil material")
+        return
+    if String(town.get_meta("town_ground_material", "")) != "textured_warm_brown_soil":
+        _fail("Meadow is still built on artificial grass/olive ground")
+        return
+    if String(town.call("_town_texture_group", "TownGround")) != "dirt":
+        _fail("Exposed meadow floor is not using the earthy dirt texture")
+        return
+    var soil_tint: Color = grass_material.albedo_color
+    if not (soil_tint.r > soil_tint.g * 1.12 and soil_tint.g > soil_tint.b * 1.12 and soil_tint.r < 0.65):
+        _fail("Exposed soil is too pale or green; expected deep warm brown")
         return
     if post_material == null or post_material.albedo_texture == null:
         _fail("Stall posts have no wood texture")
@@ -64,6 +74,13 @@ func _run_check() -> void:
     var verge_material := verge_mesh.mesh.surface_get_material(0) as StandardMaterial3D
     if verge_material == null or verge_material.cull_mode != BaseMaterial3D.CULL_DISABLED:
         _fail("Dirt transition is at risk of back-face culling")
+        return
+    if verge_material.albedo_texture == null:
+        _fail("Road verges are not textured earth")
+        return
+    var verge_tint: Color = verge_material.albedo_color
+    if not (verge_tint.r > verge_tint.g and verge_tint.g > verge_tint.b):
+        _fail("Roadside soil must be warm brown, not grey or green")
         return
     if town.find_child("UnifiedDirtRoadVerge", true, false) == null:
         _fail("Cobblestones end abruptly without a dirt/grass transition")
