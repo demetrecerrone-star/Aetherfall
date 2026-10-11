@@ -228,9 +228,14 @@ func _check() -> void:
         if not bool(town.call("_world_point_blocked", Vector2(sp.x, sp.z))):
             _fail("Market counter no-clips")
             return
-    for aisle in [Vector2(0, -4), Vector2(0, -1.8), Vector2(0, 2.45), Vector2(-2.0, -2.0), Vector2(2.0, -2.0)]:
+    # The authentic fountain is intentionally SOLID at the centre, but
+    # the aisles around its basin must remain traversable.
+    if not bool(town.call("_world_point_blocked", Vector2(0, -4))):
+        _fail("Authentic stone fountain is pass-through")
+        return
+    for aisle in [Vector2(0, -1.8), Vector2(0, -6.1), Vector2(0, 2.45), Vector2(-2.0, -2.0), Vector2(2.0, -2.0), Vector2(-2.5, -4.0), Vector2(2.5, -4.0)]:
         if bool(town.call("_world_point_blocked", aisle)):
-            _fail("Market browsing circuit blocked at " + str(aisle))
+            _fail("Market browsing circuit is blocked beside fountain at " + str(aisle))
             return
 
     # Every wooden support gets a compact solid footprint, while the stall
