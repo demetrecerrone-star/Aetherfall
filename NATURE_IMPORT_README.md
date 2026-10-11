@@ -7,21 +7,21 @@ user-supplied Quaternius Stylized Nature MegaKit **Standard** (CC0) pack
 to replace most procedural hedges and trees and to supply real instanced grass.
 The optional medieval weapons and RPG items are **not** included in this pass.
 
-## One-time asset staging
+## Fully automatic asset staging — no manual upload needed
 
-The selected assets were converted from the user's 100 MB source archive into
-`Aetherfall-Nature-Assets-For-GitHub.zip` (~6.3 MB, 14 self-contained GLBs).
-Place that archive **at the repository root on this branch**, next to
-`Aetherfall-Scenery-Assets-For-GitHub.zip`. Do not extract it manually in GitHub.
+The user-supplied 100 MB Quaternius Standard archive was analyzed locally.
+The GitHub Actions build obtains the **same freely distributed CC0 Standard pack**
+directly from the creator's OpenGameArt mirror, selecting 14 compatible glTF
+models and converting them to embedded-texture GLBs with 512px textures.
 
-GitHub Actions runs `cleanroom/tools/install_nature_megakit.py` to validate
-the CC0 manifest and SHA-256 hashes, unpack selected GLBs into
-`cleanroom/models/nature/`, import them with Godot 4.6.3, run regression
-and native-asset tests, then export and certificate-check the signed Android APK.
+The optional `Aetherfall-Nature-Assets-For-GitHub.zip` (~6.3 MB) is supported
+for offline/import-speed optimization, but it does **not** need to be uploaded
+for this branch to build. If it exists, the installer validates its manifest
+and SHA-256 hashes instead of downloading the larger source archive.
 
-**Important:** If the archive is not staged, the nature-preview APK build
-deliberately fails with `AETHERFALL_NATURE_MISSING` rather than silently
-shipping the old placeholder grass/trees.
+The installer is `cleanroom/tools/install_nature_megakit.py`, running before
+the Godot imports and strict native-asset QA. Missing or broken downloads and
+imports fail CI rather than quietly shipping temporary foliage.
 
 ## Approved changes
 
