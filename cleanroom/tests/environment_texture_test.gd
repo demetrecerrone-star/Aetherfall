@@ -47,7 +47,7 @@ func _run_check() -> void:
         return
     # Regression: town furniture uses textured boards and tips its back
     # AWAY from the seated character, not inward as the original bench did.
-    var benches := town.find_children("TownBench", "Node3D", true, false)
+    var benches := town.find_children("TownBench*", "Node3D", true, false)
     if benches.size() != 4:
         _fail("Expected four upgraded town benches")
         return
