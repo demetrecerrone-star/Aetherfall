@@ -6,6 +6,9 @@ on:
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
+      - "cleanroom/hanging_shop_signs.gd"
+      - "cleanroom/signs/*.svg"
+      - "cleanroom/tests/hanging_signs_test.gd"
       - "cleanroom/models/fountain/*.glb"
       - "cleanroom/tests/fountain_asset_test.gd"
       - "cleanroom/nature_replacements.gd"
@@ -217,6 +220,14 @@ jobs:
           godot --headless --path cleanroom --script res://tests/nature_asset_test.gd 2>&1 | tee /tmp/nature-assets-qa.log
           grep -F 'AETHERFALL_NATURE_ASSETS_OK' /tmp/nature-assets-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_NATURE_ASSETS_FAIL' /tmp/nature-assets-qa.log; then exit 1; fi
+
+      - name: Pass 4.1 four unique hanging shop signs and unobstructed entryways
+        if: github.ref_name == 'feature/quaternius-nature-megakit-import'
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/hanging_signs_test.gd 2>&1 | tee /tmp/hanging-signs-qa.log
+          grep -F 'AETHERFALL_HANGING_SIGNS_OK' /tmp/hanging-signs-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_HANGING_SIGNS_FAIL:' /tmp/hanging-signs-qa.log; then exit 1; fi
 
       - name: Verify authentic user fountain asset and playable square
         if: github.ref_name == 'feature/quaternius-nature-megakit-import'
