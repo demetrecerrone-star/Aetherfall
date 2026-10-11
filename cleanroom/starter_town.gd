@@ -1095,6 +1095,39 @@ func _add_rock(position: Vector3, scale_factor: float = 1.0) -> void:
     _sphere(rock, "Rock", 0.26 * scale_factor, Vector3(0, 0.18 * scale_factor, 0), Color("#686861"), 1.0)
     rock.scale = Vector3(1.25, 0.70, 0.95)
 
+func _add_town_fountain() -> void:
+    # Actual user-supplied Tripo medieval fountain, not procedural geometry.
+    # The 11,226-triangle mesh and all three embedded PBR maps are preserved;
+    # textures are optimized for mobile before they are committed to GitHub.
+    var fountain_path := "res://models/fountain/MedievalFountain.glb"
+    var fountain_scene := load(fountain_path) as PackedScene
+    if fountain_scene == null:
+        push_error("AETHERFALL_FOUNTAIN_MISSING: " + fountain_path)
+        return
+    var fountain_mesh := fountain_scene.instantiate() as Node3D
+    if fountain_mesh == null:
+        push_error("AETHERFALL_FOUNTAIN_INVALID: Imported fountain has no Node3D root")
+        return
+    var fountain := Node3D.new()
+    fountain.name = "TownFountain"
+    fountain.position = Vector3(0.0, RoadNetwork.COBBLE_HEIGHT, -4.0)
+    add_child(fountain)
+    fountain_mesh.name = "ImportedMedievalFountain"
+    fountain_mesh.scale = Vector3.ONE * 3.2
+    fountain.add_child(fountain_mesh)
+
+    # The water basin is about 3.14m across and 2.55m tall. Keep the
+    # surrounding market-square loop open for both player and camera.
+    _add_circle_blocker(Vector2(0.0, -4.0), 1.60, PLAYER_WORLD_RADIUS + 0.04)
+    _add_camera_cylinder(Vector3(0.0, 1.34, -4.0), 1.60, 2.56)
+    fountain.set_meta("fountain_asset", "res://models/fountain/MedievalFountain.glb")
+    fountain.set_meta("fountain_imported", true)
+    fountain.set_meta("fountain_visual_scale", 3.2)
+    fountain.set_meta("fountain_source_triangles", 11226)
+    fountain.set_meta("fountain_player_blocker_radius", 1.60 + PLAYER_WORLD_RADIUS + 0.04)
+    fountain.set_meta("fountain_basin_width_m", 3.14)
+
+
 func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     var stall := Node3D.new()
     stall.position = position
@@ -1496,7 +1529,9 @@ func _build_stage() -> void:
     var verge_material := _town_mat("EntryShoulderL", Color("#75563b"), 1.0, Vector3.ONE)
     RoadNetwork.build(self, _road_regions, cobble_material, verge_material)
 
-    # Old fountain and its collision are removed: the center square is walkable.
+    # Restore an authentic fountain focal point while the ring around the
+    # marketplace stays walkable; original model is supplied by the user.
+    _add_town_fountain()
 
     # Market and props. Vendor fronts/backs are reserved: no benches, lamps, or
     # loose storage are placed inside the stall working/customer zones.
