@@ -1,17 +1,23 @@
 extends SceneTree
 ## QA the genuine, user-supplied fountain mesh and its town collision.
-const FOUNTAIN = preload("res://models/fountain/MedievalFountain.glb")
+const FOUNTAIN_PATH := "res://models/fountain/MedievalFountain.bin"
 const NatureReplacement = preload("res://nature_replacements.gd")
 
 func _initialize() -> void:
     call_deferred("_check")
 
 func _check() -> void:
-    var mesh_scene := FOUNTAIN as PackedScene
-    if mesh_scene == null:
-        _fail("User fountain GLB did not import")
+    if not FileAccess.file_exists(FOUNTAIN_PATH):
+        _fail("Exact fountain GLB bytes were not included in runtime resources")
         return
-    var model := mesh_scene.instantiate() as Node3D
+    var file_data := FileAccess.get_file_as_bytes(FOUNTAIN_PATH)
+    var doc := GLTFDocument.new()
+    var state := GLTFState.new()
+    var import_status := doc.append_from_buffer(file_data, "", state)
+    if import_status != OK:
+        _fail("User fountain runtime GLB cannot be parsed: " + str(import_status))
+        return
+    var model := doc.generate_scene(state) as Node3D
     if model == null:
         _fail("Imported 3D fountain has no renderable root")
         return
