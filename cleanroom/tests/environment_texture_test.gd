@@ -140,7 +140,10 @@ func _run_check() -> void:
         if lamp.get_node_or_null("OakLampMast") == null:
             _fail("Medieval lamp missing heavy oak column")
             return
-    var flowering := town.find_child("Quaternius_Bush_Flowers", true, false)
+    var native_nature: bool = town.get_meta("nature_pack_loaded", false)
+    var flowering := town.find_child(
+        "QuaterniusNature_Bush_Common_Flowers" if native_nature else "Quaternius_Bush_Flowers",
+        true, false)
     if flowering == null:
         _fail("Flowering foliage was not imported")
         return
@@ -150,6 +153,9 @@ func _run_check() -> void:
         return
     if float(shrub_root.get_meta("scenery_ground_sink", 0.0)) < 0.25:
         _fail("Imported shrub is still too high above the grass")
+        return
+    if native_nature and String(shrub_root.get_meta("nature_asset", "")) != "Bush_Common_Flowers":
+        _fail("The MegaKit's real flowering bush was not placed")
         return
     var bush_meshes := flowering.find_children("*", "MeshInstance3D", true, false)
     if bush_meshes.is_empty():
@@ -179,6 +185,13 @@ func _run_check() -> void:
         if (hedge as Node3D).get_node_or_null("HedgeLeafBody") == null:
             _fail("Trimmed hedge lost its rectangular foliage mesh")
             return
+        if native_nature:
+            if not bool((hedge as Node3D).get_meta("nature_hedge_imported", false)):
+                _fail("Hip-height hedges must contain textured Nature MegaKit segments")
+                return
+            if (hedge as Node3D).find_children("QuaterniusNature_Bush_Common", "Node3D", true, false).size() != 2:
+                _fail("Textured hedge requires two natural overlapping bush segments")
+                return
     var pines := town.find_children("PineTree_*", "Node3D", true, false)
     if pines.size() < 3:
         _fail("Not enough taller pine trees were added to the valley")
@@ -186,8 +199,15 @@ func _run_check() -> void:
     var tallest := 0.0
     for pine in pines:
         tallest = maxf(tallest, float((pine as Node3D).get_meta("tree_height_m", 0.0)))
-        if (pine as Node3D).find_children("PineEvergreenLayer_*", "MeshInstance3D", true, false).size() != 5:
-            _fail("Pine tree canopy lacks its solid five-tier needle layers")
+        if native_nature:
+            if String((pine as Node3D).get_meta("foliage_style", "")) != "textured_nature_pine":
+                _fail("Pine still uses procedural cones instead of Quaternius foliage")
+                return
+            if (pine as Node3D).find_children("QuaterniusNature_Pine_*", "Node3D", true, false).is_empty():
+                _fail("Pine has no imported textured mesh")
+                return
+        elif (pine as Node3D).find_children("PineEvergreenLayer_*", "MeshInstance3D", true, false).size() != 5:
+            _fail("Procedural pine fallback lost its canopy")
             return
     if tallest < 6.6:
         _fail("None of the pines is taller than the deciduous trees")
@@ -305,8 +325,12 @@ func _run_check() -> void:
     if grass_count < 9000 or chunk_count < 20 or chunk_count > 64:
         _fail("Missing thick lawn coverage: %d instances / %d batches" % [grass_count, chunk_count])
         return
-    if String(town.get_meta("grass_style", "")) != "soft_curved_meadow_grass":
-        _fail("Meadow grass must use the new curved tapered tuft mesh")
+    var expected_grass_style := "quaternius_textured_short_grass" if native_nature else "soft_curved_meadow_grass"
+    if String(town.get_meta("grass_style", "")) != expected_grass_style:
+        _fail("Wrong grass style for selected vegetation assets: " + expected_grass_style)
+        return
+    if bool(town.get_meta("grass_nature_model_loaded", false)) != native_nature:
+        _fail("Grass asset presence does not match the installed nature pack")
         return
     var grass_batches := town.find_children("GrassField_*", "MultiMeshInstance3D", true, false)
     if grass_batches.is_empty():
@@ -320,8 +344,8 @@ func _run_check() -> void:
     if tuft == null or tuft.get_faces().size() < 30:
         _fail("New grass tuft is still the old four straight triangles")
         return
-    if tuft.get_faces().size() > 75:
-        _fail("New grass tuft is too complex for 10k mobile instances")
+    if tuft.get_faces().size() > (600 if native_nature else 75):
+        _fail("Grass tuft exceeds its mobile-poly budget")
         return
     if float(town.get_meta("grass_spacing_m", 1.0)) > 0.26:
         _fail("Grass spacing is too sparse for a believable lawn")
@@ -337,7 +361,7 @@ func _run_check() -> void:
         _fail("Obsolete procedural stairs remain in town")
         return
 
-    print("AETHERFALL_ENVIRONMENT_PASS3_OK: One medieval cobble road network, all 10 doorways connected, dirt verges, thick yard lawn and inward-backed stalls")
+    print("AETHERFALL_ENVIRONMENT_PASS3_OK: Stone road network, 10 doorways, and " + ("real MegaKit trees/hedges/grass" if native_nature else "safe temporary foliage fallbacks"))
     town.queue_free()
     quit(0)
 
