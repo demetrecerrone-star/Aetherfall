@@ -13,20 +13,15 @@ func _run_check() -> void:
     root.add_child(town)
     for i in range(8):
         await process_frame
-    var fountain := town.find_child("FountainPlinth", true, false) as MeshInstance3D
     var grass := town.find_child("TownGround", true, false) as MeshInstance3D
     var road := town.find_child("EntryRoad", true, false) as MeshInstance3D
     var roof := town.find_child("RoofCourse", true, false) as MeshInstance3D
     var stall_post := town.find_child("StallPost", true, false) as MeshInstance3D
-    if fountain == null or grass == null or road == null or roof == null or stall_post == null:
+    if grass == null or road == null or roof == null or stall_post == null:
         _fail("Expected environment meshes are missing")
         return
-    var fountain_material := fountain.material_override as StandardMaterial3D
     var grass_material := grass.material_override as StandardMaterial3D
     var post_material := stall_post.material_override as StandardMaterial3D
-    if fountain_material == null or not fountain_material.uv1_triplanar:
-        _fail("Fountain stone is not triplanar mapped")
-        return
     if grass_material == null or grass_material.albedo_texture == null:
         _fail("Grass texture is missing")
         return
@@ -87,94 +82,23 @@ func _run_check() -> void:
         _fail("Wall texture scaling is not uniform on all facade faces")
         return
 
-    # The outlet must render animated, transparent water curtains, not
-    # individual hair strands or unlit glass/light panels.
-    if town.find_child("FountainJet", true, false) != null:
-        _fail("Old fountain water rods are still present")
+    # Former fountain square now hosts additional market stands, with a clear aisle.
+    if not town.find_children("Fountain*", "Node", true, false).is_empty():
+        _fail("Removed fountain geometry returned")
         return
-    var sheets := town.find_children("FountainCascade*", "MeshInstance3D", true, false)
-    var droplets := town.find_children("FountainDroplet*", "MeshInstance3D", true, false)
-    # The detached rear ground discs are not part of the fountain basin.
-    if town.find_child("FountainAccent", true, false) != null:
-        _fail("Detached stone discs have returned behind the fountain")
+    var stalls := town.find_children("MarketStall_*", "Node3D", true, false)
+    if stalls.size() != 4:
+        _fail("Expected four market stands")
         return
-    var fake_rings := town.find_children("FountainRipple*", "MeshInstance3D", true, false)
-    if sheets.size() != 8 or droplets.size() != 24 or fake_rings.size() != 0:
-        _fail("Expected eight falling water curtains, 24 fine splash droplets and no fake ripples")
+    if bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
+        _fail("Former fountain position still blocks the market aisle")
         return
-    for flow in sheets:
-        var visual := flow as MeshInstance3D
-        var stream_mat := visual.material_override as ShaderMaterial
-        var flow_vertices: PackedVector3Array = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-        var flow_colors: PackedColorArray = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
-        var flow_uvs: PackedVector2Array = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV]
-        if flow_vertices.size() != 231 or flow_colors.size() != 231 or flow_uvs.size() != 231:
-            _fail("Fountain does not use a continuous seven-column water curtain")
+    for stall_x in [-4.0, 4.0]:
+        if not bool(town.call("_world_point_blocked", Vector2(stall_x, -4.0))):
+            _fail("New market stand is missing collision")
             return
-        if stream_mat == null or stream_mat.shader == null:
-            _fail("Water curtains are missing their animated translucent shader")
-            return
-        var curtain_shader := stream_mat.shader.code
-        if not curtain_shader.contains("flow_time") or not curtain_shader.contains("ALPHA") or not curtain_shader.contains("soft_edges"):
-            _fail("Fountain shader has no downward-moving water texture or soft edges")
-            return
-        if flow_uvs[0].x != 0.0 or flow_uvs[6].x != 1.0 or absf(flow_uvs[224].y - 1.0) > 0.001:
-            _fail("Fountain curtains lack continuous UV mapping")
-            return
-    var small_drop := droplets[0] as MeshInstance3D
-    var drop_mesh := small_drop.mesh as SphereMesh
-    if drop_mesh == null or drop_mesh.radius > 0.012 or drop_mesh.height > 0.035:
-        _fail("Fountain droplets are still oversized decorative beads")
-        return
 
-    # Real impact ripples displace a densely tessellated circular water surface.
-    # They originate below eight falling streams, not from a scrolling decal.
-    var pool := town.find_child("FountainWater", true, false) as MeshInstance3D
-    if pool == null:
-        _fail("Fountain basin surface missing")
-        return
-    var water_mat := pool.material_override as ShaderMaterial
-    var pool_mesh := pool.mesh as ArrayMesh
-    if water_mat == null or pool_mesh == null or water_mat.shader == null:
-        _fail("Fountain basin is missing animated impact-wave geometry")
-        return
-    var mesh_vertices: PackedVector3Array = pool_mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-    if mesh_vertices.size() < 2000:
-        _fail("Water surface does not have enough geometry for actual ripple displacement")
-        return
-    var shader_code := water_mat.shader.code
-    if not shader_code.contains("VERTEX.y +=") or not shader_code.contains("impact"):
-        _fail("Water surface ripples are not driven by droplet impact positions")
-        return
-    var initial_time := float(water_mat.get_shader_parameter("flow_time"))
-    var curtain_mat := (sheets[0] as MeshInstance3D).material_override as ShaderMaterial
-    town.call("_update_fountain", 0.30)
-    if float(curtain_mat.get_shader_parameter("flow_time")) < 0.29:
-        _fail("Fountain waterfall animation is not advancing")
-        return
-    var next_time := float(water_mat.get_shader_parameter("flow_time"))
-    if next_time < initial_time + 0.29:
-        _fail("Physical fountain waves are not moving")
-        return
-
-    # The upper disk top is y=2.37 with a radius of 0.38m. Streams must
-    # spill over its outer lip and land inside the basin outside the column.
-    var disk_start: Vector3 = town.call("_fountain_flow_point", 0.0, 0.0, 0)
-    var stream_end: Vector3 = town.call("_fountain_flow_point", 0.0, 1.0, 0)
-    var start_radius := Vector2(disk_start.x, disk_start.z + 4.0).length()
-    var end_radius := Vector2(stream_end.x, stream_end.z + 4.0).length()
-    if absf(start_radius - 0.395) > 0.01 or absf(disk_start.y - 2.375) > 0.015:
-        _fail("Fountain flow no longer begins at the raised disk rim")
-        return
-    if end_radius < 0.78 or end_radius > 0.86 or absf(stream_end.y - 1.035) > 0.01:
-        _fail("Fountain runoff does not land inside the basin away from the column")
-        return
-    var first_vertices: PackedVector3Array = (sheets[0] as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-    if first_vertices[0].y < 2.36 or first_vertices[224].y > 1.05:
-        _fail("Fountain water curtains no longer span disk to basin")
-        return
-
-    print("AETHERFALL_ENVIRONMENT_02T_OK: Seam-free textured lawn, unified cobbles, triplanar fountain, tiled roofs, textured stall posts and three ground heights")
+    print("AETHERFALL_ENVIRONMENT_02T_OK: Seam-free lawn, open plaza, four solid market stalls, tiled roofs and three ground heights")
     town.queue_free()
     quit(0)
 

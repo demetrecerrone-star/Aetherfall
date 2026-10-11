@@ -170,7 +170,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check polished ground, fountain mapping, and material surfaces
+      - name: Check polished ground, market square, and material surfaces
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/environment_texture_test.gd 2>&1 | tee /tmp/environment-qa.log

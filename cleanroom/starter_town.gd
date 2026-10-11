@@ -121,15 +121,6 @@ var _startup_complete := false
 var _startup_failed := false
 const STARTUP_WATCHDOG_SECONDS := 12.0
 
-# Fountain animation state. Kept intentionally lightweight for Android.
-var _fountain_time := 0.0
-var _fountain_water: MeshInstance3D
-var _fountain_crystal: MeshInstance3D
-var _fountain_glow: OmniLight3D
-var _fountain_cascades: Array[MeshInstance3D] = []
-var _fountain_curtain_mat: ShaderMaterial
-var _fountain_drips: Array[MeshInstance3D] = []
-
 func _ready() -> void:
     # Keep the same direct-scene startup path as the proven v0.1.3 build.
     # The diagnostic overlay is created first so later runtime failures remain visible.
@@ -292,8 +283,6 @@ func _town_texture_group(name: String) -> String:
         return "plaster"
     if n in ["roadstone", "squarestone", "entryroad", "crossroad", "marketsquare"]:
         return "cobble"
-    if n.begins_with("fountain") and n not in ["fountainwater", "fountainjet", "fountaincrystal"]:
-        return "stone"
     if n.contains("foundation") or n.contains("cornerstone") or n.contains("wallcap") or n.contains("buttress") or n == "townwall" or n.begins_with("gatetower") or n.begins_with("chimney") or n == "rock":
         return "stone"
     for prefix in ["frontpost", "sidepost", "frontband", "sideband", "brace", "eavetrim", "fascia", "windowtrim", "sidewindowtrim", "windowcross", "sidewindowcross", "door", "shutter", "flowerbox", "counter", "shelf", "gatebar", "gatecrossbar", "barrel", "trunk", "branch", "shop", "benchseat", "benchback", "stallpost", "crate"]:
@@ -331,16 +320,11 @@ func _town_mat(name: String, color: Color, roughness: float, size: Vector3) -> S
     elif kind == "cobble":
         meters = 1.65
     mat.uv1_scale = Vector3(maxf(1.0, size.x / meters), maxf(1.0, maxf(size.y, size.z) / meters), 1.0)
-    # Cylinder UVs stretch the stone into visible bands; use object-space projection
-    # for fountain masonry only (not the translucent water or glowing crystal).
-    if name.to_lower().begins_with("fountain") and kind == "stone":
-        mat.uv1_triplanar = true
-        mat.uv1_scale = Vector3(1.1, 1.1, 1.1)
     # BoxMesh UVs differ by face. A 52m side wall uses the 1.2m X dimension
     # for the facade U axis and the 52m Z dimension for its vertical V axis,
     # compressing the stone into horizontal streaks. Uniform triplanar stone
     # projection keeps mortar joints the same scale on every face and corner.
-    elif kind == "stone" and name.to_lower() in ["townwall", "wallcap"]:
+    if kind == "stone" and name.to_lower() in ["townwall", "wallcap"]:
         mat.uv1_triplanar = true
         mat.uv1_scale = Vector3(1.05, 1.05, 1.05)
     mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -352,221 +336,6 @@ func _mat(color: Color, roughness: float = 0.9, metallic: float = 0.0) -> Standa
     material.albedo_color = color
     material.roughness = roughness
     material.metallic = metallic
-    return material
-
-func _fountain_pool_mesh() -> ArrayMesh:
-    # Dense circular surface: the ripple shader actually lifts water vertices.
-    # No scrolling stripe decal or elevated fake ripple meshes.
-    var segments := 96
-    var bands := 28
-    var vertices := PackedVector3Array()
-    var normals := PackedVector3Array()
-    var uvs := PackedVector2Array()
-    var indices := PackedInt32Array()
-    for band in range(bands + 1):
-        var radius := 1.20 * float(band) / float(bands)
-        for segment in range(segments + 1):
-            var theta := TAU * float(segment) / float(segments)
-            var x := sin(theta) * radius
-            var z := cos(theta) * radius
-            vertices.append(Vector3(x, 0.0, z))
-            normals.append(Vector3.UP)
-            uvs.append(Vector2(0.5 + x / 2.40, 0.5 + z / 2.40))
-        if band > 0:
-            var prev := (band - 1) * (segments + 1)
-            var row := band * (segments + 1)
-            for segment in range(segments):
-                indices.append_array(PackedInt32Array([
-                    prev + segment, row + segment, prev + segment + 1,
-                    prev + segment + 1, row + segment, row + segment + 1
-                ]))
-    var arrays := []
-    arrays.resize(Mesh.ARRAY_MAX)
-    arrays[Mesh.ARRAY_VERTEX] = vertices
-    arrays[Mesh.ARRAY_NORMAL] = normals
-    arrays[Mesh.ARRAY_TEX_UV] = uvs
-    arrays[Mesh.ARRAY_INDEX] = indices
-    var mesh := ArrayMesh.new()
-    mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-    return mesh
-
-
-func _fountain_pool_material() -> ShaderMaterial:
-    # Eight physical wave sources sit directly beneath the stream landings.
-    # Gentle radial displacement plus highlights makes the water respond to
-    # impacts without the arbitrary moving bands seen on the old texture.
-    var shader := Shader.new()
-    shader.code = """
-shader_type spatial;
-render_mode cull_disabled, depth_draw_opaque;
-
-uniform float flow_time = 0.0;
-varying float crest_light;
-
-void vertex() {
-    float waves = 0.0;
-    for (int i = 0; i < 8; i++) {
-        float angle = 6.28318530718 * float(i) / 8.0;
-        vec2 impact = vec2(sin(angle), cos(angle)) * 0.82;
-        float distance_from_impact = distance(VERTEX.xz, impact);
-        float phase = 38.0 * distance_from_impact - 5.5 * flow_time + 0.24 * float(i);
-        float decay = exp(-7.0 * distance_from_impact);
-        waves += sin(phase) * decay;
-    }
-    VERTEX.y += 0.018 * waves;
-    crest_light = clamp(0.5 + 0.24 * waves, 0.0, 1.0);
-}
-
-void fragment() {
-    ALBEDO = mix(vec3(0.16, 0.43, 0.53), vec3(0.33, 0.64, 0.70), crest_light);
-    ROUGHNESS = 0.17;
-    METALLIC = 0.02;
-    SPECULAR = 0.78;
-}
-"""
-    var material := ShaderMaterial.new()
-    material.shader = shader
-    material.set_shader_parameter("flow_time", 0.0)
-    return material
-
-
-func _fountain_flow_point(angle: float, progress: float, stream: int) -> Vector3:
-    # Each fall starts at the outer edge of the 0.38m top stone disk,
-    # spills over its lip, and arcs outward into the water-filled basin.
-    # Accelerating vertical fall gives it a gravity-like trajectory.
-    var t := clampf(progress, 0.0, 1.0)
-    var stream_jitter := 0.008 * sin(t * 18.0 + float(stream) * 1.4) * sin(t * PI)
-    var radius := lerpf(0.395, 0.82, t) + stream_jitter
-    var heading := angle + 0.028 * sin(t * 14.0 + float(stream) * 1.13) * sin(t * PI)
-    var drop := 0.08 * t + 0.92 * t * t
-    var y := lerpf(2.375, 1.035, drop)
-    return Vector3(sin(heading) * radius, y, -4.0 + cos(heading) * radius)
-
-
-func _fountain_curtain_material() -> ShaderMaterial:
-    # A translucent animated water skin, not opaque hair strands or light panels.
-    # Broad low-contrast streaks travel downward; the edges vanish naturally.
-    var shader := Shader.new()
-    shader.code = """
-shader_type spatial;
-render_mode blend_mix, depth_draw_never, cull_disabled, diffuse_burley, specular_schlick_ggx;
-
-uniform float flow_time = 0.0;
-
-void fragment() {
-    float soft_edges = smoothstep(0.0, 0.18, UV.x) *
-        (1.0 - smoothstep(0.82, 1.0, UV.x));
-    float channel = sin(UV.x * 16.0 + sin(UV.y * 13.0 - flow_time * 3.7) * 0.65);
-    float falling = sin(UV.y * 46.0 - flow_time * 9.0 +
-        1.6 * sin(UV.x * 9.0 + flow_time * 0.75));
-    float breakup = sin(UV.y * 29.0 - flow_time * 6.6 + UV.x * 13.0);
-    float flecks = smoothstep(0.68, 0.95, 0.50 +
-        0.25 * falling + 0.25 * breakup);
-    float shimmer = clamp(0.48 + 0.22 * channel + 0.18 * flecks, 0.0, 1.0);
-    ALBEDO = mix(vec3(0.19, 0.48, 0.55), vec3(0.54, 0.78, 0.83), shimmer);
-    ALPHA = (0.37 + 0.07 * channel + 0.11 * flecks) *
-        soft_edges * COLOR.a;
-    ROUGHNESS = 0.11;
-    SPECULAR = 0.76;
-    METALLIC = 0.0;
-}
-"""
-    var material := ShaderMaterial.new()
-    material.shader = shader
-    material.set_shader_parameter("flow_time", 0.0)
-    return material
-
-
-func _add_fountain_cascade(angle: float, index: int) -> void:
-    # One lightly folded, continuous falling sheet per outlet. Seven vertices
-    # across its width create a soft contour, not seven separated hair strands.
-    var rows := 33
-    var columns := 7
-    var vertices := PackedVector3Array()
-    var normals := PackedVector3Array()
-    var colors := PackedColorArray()
-    var uvs := PackedVector2Array()
-    var indices := PackedInt32Array()
-    var across := Vector3(cos(angle), 0.0, -sin(angle))
-    var outwards := Vector3(sin(angle), 0.0, cos(angle))
-    for segment in range(rows):
-        var t := float(segment) / float(rows - 1)
-        var center := _fountain_flow_point(angle, t, index)
-        var width := lerpf(0.116, 0.095, t)
-        var flutter := sin(t * 16.0 + float(index) * 1.1) * sin(t * PI) * 0.007
-        for column in range(columns):
-            var u := float(column) / float(columns - 1)
-            var side := u * 2.0 - 1.0
-            var fold := 0.016 * sin(u * TAU + t * 9.0 + float(index) * 0.73) * sin(t * PI)
-            var point := center + across * side * width + outwards * (fold + flutter)
-            vertices.append(point)
-            normals.append((outwards + Vector3.UP * 0.25 + across * (side * 0.24)).normalized())
-            colors.append(Color(1.0, 1.0, 1.0, lerpf(0.96, 0.80, t)))
-            uvs.append(Vector2(u, t))
-        if segment > 0:
-            var previous := (segment - 1) * columns
-            var current := segment * columns
-            for column in range(columns - 1):
-                indices.append_array(PackedInt32Array([
-                    previous + column, previous + column + 1, current + column,
-                    previous + column + 1, current + column + 1, current + column
-                ]))
-    var arrays := []
-    arrays.resize(Mesh.ARRAY_MAX)
-    arrays[Mesh.ARRAY_VERTEX] = vertices
-    arrays[Mesh.ARRAY_NORMAL] = normals
-    arrays[Mesh.ARRAY_COLOR] = colors
-    arrays[Mesh.ARRAY_TEX_UV] = uvs
-    arrays[Mesh.ARRAY_INDEX] = indices
-    var mesh := ArrayMesh.new()
-    mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-    var flow := MeshInstance3D.new()
-    flow.name = "FountainCascade%02d" % index
-    flow.mesh = mesh
-    if _fountain_curtain_mat == null:
-        _fountain_curtain_mat = _fountain_curtain_material()
-    flow.material_override = _fountain_curtain_mat
-    flow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(flow)
-    _fountain_cascades.append(flow)
-
-
-func _add_fountain_droplet(stream: int, bead: int) -> void:
-    # Small elongated drops, not the previous bright spherical beads.
-    # Sparse breakup under gravity adds motion without dotted-string look.
-    var drop := MeshInstance3D.new()
-    drop.name = "FountainDroplet_%d_%d" % [stream, bead]
-    var shape := SphereMesh.new()
-    shape.radius = 0.008
-    shape.height = 0.030
-    shape.radial_segments = 10
-    shape.rings = 5
-    drop.mesh = shape
-    drop.material_override = _water_mat(Color("#b7dce5"), 0.34)
-    drop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(drop)
-    _fountain_drips.append(drop)
-
-
-func _water_mat(color: Color, alpha: float = 0.72) -> StandardMaterial3D:
-    var material := StandardMaterial3D.new()
-    var tinted := color
-    tinted.a = alpha
-    material.albedo_color = tinted
-    material.roughness = 0.16
-    material.metallic = 0.08
-    material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-    material.cull_mode = BaseMaterial3D.CULL_DISABLED
-    return material
-
-func _crystal_mat(color: Color) -> StandardMaterial3D:
-    var material := StandardMaterial3D.new()
-    material.albedo_color = color
-    material.roughness = 0.14
-    material.metallic = 0.05
-    material.emission_enabled = true
-    material.emission = color.lightened(0.12)
-    material.emission_energy_multiplier = 0.66
     return material
 
 func _box(parent: Node, name: String, size: Vector3, position: Vector3, color: Color, rotation_degrees: Vector3 = Vector3.ZERO, roughness: float = 0.9) -> MeshInstance3D:
@@ -924,6 +693,7 @@ func _add_rock(position: Vector3, scale_factor: float = 1.0) -> void:
 func _add_market_stall(position: Vector3, awning: Color) -> void:
     var stall := Node3D.new()
     stall.position = position
+    stall.name = "MarketStall_%d_%d" % [roundi(position.x * 100.0), roundi(position.z * 100.0)]
     add_child(stall)
     var wood := Color("#5b3c2a")
     var dark_wood := Color("#3e2b22")
@@ -1295,55 +1065,15 @@ func _build_stage() -> void:
     _add_house(Vector3(-10.0, 0, 17.0), Vector3(4.7, 2.8, 4.3), Color("#d8c6a4"), Color("#62443b"))
     _add_house(Vector3(10.0, 0, 17.2), Vector3(4.8, 2.9, 4.2), Color("#d2bc92"), Color("#684438"))
 
-    # Fountain centerpiece: deeper stonework, wet accents, animated water and light streams.
-    _cylinder(self, "FountainPlinth", 2.32, 0.20, Vector3(0, 0.10, -4.0), Color("#656966"), 0.94)
-    _cylinder(self, "FountainBase", 2.15, 0.30, Vector3(0, 0.30, -4.0), Color("#777c79"), 0.91)
-    _cylinder(self, "FountainStep", 1.82, 0.20, Vector3(0, 0.52, -4.0), Color("#8d928f"), 0.88)
-    _cylinder(self, "FountainWetStone", 1.58, 0.17, Vector3(0, 0.68, -4.0), Color("#566466"), 0.46)
-    _cylinder(self, "FountainBasinOuter", 1.52, 0.34, Vector3(0, 0.78, -4.0), Color("#999e9b"), 0.84)
-    _cylinder(self, "FountainBasinInner", 1.30, 0.18, Vector3(0, 0.89, -4.0), Color("#4f6466"), 0.48)
-
-    _fountain_water = MeshInstance3D.new()
-    _fountain_water.name = "FountainWater"
-    _fountain_water.mesh = _fountain_pool_mesh()
-    _fountain_water.position = Vector3(0.0, 1.020, -4.0)
-    _fountain_water.material_override = _fountain_pool_material()
-    _fountain_water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    add_child(_fountain_water)
-
-    _cylinder(self, "FountainColumnBase", 0.42, 0.20, Vector3(0, 1.05, -4.0), Color("#777f7c"), 0.82)
-    _cylinder(self, "FountainColumn", 0.24, 1.36, Vector3(0, 1.70, -4.0), Color("#858d89"), 0.82)
-    _cylinder(self, "FountainSpoutRing", 0.38, 0.18, Vector3(0, 2.28, -4.0), Color("#707875"), 0.74)
-
-    # Textured water curtains spill from the top disk rim through open air,
-    # and lands in the basin instead of tracing the narrow center pillar.
-    _fountain_cascades.clear()
-    _fountain_drips.clear()
-    for stream in range(8):
-        var angle := TAU * float(stream) / 8.0
-        _add_fountain_cascade(angle, stream)
-        for bead in range(3):
-            _add_fountain_droplet(stream, bead)
-
-    _fountain_crystal = _sphere(self, "FountainCrystal", 0.34, Vector3(0, 2.68, -4.0), Color("#8ee2ec"), 0.10)
-    _fountain_crystal.material_override = _crystal_mat(Color("#78d8e7"))
-    _fountain_glow = OmniLight3D.new()
-    _fountain_glow.position = Vector3(0, 2.68, -4.0)
-    _fountain_glow.light_color = Color("#72d8e8")
-    _fountain_glow.light_energy = 0.36
-    _fountain_glow.omni_range = 3.8
-    _fountain_glow.shadow_enabled = false
-    add_child(_fountain_glow)
-
-    # Keep the fountain plaza clear; the two detached rear stone discs were
-    # mistaken for dropped fountain pieces and have no gameplay function.
-
-    _add_circle_blocker(Vector2(0,-4.0), 2.32, PLAYER_WORLD_RADIUS + 0.025)
+    # Old fountain and its collision are removed: the center square is walkable.
 
     # Market and props. Vendor fronts/backs are reserved: no benches, lamps, or
     # loose storage are placed inside the stall working/customer zones.
     _add_market_stall(Vector3(-5.1, 0, 0.8), Color("#9d4540"))
     _add_market_stall(Vector3(5.1, 0, 0.8), Color("#416791"))
+    # Two more market stands flank the former fountain, leaving an open aisle.
+    _add_market_stall(Vector3(-4.0, 0, -4.0), Color("#638457"))
+    _add_market_stall(Vector3(4.0, 0, -4.0), Color("#bf9654"))
 
     # Storage props sit beside buildings with explicit clearance from foundations.
     # Blacksmith barrels are on the west service side; shop barrel is east of the shop.
@@ -2184,34 +1914,6 @@ func _update_gameplay_movement(delta: float) -> void:
     elif _animation != null:
         _animation.speed_scale = 1.0
 
-func _update_fountain(delta: float) -> void:
-    if _fountain_water == null:
-        return
-    _fountain_time += delta
-    var pool_mat := _fountain_water.material_override as ShaderMaterial
-    if pool_mat != null:
-        pool_mat.set_shader_parameter("flow_time", _fountain_time)
-    if _fountain_crystal != null:
-        _fountain_crystal.position.y = 2.68 + sin(_fountain_time * 1.6) * 0.014
-        _fountain_crystal.rotation.y += delta * 0.48
-    if _fountain_glow != null:
-        _fountain_glow.light_energy = 0.34 + (sin(_fountain_time * 1.8) + 1.0) * 0.045
-    # All eight curtains share one animated material and a single time update.
-    if _fountain_curtain_mat != null:
-        _fountain_curtain_mat.set_shader_parameter("flow_time", _fountain_time)
-    for i in range(_fountain_drips.size()):
-        var stream := int(i / 3)
-        var bead := i % 3
-        var theta := TAU * float(stream) / 8.0 + (float(bead) - 1.0) * 0.065
-        var t := 0.70 + 0.28 * fposmod(_fountain_time * 1.10 + float(bead) * 0.333 + float(stream) * 0.074, 1.0)
-        var drip := _fountain_drips[i]
-        drip.position = _fountain_flow_point(theta, t, stream)
-        var drop_mat := drip.material_override as StandardMaterial3D
-        if drop_mat != null:
-            var tint := drop_mat.albedo_color
-            tint.a = 0.16 + 0.19 * sin(t * PI)
-            drop_mat.albedo_color = tint
-
 func _process(delta: float) -> void:
     if not _startup_complete and not _startup_failed:
         _startup_elapsed += delta
@@ -2223,7 +1925,6 @@ func _process(delta: float) -> void:
         _apply_transition(delta)
         _lock_root_motion()
         _correct_foot_ground(delta)
-    _update_fountain(delta)
     _update_ground_contact_shadow()
     _update_camera(delta)
     if _loaded and not _paused:

@@ -115,11 +115,18 @@ func _check() -> void:
         if bool(town.call("_world_point_blocked", lamp_pos + Vector2(away * 0.55, 0.0))):
             _fail("Post has too much invisible clearance at " + str(lamp_pos))
             return
-    # Vendor stalls already have a counter-sized body that includes four posts.
+    # Four stalls ring the market; former fountain centre remains walkable.
     for stall_x in [-5.1, 5.1]:
         if not bool(town.call("_world_point_blocked", Vector2(stall_x - 1.08, 0.8 + 0.46))):
-            _fail("Market stall post no longer collides")
+            _fail("Original market stall post no longer collides")
             return
+    for stall_x in [-4.0, 4.0]:
+        if not bool(town.call("_world_point_blocked", Vector2(stall_x, -4.0))):
+            _fail("New market stall is missing collision")
+            return
+    if bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
+        _fail("Former fountain still blocks the market aisle")
+        return
 
     # Small ornamental foliage should remain deliberately walk-through.
     if bool(town.call("_world_point_blocked", Vector2(15.0, 11.0))):
