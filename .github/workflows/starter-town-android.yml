@@ -71,7 +71,9 @@ jobs:
 
       - name: Install checked Quaternius Stylized Nature MegaKit
         if: github.ref_name == 'feature/quaternius-nature-megakit-import'
-        run: python3 cleanroom/tools/install_nature_megakit.py
+        run: |
+          python3 -m pip install --quiet --break-system-packages 'Pillow>=10,<13'
+          python3 cleanroom/tools/install_nature_megakit.py
 
       - name: Verify exact runtime Mixamo GLB
         run: |
