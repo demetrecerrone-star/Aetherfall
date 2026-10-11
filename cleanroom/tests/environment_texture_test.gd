@@ -52,8 +52,8 @@ func _run_check() -> void:
         _fail("Expected four upgraded town benches")
         return
     for bench in benches:
-        var seats := bench.find_children("BenchSeatSlat", "MeshInstance3D", false, false)
-        var backs := bench.find_children("BenchBackSlat", "MeshInstance3D", false, false)
+        var seats := bench.find_children("BenchSeatSlat*", "MeshInstance3D", false, false)
+        var backs := bench.find_children("BenchBackSlat*", "MeshInstance3D", false, false)
         if seats.size() != 3 or backs.size() != 3:
             _fail("Bench has missing individual wooden slats")
             return
@@ -76,9 +76,9 @@ func _run_check() -> void:
     if town.find_child("FountainJet", true, false) != null:
         _fail("Old rigid fountain water rods are still present")
         return
-    var sheets := town.find_children("FountainCascade", "MeshInstance3D", true, false)
-    var droplets := town.find_children("FountainDroplet", "MeshInstance3D", true, false)
-    var rings := town.find_children("FountainRipple", "MeshInstance3D", true, false)
+    var sheets := town.find_children("FountainCascade*", "MeshInstance3D", true, false)
+    var droplets := town.find_children("FountainDroplet*", "MeshInstance3D", true, false)
+    var rings := town.find_children("FountainRipple*", "MeshInstance3D", true, false)
     if sheets.size() != 8 or droplets.size() != 16 or rings.size() != 8:
         _fail("Water cascade, droplets, or landing-point ripple rings missing")
         return
