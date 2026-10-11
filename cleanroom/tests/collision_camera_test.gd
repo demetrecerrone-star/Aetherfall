@@ -71,14 +71,43 @@ func _check() -> void:
     if not town.find_children("TimberGateTower", "MeshInstance3D", true, false).is_empty():
         _fail("Old timber tower cylinders still visible")
         return
-    if String(town.get_meta("gate_tower_material", "")) != "weathered_stone":
-        _fail("Gate masonry metadata missing")
+    if String(town.get_meta("gate_tower_material", "")) != "staggered_chiseled_ashlar":
+        _fail("Gate masonry has not switched to dressed ashlar blocks")
+        return
+    var dressed := town.find_child("GateChiseledAshlar", true, false) as MeshInstance3D
+    if dressed == null or dressed.mesh == null:
+        _fail("Batched chiseled gate masonry is missing")
+        return
+    if int(town.get_meta("gate_ashlar_block_count", 0)) != 468:
+        _fail("Not all staggered cut-stone courses were laid across two towers")
+        return
+    var dressed_material := dressed.mesh.surface_get_material(0) as StandardMaterial3D
+    if dressed_material == null or not dressed_material.vertex_color_use_as_albedo:
+        _fail("Gate stone lacks individual chiseled block shading")
         return
     for tower_mesh in stone_towers:
         var stone := (tower_mesh as MeshInstance3D).material_override as StandardMaterial3D
-        if stone == null or stone.albedo_texture == null:
-            _fail("Gate stone tower missing its weathered masonry texture")
+        if stone == null or stone.albedo_texture != null:
+            _fail("Gate mortar base still shows pebbly road/foundation texture")
             return
+    var gate_wood := Color("#92704e")
+    var leaves := town.find_children("ClosedWoodGateLeaf_*", "MeshInstance3D", true, false)
+    if leaves.size() != 2:
+        _fail("Expected two solid timber gates")
+        return
+    for leaf in leaves:
+        var leaf_mat := (leaf as MeshInstance3D).material_override as StandardMaterial3D
+        if leaf_mat == null or leaf_mat.albedo_color != gate_wood or leaf_mat.albedo_texture == null:
+            _fail("Gate planks are not using the same timber/tint as palisade logs")
+            return
+    var wall_posts := town.get_node_or_null("ValleyTimberPalisade") as MultiMeshInstance3D
+    if wall_posts == null:
+        _fail("Palisade timber comparison missing")
+        return
+    var wall_mat := wall_posts.material_override as StandardMaterial3D
+    if wall_mat == null or wall_mat.albedo_color != gate_wood:
+        _fail("Gate wood does not match the actual wall material")
+        return
     # Gate towers remain 2.3m-radius solid, but the visible entrance is
     # now an opaque fixed oak double gate instead of barred portcullis.
     if not bool(town.call("_world_point_blocked", Vector2(-4.1, 24.0))):
