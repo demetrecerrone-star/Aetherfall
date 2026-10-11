@@ -44,18 +44,31 @@ func _check() -> void:
             _fail("One integrated merchant counter must be physically joined to the native stall posts: " + name)
             return
         var counter_mesh := counter.mesh as BoxMesh
-        if counter_mesh == null or counter_mesh.size.x < 2.05:
-            _fail("Built-in counter does not reach imported stall frame width")
+        if counter_mesh == null or counter_mesh.size.x < 1.90 or counter_mesh.size.x > 2.00:
+            _fail("The desk must span the frame without protruding past its side posts")
             return
         if absf((counter.position.y + counter_mesh.size.y * 0.5) - 1.02) > 0.012:
             _fail("Merchandise surface is not one integrated waist-height counter")
             return
-        if absf((counter.position.z + counter_mesh.size.z * 0.5) - 0.785) > 0.015:
-            _fail("Integral counter front doesn't reach native stall post line")
+        # The desktop front must be visibly INSIDE the imported front posts
+        # (native post line is approximately +0.79m), not sticking into plaza.
+        var front_edge := counter.position.z + counter_mesh.size.z * 0.5
+        if front_edge < 0.48 or front_edge > 0.55:
+            _fail("Selling desk must be inset within the stall frame: " + name)
             return
-        if absf(fascia.position.z - 0.755) > 0.01:
-            _fail("Integral counter fascia is not tied to the front stall pillars")
+        var fascia_mesh := fascia.mesh as BoxMesh
+        if fascia_mesh == null or fascia_mesh.size.y > 0.15:
+            _fail("Bulky freestanding-looking front fascia returned: " + name)
             return
+        if absf(fascia.position.z - (front_edge - 0.025)) > 0.02:
+            _fail("Front trim must remain attached to inset desktop: " + name)
+            return
+        for ledger_node in ledgers:
+            var ledger := ledger_node as MeshInstance3D
+            var ledger_mesh := ledger.mesh as BoxMesh
+            if ledger_mesh == null or ledger_mesh.size.z < 1.45:
+                _fail("Structural support no longer reaches native stall posts: " + name)
+                return
         if not bool(stand.get_meta("market_counter_frame_integrated", false)):
             _fail("Counter is not marked structural; old second-table approach may return")
             return
@@ -88,8 +101,15 @@ func _check() -> void:
             # Use the actual fitted Quaternius mesh dimensions, not just the
             # requested box. A resting crate may never float above the desk.
             var stock_mesh_size: Vector3 = stock.get_meta("scenery_model_size", Vector3.ZERO)
-            if absf(stock.position.y - desk_surface_y) > 0.008 or absf(stock.position.z - 0.23) > 0.015:
-                _fail("Merchandise platform is not flush to the real service desk: " + name)
+            if absf(stock.position.y - desk_surface_y) > 0.008 or absf(stock.position.z - 0.04) > 0.015:
+                _fail("Merchandise is not flush to the inset service desk: " + name)
+                return
+            # Every stock crate must be completely supported by the desktop.
+            if absf(stock.position.x) + stock_mesh_size.x * 0.5 > counter_mesh.size.x * 0.5 + 0.005:
+                _fail("Merchandise projects past the sides of the selling counter: " + name)
+                return
+            if absf(stock.position.z - counter.position.z) + stock_mesh_size.z * 0.5 > counter_mesh.size.z * 0.5 + 0.005:
+                _fail("Merchandise overhangs the countertop: " + name)
                 return
             if stock_mesh_size.y < 0.08 or stock_mesh_size.y > 0.218:
                 _fail("Merchant stock too tall or too small for the existing desk: " + name)
@@ -137,7 +157,7 @@ func _check() -> void:
     if town.find_children("TownFountain", "Node3D", false, false).size() != 1:
         _fail("Original centered fountain missing")
         return
-    print("AETHERFALL_MARKET_DECOR_OK: 12 lowered shallow goods flush on native-frame-integrated counters, clear of awnings; original fountain, decor and paths retained")
+    print("AETHERFALL_MARKET_DECOR_OK: 4 inset slim market counters with 12 flush goods, no protruding aprons; fountain, nature and paths retained")
     town.queue_free()
     quit(0)
 

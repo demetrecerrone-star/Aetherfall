@@ -49,3 +49,15 @@ stall frames, single integrated selling counters and twelve genuine Quaternius
 merchandise props. The market decorations test checks the actual fitted GLB
 height and the desk contact / canopy-clearance invariants. No prototype-branch
 stall code is merged; source modifications remain on this baseline branch.
+
+## Pass 4.2e: counter visual integration (phone screenshot QA)
+
+The active APK showed the native Quaternius market stand's built-in low storage
+shelf behind an oversized, forward-protruding service counter. Keep all four
+original imported awnings and posts, but use a slimmer 1.94m x 0.90m selling
+surface at 1.02m waist height, inset 0.28m farther into the canopy, plus a
+0.14m front apron (instead of 0.30m). Braces span the native timber post
+depth so the counter looks structurally part of the stall. All twelve
+shallow goods move back with the desk; no merchandise meshes are omitted.
+The market QA enforces full merchandise support, slim fascia, and in-frame
+counterfront without touching fountain, vegetation, or player controls.
