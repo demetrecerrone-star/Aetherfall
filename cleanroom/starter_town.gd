@@ -114,6 +114,9 @@ var _joystick_knob: Panel
 var _sprint_button: Button
 var _graphics_button: Button
 var _graphics_fps: Label
+var _performance_panel: Panel
+var _performance_details: Label
+var _performance_stats_visible := false
 var _graphics_preset := "BALANCED"
 var _graphics_lod_batches: Array[Dictionary] = []
 var _graphics_lod_accum := 0.0
@@ -1359,9 +1362,9 @@ func _build_stage() -> void:
     _camera_cylinders.clear()
     _door_step_surfaces.clear()
 
-    # Concentrate mobile shadow resolution near the player.
-    RenderingServer.directional_shadow_atlas_set_size(4096, true)
-    RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH)
+    # GraphicsQuality.apply() sets the correct shadow atlas AND sampling
+    # quality for the restored mobile graphics preset after the HUD is built.
+    # Do not force expensive SOFT_HIGH filtering on Performance mode here.
 
     var world := WorldEnvironment.new()
     var env := Environment.new()
@@ -1795,7 +1798,37 @@ func _build_ui() -> void:
     _graphics_fps.add_theme_font_size_override("font_size", 13)
     _graphics_fps.add_theme_color_override("font_color", Color("#dde7db"))
     _graphics_fps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _graphics_fps.tooltip_text = "Tap FPS readout to show/hide renderer diagnostics"
     ui.add_child(_graphics_fps)
+
+    # Optional, read-only GPU/CPU diagnostics. Hidden by default so the
+    # normal gameplay view and the existing one-handed UI stay unchanged.
+    _performance_panel = Panel.new()
+    _performance_panel.name = "PerformanceStatsPanel"
+    _performance_panel.anchor_left = 1.0
+    _performance_panel.anchor_right = 1.0
+    _performance_panel.offset_left = -556.0
+    _performance_panel.offset_right = -322.0
+    _performance_panel.offset_top = 103.0
+    _performance_panel.offset_bottom = 169.0
+    _performance_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    var background := StyleBoxFlat.new()
+    background.bg_color = Color(0.025, 0.040, 0.052, 0.80)
+    background.set_corner_radius_all(4)
+    _performance_panel.add_theme_stylebox_override("panel", background)
+    ui.add_child(_performance_panel)
+    _performance_details = Label.new()
+    _performance_details.name = "PerformanceStatsText"
+    _performance_details.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    _performance_details.offset_left = 9.0
+    _performance_details.offset_right = -5.0
+    _performance_details.offset_top = 3.0
+    _performance_details.add_theme_font_size_override("font_size", 12)
+    _performance_details.add_theme_color_override("font_color", Color("#cce4d8"))
+    _performance_details.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _performance_panel.add_child(_performance_details)
+    _performance_panel.visible = false
+    set_meta("performance_monitor_enabled", false)
 
 
 func _cache_graphics_lod_batches() -> void:
@@ -1826,6 +1859,7 @@ func _set_graphics_preset(preset: String, persist: bool = true) -> void:
     set_meta("graphics_preset", preset)
     set_meta("graphics_3d_resolution_scale", GraphicsQuality.resolution_scale(preset))
     set_meta("graphics_shadow_atlas", GraphicsQuality.shadow_atlas_size(preset))
+    set_meta("graphics_shadow_filter", int(GraphicsQuality.shadow_filter_quality(preset)))
     if persist:
         GraphicsQuality.save(preset)
     _update_graphics_lod()
@@ -1853,6 +1887,29 @@ func _update_graphics_lod() -> void:
             Engine.get_frames_per_second(),
             roundi(GraphicsQuality.resolution_scale(_graphics_preset) * 100.0)
         ]
+    # Sample only at the existing 0.4-second graphics update interval,
+    # and ONLY when the optional panel is open.
+    if _performance_stats_visible and _performance_details != null:
+        var draw_calls := roundi(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+        var objects := roundi(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))
+        var cpu_ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+        var drawn: int = _graphics_last_lod.get("drawn", 0)
+        var total: int = _graphics_last_lod.get("total", 0)
+        var meadow_pct := roundi(100.0 * float(drawn) / maxf(1.0, float(total)))
+        _performance_details.text = "DRAW: %d  |  OBJECTS: %d\nCPU PROCESS: %.1f ms\nMEADOW: %d%% drawn" % [
+            draw_calls, objects, cpu_ms, meadow_pct
+        ]
+        set_meta("performance_draw_calls", draw_calls)
+        set_meta("performance_objects", objects)
+
+
+func _toggle_performance_stats() -> void:
+    _performance_stats_visible = not _performance_stats_visible
+    if _performance_panel != null:
+        _performance_panel.visible = _performance_stats_visible
+    set_meta("performance_monitor_enabled", _performance_stats_visible)
+    if _performance_stats_visible:
+        _update_graphics_lod()
 
 
 func _set_status(title: String, detail: String) -> void:
@@ -2582,6 +2639,9 @@ func _input(event: InputEvent) -> void:
             if _graphics_button != null and _graphics_button.get_global_rect().has_point(event.position):
                 _cycle_graphics_preset()
                 return
+            if _graphics_fps != null and _graphics_fps.get_global_rect().has_point(event.position):
+                _toggle_performance_stats()
+                return
             if event.position.x < view.x * 0.43 and event.position.y > view.y * 0.42 and _move_touch < 0:
                 _move_touch = event.index
                 _update_joystick(event.position)
@@ -2605,6 +2665,9 @@ func _input(event: InputEvent) -> void:
                 return
             if _graphics_button != null and _graphics_button.get_global_rect().has_point(event.position):
                 _cycle_graphics_preset()
+                return
+            if _graphics_fps != null and _graphics_fps.get_global_rect().has_point(event.position):
+                _toggle_performance_stats()
                 return
         if event.button_index == MOUSE_BUTTON_RIGHT:
             _drag_mouse = event.pressed
