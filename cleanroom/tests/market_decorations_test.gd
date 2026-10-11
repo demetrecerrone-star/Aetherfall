@@ -39,7 +39,7 @@ func _check() -> void:
             return
         var counter := stand.get_node_or_null("IntegratedMerchantCountertop") as MeshInstance3D
         var fascia := stand.get_node_or_null("IntegratedCounterFrontFascia") as MeshInstance3D
-        var ledgers := stand.find_children("IntegratedPostLedger", "MeshInstance3D", false, false)
+        var ledgers := stand.find_children("IntegratedPostLedger_*", "MeshInstance3D", false, false)
         if counter == null or fascia == null or ledgers.size() != 2:
             _fail("One integrated merchant counter must be physically joined to the native stall posts: " + name)
             return
