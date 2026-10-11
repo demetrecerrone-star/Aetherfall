@@ -303,7 +303,7 @@ func _town_texture_group(name: String) -> String:
         return "wood"
     if n in ["roadstone", "squarestone", "entryroad", "crossroad", "marketsquare"]:
         return "cobble"
-    if n.contains("foundation") or n.contains("cornerstone") or n.contains("wallcap") or n.contains("buttress") or n == "townwall" or n.begins_with("gatetower") or n.begins_with("chimney") or n == "rock":
+    if n.contains("foundation") or n.contains("cornerstone") or n.contains("wallcap") or n.contains("buttress") or n == "townwall" or n.begins_with("stonegate") or n.begins_with("gatepier") or n.begins_with("gatetower") or n.begins_with("chimney") or n == "rock":
         return "stone"
     for prefix in ["frontpost", "sidepost", "frontband", "sideband", "brace", "eavetrim", "fascia", "windowtrim", "sidewindowtrim", "windowcross", "sidewindowcross", "door", "shutter", "flowerbox", "counter", "shelf", "gatebar", "gatecrossbar", "barrel", "trunk", "branch", "shop", "benchseat", "benchback", "stallpost", "crate", "carvedtrestle", "trestlepost", "diagonalwoodbrace", "solidoakseat", "roundedseatedge", "backbeam", "carvedbackcap", "backtrestle", "oaklampmast", "lampcrossbeam", "lampdiagonalbrace"]:
         if n.begins_with(prefix):
@@ -1135,20 +1135,25 @@ func _build_stage() -> void:
         _add_camera_obstacle(Vector3(float(side) * 16.55, 2.05, 24.64),
             Vector3(20.8, 4.10, 0.64))
 
-    # Reinforced front gatehouse, with two heavy watch towers that fit the
-    # existing proven player/camera collision radius. The gate NEVER opens.
+    # Weathered stone sentry towers echo the foundations of the timber-and-
+    # plaster houses. Preserve the proven 2.30 m cylindrical player/camera
+    # footprint; only the rendered masonry is new. Keep wooden roofs and gate.
     for side in [-1, 1]:
         var tower_x := float(side) * 4.1
-        _cylinder(self, "TimberGateTower", 2.3, 5.85,
-            Vector3(tower_x, 2.925, 24.6), Color("#705035"))
+        _cylinder(self, "StoneGateTower", 2.30, 5.85,
+            Vector3(tower_x, 2.925, 24.6), Color("#777873"))
+        for band_y in [0.46, 4.92, 5.62]:
+            _cylinder(self, "StoneGateCourse", 2.315, 0.17,
+                Vector3(tower_x, float(band_y), 24.6), Color("#666862"))
         _tapered_cylinder(self, "TimberGateRoof", 2.65, 0.10, 2.05,
             Vector3(tower_x, 6.82, 24.6), Color("#51372b"))
         for edge in [-1, 1]:
-            _box(self, "GatehouseUpright", Vector3(0.28, 5.25, 0.30),
-                Vector3(tower_x + float(edge) * 1.63, 2.63, 22.99), Color("#4a3326"))
+            _box(self, "GatePierStone", Vector3(0.28, 5.25, 0.30),
+                Vector3(tower_x + float(edge) * 1.63, 2.63, 22.99), Color("#646760"))
         _add_circle_blocker(Vector2(tower_x, 24.6), 2.30,
             PLAYER_WORLD_RADIUS + 0.035)
         _add_camera_cylinder(Vector3(tower_x, 2.925, 24.6), 2.30, 5.85)
+    set_meta("gate_tower_material", "weathered_stone")
 
     # TWO continuous solid wooden leaves; their planks overlap the tower
     # opening so there are no sight-lines to an unbuilt exterior map.
