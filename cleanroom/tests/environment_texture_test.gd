@@ -106,6 +106,43 @@ func _run_check() -> void:
             _fail("Ripple center is not close to the falling water")
             return
 
+    # The upper disk top is y=2.37 with a radius of 0.38m. Streams must
+    # actually spill from its outer lip and land OUTSIDE the central column.
+    var disk_start: Vector3 = town.call("_fountain_flow_point", 0.0, 0.0, 0)
+    var stream_end: Vector3 = town.call("_fountain_flow_point", 0.0, 1.0, 0)
+    var start_radius := Vector2(disk_start.x, disk_start.z + 4.0).length()
+    var end_radius := Vector2(stream_end.x, stream_end.z + 4.0).length()
+    if absf(start_radius - 0.395) > 0.01 or absf(disk_start.y - 2.375) > 0.015:
+        _fail("Fountain flow no longer begins at the raised disk's outer rim")
+        return
+    if end_radius < 0.78 or end_radius > 0.86 or absf(stream_end.y - 1.035) > 0.01:
+        _fail("Fountain runoff does not fall into the basin away from the column")
+        return
+    var cascade_vertices: PackedVector3Array = (sheets[0] as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+    if cascade_vertices.size() < 50:
+        _fail("Fountain sheets have lost their smooth falling curves")
+        return
+    if cascade_vertices[0].y < 2.36 or cascade_vertices[cascade_vertices.size() - 1].y > 1.05:
+        _fail("Fountain sheets no longer span disk lip to basin")
+        return
+    var ripple_mesh: ArrayMesh = (rings[0] as MeshInstance3D).mesh as ArrayMesh
+    var ripple_arrays: Array = ripple_mesh.surface_get_arrays(0)
+    var ripple_vertices: PackedVector3Array = ripple_arrays[Mesh.ARRAY_VERTEX]
+    var ripple_colors: PackedColorArray = ripple_arrays[Mesh.ARRAY_COLOR]
+    if ripple_vertices.size() < 400 or ripple_colors.size() != ripple_vertices.size():
+        _fail("Impact ripple still has coarse triangular geometry or no feathered vertex alpha")
+        return
+    var fade_mat := (rings[0] as MeshInstance3D).material_override as StandardMaterial3D
+    if fade_mat == null or not fade_mat.vertex_color_use_as_albedo:
+        _fail("Impact ripple has lost smooth transparent feathering")
+        return
+    for i in range(rings.size()):
+        var ring_position: Vector3 = (rings[i] as MeshInstance3D).position
+        var expected: Vector3 = town.call("_fountain_flow_point", TAU * float(i) / 8.0, 1.0, i)
+        if ring_position.distance_to(expected) > 0.015:
+            _fail("Ripple does not match cascade water impact number " + str(i))
+            return
+
     print("AETHERFALL_ENVIRONMENT_02T_OK: Seam-free textured lawn, unified cobbles, triplanar fountain, tiled roofs, textured stall posts and three ground heights")
     town.queue_free()
     quit(0)
