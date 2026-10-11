@@ -2,12 +2,15 @@ name: Aetherfall Exact Uploaded Pass3 + Title
 on:
   push:
     branches: [feature/exact-pass3-apk-title-overlay]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
 jobs:
   preserve-and-sign:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 22
     steps:
