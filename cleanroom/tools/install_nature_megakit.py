@@ -9,7 +9,7 @@ small standalone GLBs with 512px embedded textures.
 from pathlib import Path
 from zipfile import ZipFile
 from urllib.request import Request, urlopen
-from PIL import Image
+from PIL import Image, ImageOps
 import hashlib
 import io
 import json
@@ -107,6 +107,20 @@ def model_to_glb(z: ZipFile, name: str) -> bytes:
         art = Image.open(io.BytesIO(z.read("glTF/" + fname))).convert("RGBA")
         if max(art.size) > 512:
             art.thumbnail((512, 512), Image.Resampling.LANCZOS)
+        if name == "Bush_Common":
+            # Quaternius' Bush_Common in this Standard pack uses a crimson
+            # Leaves_TwistedTree texture (actual opaque median RGB 167/23/23).
+            # Multiplying by a green albedo colour cannot make red pixels
+            # green. Recolour the source RGB *before* embedding the GLB:
+            # retain authored leaf silhouettes, anti-aliased transparency and
+            # luminance variation, but use an earthy dark evergreen range.
+            alpha = art.getchannel("A")
+            brightness = ImageOps.grayscale(art.convert("RGB"))
+            evergreen = ImageOps.colorize(
+                brightness, black="#182d20", white="#688869"
+            ).convert("RGBA")
+            evergreen.putalpha(alpha)
+            art = evergreen
         pic = io.BytesIO()
         art.save(pic, format="PNG", optimize=True)
         png = pic.getvalue()
