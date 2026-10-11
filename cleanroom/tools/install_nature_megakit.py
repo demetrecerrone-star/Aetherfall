@@ -3,7 +3,7 @@
 
 Prefer the user's prepared, SHA-256-manifested optimized archive if it has
 been checked into the repo. Otherwise obtain the creator's original Standard
-pack from their public OpenGameArt mirror and repack just 14 glTF models as
+pack from their public OpenGameArt mirror and repack just 16 glTF models as
 small standalone GLBs with 512px embedded textures.
 """
 from pathlib import Path
@@ -26,6 +26,7 @@ EXPECTED = {
     "Bush_Common", "Bush_Common_Flowers", "Pine_1", "Pine_2", "Pine_3",
     "Pine_4", "Pine_5", "CommonTree_1", "CommonTree_2", "CommonTree_3",
     "Grass_Common_Short", "Grass_Wispy_Short", "Fern_1", "Clover_1",
+    "Flower_3_Group", "Flower_4_Group",
 }
 
 
