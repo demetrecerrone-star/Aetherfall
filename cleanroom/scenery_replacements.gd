@@ -23,6 +23,8 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
     # Compute bounds relative to the original object, including all child meshes.
     var bounds := AABB()
     var found_mesh := false
+    var solid_found := false
+    var solid_bounds := AABB()
     var pending: Array[Node] = [model]
     while not pending.is_empty():
         var part: Node = pending.pop_back()
@@ -30,6 +32,14 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
             var mesh_part := part as MeshInstance3D
             if mesh_part.mesh != null:
                 var box := mesh_part.get_aabb()
+                # Stone/dark plaster defines solid ground-floor masonry; never
+                # use roof eaves, awnings or decorative timber as wall collision.
+                var surface_label := mesh_part.name.to_lower()
+                for material_idx in range(mesh_part.mesh.get_surface_count()):
+                    var material := mesh_part.get_active_material(material_idx)
+                    if material != null:
+                        surface_label += " " + material.resource_name.to_lower()
+                var wall_mesh := surface_label.contains("stone_dark") or surface_label.contains("plaster")
                 for x in [0.0, 1.0]:
                     for y in [0.0, 1.0]:
                         for z in [0.0, 1.0]:
@@ -40,6 +50,12 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
                                 found_mesh = true
                             else:
                                 bounds = bounds.expand(point)
+                            if wall_mesh:
+                                if not solid_found:
+                                    solid_bounds = AABB(point, Vector3.ZERO)
+                                    solid_found = true
+                                else:
+                                    solid_bounds = solid_bounds.expand(point)
         for child in part.get_children():
             pending.append(child)
     if not found_mesh:
@@ -71,9 +87,39 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
         bounds.size.z * fitted_scale.z
     ))
     owner.set_meta("scenery_ground_sink", ground_sink)
+    if solid_found and (asset.begins_with("House_") or asset == "Inn" or asset == "Blacksmith"):
+        var solid_low := Vector2(
+            solid_bounds.position.x * fitted_scale.x + model.position.x,
+            solid_bounds.position.z * fitted_scale.z + model.position.z
+        )
+        var solid_size := Vector2(
+            solid_bounds.size.x * fitted_scale.x,
+            solid_bounds.size.z * fitted_scale.z
+        )
+        owner.set_meta("scenery_wall_footprint", Rect2(solid_low, solid_size))
+    # The Quaternius leaves have alpha-cutout planes. Transparent alpha blending
+    # exposed the flowers and leaves behind the bush as ghostly overlays.
+    # Two-sided alpha SCISSOR keeps depth writes while preserving leaf edges.
+    if asset.begins_with("Bush"):
+        _opaque_cutout_foliage(model)
     # Preserve original mesh nodes for QA and safe fallback. Physics blockers
     # belong to the town controller and are deliberately never removed.
     for child in owner.get_children():
         if child is MeshInstance3D and child != model and not keep_visible.has(child.name):
             (child as MeshInstance3D).visible = false
     return true
+
+static func _opaque_cutout_foliage(node: Node) -> void:
+    if node is MeshInstance3D:
+        var mesh_instance := node as MeshInstance3D
+        if mesh_instance.mesh != null:
+            for index in range(mesh_instance.mesh.get_surface_count()):
+                var source := mesh_instance.get_active_material(index)
+                if source is StandardMaterial3D:
+                    var mat := (source as StandardMaterial3D).duplicate() as StandardMaterial3D
+                    mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+                    mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+                    mat.alpha_scissor_threshold = 0.50
+                    mesh_instance.set_surface_override_material(index, mat)
+    for child in node.get_children():
+        _opaque_cutout_foliage(child)

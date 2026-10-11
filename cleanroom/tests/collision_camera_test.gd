@@ -20,23 +20,40 @@ func _check() -> void:
         return
     var origin := house.position
     var model_size: Vector3 = house.get_meta("scenery_model_size", Vector3.ZERO)
-    var collision_half: Vector2 = house.get_meta("collision_half", Vector2.ZERO)
-    if model_size.y < 6.0 or model_size.x < 5.0 or collision_half.x < 2.0:
-        _fail("New landmark scale/collision footprint is not calibrated")
+    var solid_half: Vector2 = house.get_meta("collision_half", Vector2.ZERO)
+    var solid_center: Vector2 = house.get_meta("collision_center", Vector2.ZERO)
+    if model_size.y < 6.8 or model_size.x < 5.0 or solid_half.x < 1.1:
+        _fail("New landmark doorway scaling/wall footprint is not calibrated")
         return
-    if not bool(town.call("_world_point_blocked", Vector2(origin.x, origin.z))):
-        _fail("Imported building is missing solid wall collision")
+    if not house.has_meta("scenery_wall_footprint"):
+        _fail("Imported wall geometry was not identified; awnings may be solid")
         return
-    var contact := origin.z + collision_half.y + 0.34
-    if not bool(town.call("_world_point_blocked", Vector2(origin.x, contact - 0.02))):
-        _fail("Actor clips through imported building facade")
+    var wall_rect: Rect2 = house.get_meta("scenery_wall_footprint")
+    if wall_rect.size.x >= model_size.x * 0.98 and wall_rect.size.y >= model_size.z * 0.98:
+        _fail("Roof/awning footprint was mistaken for a solid wall")
         return
-    if bool(town.call("_world_point_blocked", Vector2(origin.x, contact + 0.45))):
-        _fail("Building has a large invisible collision halo")
+    if not bool(town.call("_world_point_blocked", solid_center)):
+        _fail("Blacksmith wall has no collision")
         return
-    var safe: Vector3 = town.call("_camera_safe_goal", Vector3(origin.x, 1.6, origin.z + 5.0), Vector3(origin.x, 1.6, origin.z))
-    if safe.z < origin.z + 2.4:
-        _fail("Camera moved inside building")
+    var door_contact := solid_center + Vector2(0, solid_half.y + 0.34)
+    if not bool(town.call("_world_point_blocked", door_contact + Vector2(0, -0.02))):
+        _fail("Closed door/stone facade can be crossed")
+        return
+    if bool(town.call("_world_point_blocked", door_contact + Vector2(0, 0.44))):
+        _fail("An awning passage has a phantom collision barrier")
+        return
+    # Blacksmith side roof extends over a visible exterior paved walk. A
+    # player can stand there while the foundation itself stays impenetrable.
+    var sheltered_point := Vector2(origin.x + model_size.x * 0.47, solid_center.y)
+    if bool(town.call("_world_point_blocked", sheltered_point)):
+        _fail("Covered side walk is blocked by invisible roof collision")
+        return
+    if float(town.call("_ground_surface_y", Vector3(door_contact.x, 0.0, door_contact.y + 0.3))) > 0.10:
+        _fail("Removed steps still raise floor outside entrance")
+        return
+    var safe: Vector3 = town.call("_camera_safe_goal", Vector3(solid_center.x, 1.6, solid_center.y + 6.0), Vector3(solid_center.x, 1.6, solid_center.y))
+    if safe.z < solid_center.y + solid_half.y - 0.08:
+        _fail("Camera penetrates the solid blacksmith wall")
         return
     var wall: Vector3 = town.call("_camera_safe_goal", Vector3(23.0, 1.6, 0.0), Vector3(32.0, 1.6, 0.0))
     if wall.x > 27.0:
@@ -178,7 +195,7 @@ func _check() -> void:
         _fail("Camera did not recover third-person distance")
         return
 
-    print("AETHERFALL_COLLISION_CAMERA_02Y_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
+    print("AETHERFALL_COLLISION_CAMERA_02Z_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
     town.queue_free()
     quit(0)
 

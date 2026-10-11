@@ -40,31 +40,57 @@ func _run_check() -> void:
     if absf(entry - 0.055) > 0.001 or absf(cross - 0.067) > 0.001 or absf(square - 0.079) > 0.001:
         _fail("Foot grounding no longer matches paved surfaces: %f %f %f" % [entry, cross, square])
         return
-    # Regression: town furniture uses textured boards and tips its back
-    # AWAY from the seated character, not inward as the original bench did.
+    # These are rustic trestle benches, never the old three-slat modern seats.
     var benches := town.find_children("TownBench*", "Node3D", true, false)
     if benches.size() != 4:
-        _fail("Expected four upgraded town benches")
+        _fail("Expected four rustic medieval benches")
         return
     for bench in benches:
-        var seats := bench.find_children("BenchSeatSlat*", "MeshInstance3D", false, false)
-        var backs := bench.find_children("BenchBackSlat*", "MeshInstance3D", false, false)
-        if seats.size() != 3 or backs.size() != 3:
-            _fail("Bench has missing individual wooden slats")
+        if String(bench.get_meta("bench_style", "")) != "medieval_trestle":
+            _fail("Town furniture reverted to the modern bench")
             return
-        var low: MeshInstance3D = backs[0]
-        var high: MeshInstance3D = backs[2]
-        if low.rotation_degrees.x < 8.0 or low.rotation_degrees.x > 12.0:
-            _fail("Bench back is angled inward rather than out for lumbar comfort")
+        var seat := bench.get_node_or_null("SolidOakSeat") as MeshInstance3D
+        var back := bench.get_node_or_null("BackBeam") as MeshInstance3D
+        var foot := bench.get_node_or_null("CarvedTrestleFoot") as MeshInstance3D
+        if seat == null or back == null or foot == null:
+            _fail("Medieval oak bench lost its trestle construction")
             return
-        if high.position.z <= low.position.z:
-            _fail("Bench back top does not lean away from its seat")
+        if back.rotation_degrees.x < 5.0:
+            _fail("Medieval bench lost the angled backrest")
             return
-        for board in [seats[0], backs[0]]:
-            var wood_mat := (board as MeshInstance3D).material_override as StandardMaterial3D
-            if wood_mat == null or wood_mat.albedo_texture == null:
-                _fail("Bench wood-grain texture was not applied")
-                return
+        var material := seat.material_override as StandardMaterial3D
+        if material == null or material.albedo_texture == null:
+            _fail("The medieval bench has no real wood-grain texture")
+            return
+    var lamps := town.find_children("MedievalStreetLamp", "Node3D", true, false)
+    if lamps.size() != 4:
+        _fail("Expected four medieval street lanterns")
+        return
+    for lamp in lamps:
+        if String(lamp.get_meta("lamp_style", "")) != "medieval_oak_and_lantern":
+            _fail("A modern thin street light returned")
+            return
+        if not bool(lamp.get_meta("lantern_asset_loaded", false)):
+            _fail("Quaternius hanging lantern failed to import into its mast")
+            return
+        if lamp.get_node_or_null("OakLampMast") == null:
+            _fail("Medieval lamp missing heavy oak column")
+            return
+    var flowering := town.find_child("Quaternius_Bush_Flowers", true, false)
+    if flowering == null:
+        _fail("Flowering foliage was not imported")
+        return
+    var bush_mesh := flowering.find_child("*", "MeshInstance3D", true, false) as MeshInstance3D
+    if bush_mesh == null:
+        _fail("Flowering bush has no mesh")
+        return
+    var bush_material := bush_mesh.get_active_material(0) as StandardMaterial3D
+    if bush_material == null or bush_material.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
+        _fail("See-through bush blend mode was not fixed")
+        return
+    if bush_material.cull_mode != BaseMaterial3D.CULL_DISABLED:
+        _fail("Foliage leaf cards are still one-sided")
+        return
 
     # Regression: broad striped wall faces must have stone at normal scale,
     # not BoxMesh facade UVs stretched from their thin axis.
@@ -124,7 +150,7 @@ func _run_check() -> void:
         _fail("Obsolete procedural stairs remain in town")
         return
 
-    print("AETHERFALL_ENVIRONMENT_02Y_OK: Four diagonal market stands, central browsing loop, zero stale stairs, and dense batched grass")
+    print("AETHERFALL_ENVIRONMENT_02Z_OK: Four diagonal market stands, central browsing loop, zero stale stairs, and dense batched grass")
     town.queue_free()
     quit(0)
 

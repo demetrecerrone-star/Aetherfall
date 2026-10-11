@@ -288,7 +288,7 @@ func _town_texture_group(name: String) -> String:
         return "cobble"
     if n.contains("foundation") or n.contains("cornerstone") or n.contains("wallcap") or n.contains("buttress") or n == "townwall" or n.begins_with("gatetower") or n.begins_with("chimney") or n == "rock":
         return "stone"
-    for prefix in ["frontpost", "sidepost", "frontband", "sideband", "brace", "eavetrim", "fascia", "windowtrim", "sidewindowtrim", "windowcross", "sidewindowcross", "door", "shutter", "flowerbox", "counter", "shelf", "gatebar", "gatecrossbar", "barrel", "trunk", "branch", "shop", "benchseat", "benchback", "stallpost", "crate"]:
+    for prefix in ["frontpost", "sidepost", "frontband", "sideband", "brace", "eavetrim", "fascia", "windowtrim", "sidewindowtrim", "windowcross", "sidewindowcross", "door", "shutter", "flowerbox", "counter", "shelf", "gatebar", "gatecrossbar", "barrel", "trunk", "branch", "shop", "benchseat", "benchback", "stallpost", "crate", "carvedtrestle", "trestlepost", "diagonalwoodbrace", "solidoakseat", "roundedseatedge", "backbeam", "carvedbackcap", "backtrestle", "oaklampmast", "lampcrossbeam", "lampdiagonalbrace"]:
         if n.begins_with(prefix):
             return "wood"
     return ""
