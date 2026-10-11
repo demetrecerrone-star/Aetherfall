@@ -30,7 +30,28 @@ func _initialize() -> void:
             _fail("Bad texture in exported PCK: %s, error=%d" % [texture_path, image_err])
             return
         print("AETHERFALL_TEXTURE_PACK_OK: %s (%d x %d)" % [texture_path, img.get_width(), img.get_height()])
-    print("AETHERFALL_DUAL_PACK_OK: Two rigs, all animations and seven materials validated")
+    # The fountain is loaded at runtime from genuine GLB bytes. Do not
+    # substitute an editor-only import path that silently vanishes in Android.
+    var fountain_path := "res://models/fountain/MedievalFountain.bin"
+    if not FileAccess.file_exists(fountain_path):
+        _fail("Optimized user fountain was omitted from the exported APK resource pack")
+        return
+    var fountain_bytes := FileAccess.get_file_as_bytes(fountain_path)
+    if fountain_bytes.size() < 300000 or fountain_bytes.slice(0, 4).get_string_from_ascii() != "glTF":
+        _fail("Fountain in exported Android pack is empty or corrupt")
+        return
+    var fountain_doc := GLTFDocument.new()
+    var fountain_state := GLTFState.new()
+    if fountain_doc.append_from_buffer(fountain_bytes, "", fountain_state) != OK:
+        _fail("Bundled user fountain cannot be imported on Android")
+        return
+    var fountain_scene := fountain_doc.generate_scene(fountain_state)
+    if fountain_scene == null:
+        _fail("Bundled fountain has no renderable geometry")
+        return
+    fountain_scene.free()
+    print("AETHERFALL_FOUNTAIN_PACK_OK: authentic optimized fountain included in Android")
+    print("AETHERFALL_DUAL_PACK_OK: Two rigs, all animations, seven materials and fountain validated")
     quit(0)
 
 
