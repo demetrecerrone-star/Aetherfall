@@ -3,6 +3,7 @@ const SceneryReplacement = preload("res://scenery_replacements.gd")
 const NatureReplacement = preload("res://nature_replacements.gd")
 const GateAshlar = preload("res://gate_ashlar.gd")
 const GrassField = preload("res://grass_field.gd")
+const GraphicsQuality = preload("res://graphics_quality.gd")
 const RoadNetwork = preload("res://road_network.gd")
 const MountainValley = preload("res://mountain_valley.gd")
 const ZoneTransfer = preload("res://zone_transfer.gd")
@@ -102,6 +103,13 @@ var _drag_mouse := false
 var _joystick_base: Panel
 var _joystick_knob: Panel
 var _sprint_button: Button
+var _graphics_button: Button
+var _graphics_fps: Label
+var _graphics_preset := "BALANCED"
+var _graphics_lod_batches: Array[Dictionary] = []
+var _graphics_lod_accum := 0.0
+var _graphics_last_lod: Dictionary = {}
+var _sun_light: DirectionalLight3D
 var _pose_button: Button
 var _character_button: Button
 var _character_variant := "male"
@@ -175,6 +183,7 @@ func _ready() -> void:
 
     _diag_stage("AF-UI-250", "Building gameplay HUD and touch controls.")
     _build_ui()
+    _set_graphics_preset(GraphicsQuality.restored(), false)
     _set_status("LOADING", "Diagnostics active • reading embedded Tripo GLB…")
     _update_camera(1.0)
     _diag_stage("AF-MODEL-300", "Town is visible. Loading embedded character GLB next.")
@@ -1337,6 +1346,7 @@ func _build_stage() -> void:
     add_child(world)
 
     var sun := DirectionalLight3D.new()
+    _sun_light = sun
     sun.rotation_degrees = Vector3(-39, -28, 0)
     sun.light_color = Color("#ffe0b9")
     sun.light_energy = 0.86
@@ -1571,6 +1581,7 @@ func _build_stage() -> void:
 
     # Coverage is split into small instanced chunks for mobile frustum culling.
     GrassField.populate(self, Callable(self, "_grass_point_blocked"), Callable(self, "_ground_surface_y"))
+    _cache_graphics_lod_batches()
     set_meta("nature_pack_loaded", NatureReplacement.available("Pine_1") and
         NatureReplacement.available("Bush_Common") and NatureReplacement.available("Grass_Common_Short"))
 
@@ -1704,6 +1715,93 @@ func _build_ui() -> void:
     reset_button.offset_bottom = 70.0
     reset_button.pressed.connect(_reset_camera)
     ui.add_child(reset_button)
+
+    # Quick thumb-friendly graphics setting. The button is handled from
+    # _input like sprint, so it works with a second finger on Android.
+    _graphics_button = Button.new()
+    _graphics_button.name = "GraphicsQualityButton"
+    _graphics_button.text = "GRAPHICS: BALANCED"
+    _graphics_button.anchor_left = 1.0
+    _graphics_button.anchor_right = 1.0
+    _graphics_button.offset_left = -554.0
+    _graphics_button.offset_right = -337.0
+    _graphics_button.offset_top = 18.0
+    _graphics_button.offset_bottom = 70.0
+    _graphics_button.add_theme_font_size_override("font_size", 16)
+    _graphics_button.focus_mode = Control.FOCUS_NONE
+    _graphics_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    ui.add_child(_graphics_button)
+
+    _graphics_fps = Label.new()
+    _graphics_fps.name = "GraphicsFpsLabel"
+    _graphics_fps.anchor_left = 1.0
+    _graphics_fps.anchor_right = 1.0
+    _graphics_fps.offset_left = -551.0
+    _graphics_fps.offset_right = -337.0
+    _graphics_fps.offset_top = 75.0
+    _graphics_fps.offset_bottom = 99.0
+    _graphics_fps.add_theme_font_size_override("font_size", 13)
+    _graphics_fps.add_theme_color_override("font_color", Color("#dde7db"))
+    _graphics_fps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    ui.add_child(_graphics_fps)
+
+
+func _cache_graphics_lod_batches() -> void:
+    _graphics_lod_batches.clear()
+    for child in get_children():
+        if not (child is MultiMeshInstance3D):
+            continue
+        var render := child as MultiMeshInstance3D
+        if not (render.name.begins_with("GrassField_") or render.name.begins_with("MeadowAccent_")):
+            continue
+        if render.multimesh == null:
+            continue
+        _graphics_lod_batches.append({
+            "node": render,
+            "full_count": render.multimesh.instance_count,
+            "center": render.get_meta("meadow_center", render.position + Vector3(4.0, 0.0, 4.0))
+        })
+    set_meta("graphics_cached_meadow_batches", _graphics_lod_batches.size())
+
+
+func _set_graphics_preset(preset: String, persist: bool = true) -> void:
+    if not GraphicsQuality.valid(preset):
+        return
+    _graphics_preset = preset
+    GraphicsQuality.apply(preset, get_viewport(), _sun_light)
+    if _graphics_button != null:
+        _graphics_button.text = "GRAPHICS: " + preset
+    set_meta("graphics_preset", preset)
+    set_meta("graphics_3d_resolution_scale", GraphicsQuality.resolution_scale(preset))
+    set_meta("graphics_shadow_atlas", GraphicsQuality.shadow_atlas_size(preset))
+    if persist:
+        GraphicsQuality.save(preset)
+    _update_graphics_lod()
+
+
+func _cycle_graphics_preset() -> void:
+    match _graphics_preset:
+        "BALANCED":
+            _set_graphics_preset("PERFORMANCE")
+        "PERFORMANCE":
+            _set_graphics_preset("QUALITY")
+        _:
+            _set_graphics_preset("BALANCED")
+
+
+func _update_graphics_lod() -> void:
+    if _actor == null:
+        return
+    _graphics_last_lod = GraphicsQuality.apply_meadow_lod(
+        _graphics_lod_batches, _actor.global_position, _graphics_preset)
+    set_meta("graphics_meadow_drawn", int(_graphics_last_lod.get("drawn", 0)))
+    set_meta("graphics_meadow_total", int(_graphics_last_lod.get("total", 0)))
+    if _graphics_fps != null:
+        _graphics_fps.text = "FPS: %d  |  3D: %d%%" % [
+            Engine.get_frames_per_second(),
+            roundi(GraphicsQuality.resolution_scale(_graphics_preset) * 100.0)
+        ]
+
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
@@ -2382,6 +2480,10 @@ func _process(delta: float) -> void:
         _correct_foot_ground(delta)
     _update_ground_contact_shadow()
     _update_camera(delta)
+    _graphics_lod_accum += delta
+    if _graphics_lod_accum >= 0.40:
+        _graphics_lod_accum = 0.0
+        _update_graphics_lod()
     if _loaded and not _paused:
         _set_status(_motion, _motion_detail())
 
@@ -2425,6 +2527,9 @@ func _input(event: InputEvent) -> void:
             if _sprint_button != null and _sprint_button.get_global_rect().has_point(event.position):
                 _on_sprint_toggled(not _sprint_held)
                 return
+            if _graphics_button != null and _graphics_button.get_global_rect().has_point(event.position):
+                _cycle_graphics_preset()
+                return
             if event.position.x < view.x * 0.43 and event.position.y > view.y * 0.42 and _move_touch < 0:
                 _move_touch = event.index
                 _update_joystick(event.position)
@@ -2445,6 +2550,9 @@ func _input(event: InputEvent) -> void:
         if event.device != InputEvent.DEVICE_ID_EMULATION and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
             if _sprint_button != null and _sprint_button.get_global_rect().has_point(event.position):
                 _on_sprint_toggled(not _sprint_held)
+                return
+            if _graphics_button != null and _graphics_button.get_global_rect().has_point(event.position):
+                _cycle_graphics_preset()
                 return
         if event.button_index == MOUSE_BUTTON_RIGHT:
             _drag_mouse = event.pressed
