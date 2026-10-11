@@ -7,6 +7,10 @@ const GraphicsQuality = preload("res://graphics_quality.gd")
 # Runtime .bin holds the same optimized GLB bytes and is explicitly
 # bundled in the Android export (Godot does not reliably preload raw .glb).
 const FOUNTAIN_RUNTIME_PATH := "res://models/fountain/MedievalFountain.bin"
+# Midpoint between market stall rows (z=-6.10 and z=+2.45), x=0.
+const FOUNTAIN_CENTER := Vector2(0.0, -1.825)
+const FOUNTAIN_SCALE := 3.55 # +10.9% from approved Pass 9 size
+const FOUNTAIN_BASIN_RADIUS := 1.79
 const RoadNetwork = preload("res://road_network.gd")
 const MountainValley = preload("res://mountain_valley.gd")
 const ZoneTransfer = preload("res://zone_transfer.gd")
@@ -1118,22 +1122,26 @@ func _add_town_fountain() -> void:
         return
     var fountain := Node3D.new()
     fountain.name = "TownFountain"
-    fountain.position = Vector3(0.0, RoadNetwork.COBBLE_HEIGHT, -4.0)
+    fountain.position = Vector3(FOUNTAIN_CENTER.x, RoadNetwork.COBBLE_HEIGHT, FOUNTAIN_CENTER.y)
     add_child(fountain)
     fountain_mesh.name = "ImportedMedievalFountain"
-    fountain_mesh.scale = Vector3.ONE * 3.2
+    fountain_mesh.scale = Vector3.ONE * FOUNTAIN_SCALE
     fountain.add_child(fountain_mesh)
 
-    # The water basin is about 3.14m across and 2.55m tall. Keep the
-    # surrounding market-square loop open for both player and camera.
-    _add_circle_blocker(Vector2(0.0, -4.0), 1.60, PLAYER_WORLD_RADIUS + 0.04)
-    _add_camera_cylinder(Vector3(0.0, 1.34, -4.0), 1.60, 2.56)
+    # User-approved fountain made about 11% larger and centered precisely
+    # between the two rows of market stalls. Preserve circular collision
+    # rather than extending a rectangular no-walk barrier through the plaza.
+    _add_circle_blocker(FOUNTAIN_CENTER, FOUNTAIN_BASIN_RADIUS, PLAYER_WORLD_RADIUS + 0.04)
+    _add_camera_cylinder(Vector3(FOUNTAIN_CENTER.x, 1.49, FOUNTAIN_CENTER.y),
+        FOUNTAIN_BASIN_RADIUS, 2.84)
     fountain.set_meta("fountain_asset", FOUNTAIN_RUNTIME_PATH)
     fountain.set_meta("fountain_imported", true)
-    fountain.set_meta("fountain_visual_scale", 3.2)
+    fountain.set_meta("fountain_visual_scale", FOUNTAIN_SCALE)
     fountain.set_meta("fountain_source_triangles", 11226)
-    fountain.set_meta("fountain_player_blocker_radius", 1.60 + PLAYER_WORLD_RADIUS + 0.04)
-    fountain.set_meta("fountain_basin_width_m", 3.14)
+    fountain.set_meta("fountain_player_blocker_radius", FOUNTAIN_BASIN_RADIUS + PLAYER_WORLD_RADIUS + 0.04)
+    fountain.set_meta("fountain_basin_width_m", 3.14 * FOUNTAIN_SCALE / 3.2)
+    fountain.set_meta("fountain_centered_between_stalls", true)
+    fountain.set_meta("fountain_midpoint_stalls_z", (-6.1 + 2.45) * 0.5)
 
 
 func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
