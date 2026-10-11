@@ -84,10 +84,10 @@ static func place(parent: Node3D, asset: String, target_size: Vector3, ground_si
     parent.set_meta("tree_leaf_cutout_fixed", asset.begins_with("Pine_") or asset.begins_with("CommonTree_"))
     return true
 
-static func grass_mesh() -> ArrayMesh:
-    if not available("Grass_Common_Short"):
+static func grass_mesh(asset_name: String = "Grass_Common_Short") -> ArrayMesh:
+    if not available(asset_name):
         return null
-    var scene := load(NATURE_PATH + "Grass_Common_Short.glb") as PackedScene
+    var scene := load(NATURE_PATH + asset_name + ".glb") as PackedScene
     if scene == null:
         return null
     var model := scene.instantiate() as Node3D
@@ -105,7 +105,7 @@ static func grass_mesh() -> ArrayMesh:
                     mat.alpha_scissor_threshold = 0.5
                     mat.cull_mode = BaseMaterial3D.CULL_DISABLED
                     mat.roughness = 1.0
-                    mat.albedo_color = mat.albedo_color * Color(0.75, 0.85, 0.72, 1.0)
+                    mat.albedo_color = mat.albedo_color * (Color(0.70, 0.86, 0.73, 1.0) if asset_name == "Fern_1" else Color(0.78, 0.88, 0.77, 1.0))
                     result.surface_set_material(surface, mat)
             break
     model.free()
