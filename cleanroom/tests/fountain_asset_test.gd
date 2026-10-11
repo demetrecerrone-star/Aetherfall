@@ -70,19 +70,24 @@ func _check() -> void:
     if not bool(water.get_meta("water_mobile_compatible", false)):
         _fail("Water shaders were not configured for Android Compatibility")
         return
-    if int(water.get_meta("filled_tier_count", 0)) != 3:
-        _fail("Fountain needs calm water in all three stone bowls")
+    if int(water.get_meta("filled_tier_count", 0)) != 2:
+        _fail("Only the two actually hollow fountain bowls should contain water")
         return
-    if int(water.get_meta("upper_and_lower_water_surfaces", 0)) != 3:
-        _fail("Water controller did not create three separate pool surfaces")
+    if int(water.get_meta("upper_and_lower_water_surfaces", 0)) != 2:
+        _fail("Water controller should have exactly two basin surfaces")
+        return
+    if not bool(water.get_meta("solid_top_ornament_preserved", false)):
+        _fail("Solid upper stone finial was not preserved")
+        return
+    if water.get_node_or_null("TopBowlWater") != null or water.get_node_or_null("FountainCalmRipple_Top_00") != null:
+        _fail("Fake water placed on top of flat solid stone")
         return
     if String(water.get_meta("water_effect_lod", "")) != "calm_shader_only_no_streams":
         _fail("Old stream-heavy water visual pass has returned")
         return
     for pool_spec in [
         ["LowerBasinWater", 0.435, 1.20],
-        ["UpperBowlWater", 1.602, 0.555],
-        ["TopBowlWater", 2.345, 0.30]
+        ["UpperBowlWater", 1.602, 0.555]
     ]:
         var pool_name: String = pool_spec[0]
         var water_surface := water.get_node_or_null(pool_name) as MeshInstance3D
@@ -111,10 +116,10 @@ func _check() -> void:
     if not water.find_children("FountainImpactRipple_*", "MeshInstance3D", false, false).is_empty():
         _fail("Old stream-impact ripples still appear")
         return
-    if int(water.get_meta("gentle_ripple_count", -1)) != 6:
-        _fail("Expected six sparse decorative ripples across three water tiers")
+    if int(water.get_meta("gentle_ripple_count", -1)) != 5:
+        _fail("Expected five sparse decorative ripples across both hollow basins")
         return
-    var ripple_counts := {"Lower": 0, "Middle": 0, "Top": 0}
+    var ripple_counts := {"Lower": 0, "Middle": 0}
     for ripple in water.find_children("FountainCalmRipple_*", "MeshInstance3D", false, false):
         var ripple_node := ripple as MeshInstance3D
         var tier: String = ripple_node.get_meta("tier", "")
@@ -125,8 +130,8 @@ func _check() -> void:
         if not bool(ripple_node.get_meta("ripple_style", "") == "subtle_nonimpact"):
             _fail("Ripples must be calm, not heavy splashes")
             return
-    if ripple_counts["Lower"] != 3 or ripple_counts["Middle"] != 2 or ripple_counts["Top"] != 1:
-        _fail("Gentle ripples were not distributed across all three tiers")
+    if ripple_counts["Lower"] != 3 or ripple_counts["Middle"] != 2:
+        _fail("Gentle ripples were not distributed across both water basins")
         return
     if absf(float(fountain.get_meta("fountain_visual_scale", 0.0)) - 3.55) > 0.01:
         _fail("Fountain is the wrong scale for a walkable medieval square")
