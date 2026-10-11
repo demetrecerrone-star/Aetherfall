@@ -745,35 +745,62 @@ func _register_house_awning_supports(house: Node3D, wall_footprint: Rect2) -> vo
         world_posts.append(center)
     house.set_meta("awning_support_positions", world_posts)
 
-func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
+func _add_pine_tree(tree: Node3D, scale_factor: float, variant: int) -> void:
+    tree.name = "PineTree_%02d" % variant
+    _tapered_cylinder(tree, "PineTrunk", 0.22 * scale_factor, 0.14 * scale_factor,
+        5.30 * scale_factor, Vector3(0.0, 2.67 * scale_factor, 0.0), Color("#534d41"))
+    # Five overlapping conifer crowns, not a flat leafy billboard. Each has
+    # a distinct, dark evergreen green for visible definition and depth.
+    var greens := [
+        Color("#294333"), Color("#34523b"), Color("#405e43"),
+        Color("#304d3a"), Color("#3a5944")
+    ]
+    for i in range(5):
+        var rad := (1.43 - float(i) * 0.20) * scale_factor
+        var height := (2.30 - float(i) * 0.125) * scale_factor
+        var center_y := (2.64 + float(i) * 0.83) * scale_factor
+        _tapered_cylinder(tree, "PineEvergreenLayer_%d" % i,
+            rad, 0.11 * scale_factor, height,
+            Vector3(0.0, center_y, 0.0), greens[(i + variant) % greens.size()])
+    _tapered_cylinder(tree, "PineCrownTip", 0.43 * scale_factor, 0.0,
+        0.94 * scale_factor, Vector3(0.0, 6.32 * scale_factor, 0.0), Color("#2b4939"))
+    tree.set_meta("foliage_style", "solid_dark_evergreen_pine")
+    tree.set_meta("tree_height_m", 6.79 * scale_factor)
+
+
+func _add_tree(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
     var tree := Node3D.new()
     tree.position = position
     add_child(tree)
-    var trunk := Color("#4a3326")
-    var bark_dark := Color("#35271f")
-    var leaf_dark := Color("#2f5538")
-    var leaf_mid := Color("#477249")
-    var leaf_light := Color("#668d56")
+    _cylinder(tree, "TreeDirt", 0.62 * scale_factor, 0.018,
+        Vector3(0, 0.009, 0), Color("#5b4937"), 1.0)
+    var is_pine := variant % 3 == 1 or variant == 8
+    if is_pine:
+        _add_pine_tree(tree, scale_factor, variant)
+        _add_circle_blocker(Vector2(position.x, position.z), 0.23 * scale_factor,
+            PLAYER_WORLD_RADIUS + 0.035)
+        return
 
-    # Soft dirt ring makes the tree feel planted instead of dropped onto grass.
-    _cylinder(tree, "TreeDirt", 0.78 * scale_factor, 0.022, Vector3(0, 0.012, 0), Color("#5b4937"), 1.0)
-    _tapered_cylinder(tree, "Trunk", 0.30 * scale_factor, 0.16 * scale_factor, 2.55 * scale_factor, Vector3(0, 1.28 * scale_factor, 0), trunk)
+    tree.name = "BroadleafTree_%02d" % variant
+    # Proven Quaternius birch and maple imports now receive darkened, solid
+    # cutout leaves. Trunks remain bark-coloured and tree collision unchanged.
+    var tree_asset := "BirchTree_1" if variant % 4 == 0 else "MapleTree_1"
+    var installed := SceneryReplacement.place(tree, tree_asset,
+        Vector3(3.3, 5.6, 3.3) * scale_factor, PackedStringArray(), 0.0, 0.035)
+    if not installed:
+        # Asset import unavailable: keep a small solid-leaved fallback.
+        _tapered_cylinder(tree, "Trunk", 0.25 * scale_factor, 0.17 * scale_factor,
+            2.7 * scale_factor, Vector3(0, 1.37 * scale_factor, 0), Color("#4a382b"))
+        for pos in [
+            Vector3(-0.49, 2.85, 0.0), Vector3(0.42, 2.87, 0.12),
+            Vector3(0.0, 3.38, -0.05)
+        ]:
+            _sphere(tree, "FallbackLeafCluster", 0.78 * scale_factor,
+                pos * scale_factor, Color("#416047"))
+    tree.set_meta("foliage_style", "dark_cutout_deciduous")
+    _add_circle_blocker(Vector2(position.x, position.z), 0.30 * scale_factor,
+        PLAYER_WORLD_RADIUS + 0.035)
 
-    # Simple angled branches improve the silhouette without a heavy mesh.
-    _box(tree, "BranchL", Vector3(0.12, 0.95, 0.12) * scale_factor, Vector3(-0.22, 2.15, 0) * scale_factor, bark_dark, Vector3(0, 0, -36))
-    _box(tree, "BranchR", Vector3(0.11, 0.88, 0.11) * scale_factor, Vector3(0.25, 2.10, 0.05) * scale_factor, bark_dark, Vector3(0, 0, 39))
-    _box(tree, "BranchBack", Vector3(0.10, 0.76, 0.10) * scale_factor, Vector3(0.02, 2.20, -0.18) * scale_factor, bark_dark, Vector3(34, 0, 0))
-
-    # Layered crown: asymmetric clusters keep trees from reading as green balls.
-    _sphere(tree, "LeafA", 0.70 * scale_factor, Vector3(-0.48, 2.68, 0.08) * scale_factor, leaf_dark)
-    _sphere(tree, "LeafB", 0.78 * scale_factor, Vector3(0.38, 2.74, 0.10) * scale_factor, leaf_mid)
-    _sphere(tree, "LeafC", 0.67 * scale_factor, Vector3(0.02, 3.34, -0.12) * scale_factor, leaf_light)
-    _sphere(tree, "LeafD", 0.52 * scale_factor, Vector3(-0.58, 3.18, 0.24) * scale_factor, leaf_mid)
-    _sphere(tree, "LeafE", 0.52 * scale_factor, Vector3(0.58, 3.16, 0.18) * scale_factor, leaf_dark)
-    _sphere(tree, "LeafF", 0.44 * scale_factor, Vector3(0.02, 2.92, -0.52) * scale_factor, leaf_mid)
-    _add_circle_blocker(Vector2(position.x, position.z), 0.30 * scale_factor, PLAYER_WORLD_RADIUS + 0.035)
-    var tree_asset := "BirchTree_1" if absi(roundi(position.x + position.z)) % 2 == 0 else "MapleTree_1"
-    SceneryReplacement.place(tree, tree_asset, Vector3(3.0, 5.1, 3.0) * scale_factor, PackedStringArray(), 0.0, 0.035)
 
 # Hedges are a familiar detail beside medieval timber-and-stone houses. A
 # few non-interactive flowering shrubs remain, but most are close-cut, boxy
@@ -1333,13 +1360,17 @@ func _build_stage() -> void:
     _add_barrel(Vector3(-15.75,0,8.25))
     _add_barrel(Vector3(15.20,0,8.10))
 
-    # Organic trees plus shrubs tucked near buildings instead of lollipop spheres in the street.
+    # Alternate broadleaf/mossy deciduous trees with taller, dark evergreens.
+    # Extra pines along the wall bring scale variation and a valley silhouette.
+    var tree_index := 0
     for tree_pos in [
         Vector3(-23,0,-6), Vector3(23,0,-5), Vector3(-22,0,5), Vector3(22,0,4),
         Vector3(-16,0,-21), Vector3(16,0,-21), Vector3(-5,0,-20), Vector3(6,0,-20),
         Vector3(-24,0,21), Vector3(24,0,21)
     ]:
-        _add_tree(tree_pos, 0.82)
+        var canopy_scale := 1.08 if tree_index % 3 == 1 else (0.95 if tree_index % 3 == 0 else 0.86)
+        _add_tree(tree_pos, canopy_scale, tree_index)
+        tree_index += 1
     var shrub_index := 0
     for shrub_pos in [
         Vector3(-15,0,-11), Vector3(-6,0,-11), Vector3(6,0,-11), Vector3(15,0,-11),
