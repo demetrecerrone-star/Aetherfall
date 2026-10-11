@@ -882,8 +882,8 @@ func _add_trimmed_hedge(root: Node3D, scale_factor: float, variant: int) -> void
         root.set_meta("foliage_style", "textured_hip_high_hedge")
         root.set_meta("nature_hedge_imported", true)
     _foliage_grass_masks.append(Rect2(
-        Vector2(root.position.x - length * 0.51, root.position.z - depth * 0.55),
-        Vector2(length * 1.02, depth * 1.10)))
+        Vector2(root.position.x - length * 0.46, root.position.z - depth * 0.47),
+        Vector2(length * 0.92, depth * 0.94)))
 
 
 func _mute_imported_shrub(node: Node) -> void:
@@ -904,63 +904,105 @@ func _mute_imported_shrub(node: Node) -> void:
         _mute_imported_shrub(child)
 
 
+func _shrub_fits_lawn(center: Vector3, scale_factor: float, flowering: bool) -> bool:
+    # Check the real outer footprint, not only the centre. Checking a single
+    # point let foliage hang out over the freshly restored cobblestones.
+    var half_x := (0.87 if flowering else 1.10) * scale_factor
+    var half_z := (0.87 if flowering else 0.55) * scale_factor
+    for dx in [-1.0, 0.0, 1.0]:
+        for dz in [-1.0, 0.0, 1.0]:
+            var sample := Vector3(center.x + float(dx) * half_x, 0.0,
+                center.z + float(dz) * half_z)
+            if _ground_surface_y(sample) > 0.011:
+                return false
+            if _world_point_blocked(Vector2(sample.x, sample.z)):
+                return false
+    return true
+
+
 func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
-    # Pull ornamentals just into the lawn if their original position fell on
-    # the revived cobblestones. Keep door approaches and stalls accessible.
-    var near_side := -1.0 if position.z < 0.0 else 1.0
-    var candidates: Array[Vector3] = [
-        position,
-        position + Vector3(0.0, 0.0, near_side * 0.78),
-        position + Vector3(-0.64, 0.0, near_side * 0.85),
-        position + Vector3(0.64, 0.0, near_side * 0.85),
-        position + Vector3(0.0, 0.0, near_side * 1.18),
-    ]
+    var flowering := variant % 4 == 2
+    # Search expanding rings rather than defaulting to the original point:
+    # even a narrow patch of cobble underneath is unacceptable. Prefer spots
+    # close to the intended house, not distant random open lawn.
     var chosen := position
-    for candidate in candidates:
-        var clear := true
-        # Bigger hip-high hedges must fit their full footprint inside lawn
-        # islands. A clear center alone can still overlap a stone road.
-        var footprint_half := Vector2(1.04, 0.49) * scale_factor
-        for dx in [-1.0, 0.0, 1.0]:
-            for dz in [-1.0, 0.0, 1.0]:
-                var sample := candidate + Vector3(float(dx) * footprint_half.x, 0.0, float(dz) * footprint_half.y)
-                if _ground_surface_y(sample) >= 0.011 or _world_point_blocked(Vector2(sample.x, sample.z)):
-                    clear = false
-                    break
-            if not clear:
+    var found := false
+    for ring in range(14):
+        var radius := 0.48 * float(ring)
+        var slots := 1 if ring == 0 else 20
+        for angle_index in range(slots):
+            var angle := TAU * float(angle_index) / float(slots) + float(variant) * 0.21
+            var candidate := position + Vector3(cos(angle) * radius, 0.0,
+                sin(angle) * radius)
+            if _shrub_fits_lawn(candidate, scale_factor, flowering):
+                chosen = candidate
+                found = true
                 break
-        if clear:
-            chosen = candidate
+        if found:
             break
+    if not found:
+        push_warning("No safe grass bed for shrub %d; skipping pavement placement." % variant)
+        return
+
     var shrub := Node3D.new()
     shrub.position = chosen
     add_child(shrub)
-    if variant % 4 != 2:
+    shrub.set_meta("planted_in_lawn", true)
+    shrub.set_meta("lawn_footprint_checked", true)
+    shrub.set_meta("original_landscape_position", position)
+    if not flowering:
         _add_trimmed_hedge(shrub, scale_factor, variant)
     else:
         shrub.name = "TownFlowerBush_%02d" % variant
-        # Keep some naturally grown, muted flowering bushes for variety.
         var leaf_ground_sink := 0.31 * scale_factor
         var installed := NatureReplacement.place(shrub, "Bush_Common_Flowers",
             Vector3(1.60, 1.20, 1.60) * scale_factor, leaf_ground_sink)
         if not installed:
             installed = SceneryReplacement.place(shrub, "Bush_Flowers",
-                Vector3(1.42, 1.49, 1.42) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
+                Vector3(1.42, 1.49, 1.42) * scale_factor,
+                PackedStringArray(), 0.0, leaf_ground_sink)
             if installed:
                 _mute_imported_shrub(shrub)
         if not installed:
             _add_trimmed_hedge(shrub, scale_factor, variant)
         shrub.set_meta("scenery_ground_sink", leaf_ground_sink)
         _foliage_grass_masks.append(Rect2(
-            Vector2(chosen.x - 0.53 * scale_factor, chosen.z - 0.53 * scale_factor),
-            Vector2.ONE * (1.06 * scale_factor)))
+            Vector2(chosen.x - 0.47 * scale_factor, chosen.z - 0.47 * scale_factor),
+            Vector2.ONE * (0.94 * scale_factor)))
         shrub.set_meta("leaf_ground_sink_m", leaf_ground_sink)
     shrub.set_meta("grounded", true)
 
 
 func _grass_point_blocked(point: Vector2) -> bool:
-    if _world_point_blocked(point):
-        return true
+    # Player collision deliberately has ~0.35m of padding around every
+    # wall and post. Grass does NOT need that avatar radius: only a slim
+    # ~8cm botanical clearance from the physical masonry foundations.
+    # Avoid making _world_point_blocked less restrictive for actual actors!
+    for blocker in _world_blockers:
+        if blocker.has_point(point):
+            return true
+    for house in _house_blockers:
+        var center: Vector2 = house["center"]
+        var padded_half: Vector2 = house["half"]
+        var masonry_half := padded_half - Vector2.ONE * (PLAYER_WORLD_RADIUS + 0.04 - 0.08)
+        var delta := point - center
+        if absf(delta.x) < masonry_half.x and absf(delta.y) < masonry_half.y:
+            return true
+    for circle in _circle_blockers:
+        var object_center := Vector2(circle.x, circle.y)
+        var plant_radius := maxf(0.07, circle.z - PLAYER_WORLD_RADIUS + 0.09)
+        if point.distance_squared_to(object_center) < plant_radius * plant_radius:
+            return true
+    for obstacle in _oriented_blockers:
+        var delta: Vector2 = point - (obstacle["center"] as Vector2)
+        var theta: float = float(obstacle["yaw"])
+        var local := Vector2(cos(theta) * delta.x - sin(theta) * delta.y,
+            sin(theta) * delta.x + cos(theta) * delta.y)
+        var half: Vector2 = obstacle["half"]
+        var plant_half := Vector2(maxf(0.08, half.x - PLAYER_WORLD_RADIUS + 0.08),
+            maxf(0.08, half.y - PLAYER_WORLD_RADIUS + 0.08))
+        if absf(local.x) < plant_half.x and absf(local.y) < plant_half.y:
+            return true
     for area in _foliage_grass_masks:
         if area.has_point(point):
             return true
