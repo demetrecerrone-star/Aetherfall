@@ -2,10 +2,18 @@ name: Aetherfall Starter Town Android APK
 
 on:
   push:
-    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade, feature/starter-town-pass3-valley]
+    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade, feature/starter-town-pass3-valley, feature/starter-town-title-pass3]
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
+      - "cleanroom/project.godot"
+      - "cleanroom/title_backdrop.gd"
+      - "cleanroom/menu_ambience.gd"
+      - "cleanroom/title_screen.gd"
+      - "cleanroom/title_screen.tscn"
+      - "cleanroom/loading_screen.gd"
+      - "cleanroom/loading_screen.tscn"
+      - "cleanroom/tests/title_to_town_test.gd"
       - "cleanroom/scenery_replacements.gd"
       - "cleanroom/grass_field.gd"
       - "cleanroom/road_network.gd"
@@ -36,7 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install optimized Quaternius scenery assets
-        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || github.ref == 'refs/heads/feature/starter-town-pass3-valley')
+        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || (github.ref == 'refs/heads/feature/starter-town-pass3-valley' || github.ref == 'refs/heads/feature/starter-town-title-pass3'))
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -191,12 +199,19 @@ jobs:
           godot --headless --editor --path cleanroom --quit
 
       - name: Validate all 20 imported Quaternius models
-        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || github.ref == 'refs/heads/feature/starter-town-pass3-valley')
+        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || (github.ref == 'refs/heads/feature/starter-town-pass3-valley' || github.ref == 'refs/heads/feature/starter-town-title-pass3'))
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/scenery_asset_test.gd 2>&1 | tee /tmp/scenery-assets-qa.log
           grep -F 'AETHERFALL_SCENERY_ASSETS_OK' /tmp/scenery-assets-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_SCENERY_FAIL' /tmp/scenery-assets-qa.log; then exit 1; fi
+
+      - name: Verify title screen loads the REAL starter town
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/title_to_town_test.gd 2>&1 | tee /tmp/cleanroom-title-qa.log
+          grep -F 'AETHERFALL_CLEANROOM_TITLE_OK' /tmp/cleanroom-title-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_CLEANROOM_TITLE_FAIL:|AETHERFALL_DIAGNOSTIC' /tmp/cleanroom-title-qa.log; then exit 1; fi
 
       - name: Runtime smoke test imported animation playback
         run: |
