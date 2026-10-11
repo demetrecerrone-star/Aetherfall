@@ -1,6 +1,7 @@
 extends Node3D
 const SceneryReplacement = preload("res://scenery_replacements.gd")
 const GrassField = preload("res://grass_field.gd")
+const RoadNetwork = preload("res://road_network.gd")
 ## Runtime Tripo/Mixamo QA scene for Aetherfall character pass.
 ## Loads the supplied GLB directly and adds game-ready preview behavior:
 ## gameplay locomotion test: touch movement, camera orbit, auto animation states, grounding.
@@ -102,6 +103,8 @@ var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
 var _oriented_blockers: Array[Dictionary] = []
 var _house_blockers: Array[Dictionary] = []
+var _road_door_anchors: Array[Vector2] = []
+var _road_regions: Array[Rect2] = []
 var _camera_obstacles: Array[AABB] = []
 # Towers are round; square camera volumes erroneously envelop players at corners.
 var _camera_cylinders: Array[Dictionary] = []
@@ -257,7 +260,7 @@ func _refresh_diagnostics() -> void:
             state = "READY - no startup errors detected"
         elif _startup_failed:
             state = "FAILED - photograph this panel"
-        _diag_detail_label.text = "Starter Town v0.2Z diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
+        _diag_detail_label.text = "Starter Town Pass 2 diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
 
 func _load_town_textures() -> void:
     _town_textures.clear()
@@ -652,6 +655,11 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     house.set_meta("collision_half", core_half)
     house.set_meta("collision_center", core_center)
     house.set_meta("covered_walkway_clearance", true)
+    # Build the pedestrian path from the imported ground-floor masonry edge.
+    # The route ends at the door, not meters short of its porch or steps.
+    var door_anchor := Vector2(position.x, core_center.y + core_half.y + PLAYER_WORLD_RADIUS + 0.13)
+    house.set_meta("road_door_anchor", door_anchor)
+    _road_door_anchors.append(door_anchor)
     # Match orbit-camera collision to the masonry too, so the camera may
     # travel beneath an awning instead of reacting to empty porch air.
     _add_camera_obstacle(
@@ -890,104 +898,8 @@ func _add_wall_segment(position: Vector3, size: Vector3) -> void:
     _box(self, "WallCap", Vector3(size.x + 0.14, 0.20, size.z + 0.14), position + Vector3(0, size.y * 0.5 + 0.10, 0), Color("#8b877d"))
     _add_camera_obstacle(position, Vector3(size.x, size.y + 0.2, size.z))
 
-func _road_base(name: String, center: Vector3, size: Vector2) -> void:
-    # One fully textured cobbled plane per region. Small height offsets avoid
-    # z-fighting where roads and square intersect without raised block paving.
-    var lift := 0.0
-    if name == "CrossRoad":
-        lift = 0.012
-    elif name == "MarketSquare":
-        lift = 0.024
-    _box(self, name, Vector3(size.x, 0.055, size.y), center + Vector3(0, 0.0275 + lift, 0), Color("#68675f"), Vector3.ZERO, 0.95)
-
-func _road_seams_z(center: Vector3, width: float, length: float) -> void:
-    # Cross seams plus two long irregular lanes. Low node count but reads as cobbled paving from the player camera.
-    var count := int(length / 1.45)
-    for i in range(count + 1):
-        var z := center.z - length * 0.5 + float(i) * 1.45
-        var shift := 0.18 if i % 2 == 0 else -0.18
-        _box(self, "StoneJoint", Vector3(width - 0.18, 0.014, 0.045), Vector3(center.x + shift, 0.064, z), Color("#54544f"))
-    for x in [-width * 0.28, width * 0.28]:
-        _box(self, "StoneJointLong", Vector3(0.045, 0.014, length - 0.20), Vector3(center.x + x, 0.064, center.z), Color("#565650"))
-
-func _road_seams_x(center: Vector3, width: float, length: float) -> void:
-    var count := int(width / 1.45)
-    for i in range(count + 1):
-        var x := center.x - width * 0.5 + float(i) * 1.45
-        var shift := 0.18 if i % 2 == 0 else -0.18
-        _box(self, "StoneJoint", Vector3(0.045, 0.014, length - 0.18), Vector3(x, 0.064, center.z + shift), Color("#54544f"))
-    for z in [-length * 0.28, length * 0.28]:
-        _box(self, "StoneJointLong", Vector3(width - 0.20, 0.014, 0.045), Vector3(center.x, 0.064, center.z + z), Color("#565650"))
-
-func _market_grid(center: Vector3, size: Vector2) -> void:
-    var x_count := int(size.x / 1.65)
-    var z_count := int(size.y / 1.65)
-    for ix in range(x_count + 1):
-        var x := center.x - size.x * 0.5 + float(ix) * 1.65
-        _box(self, "SquareJointX", Vector3(0.045, 0.014, size.y - 0.15), Vector3(x, 0.071, center.z), Color("#555650"))
-    for iz in range(z_count + 1):
-        var z := center.z - size.y * 0.5 + float(iz) * 1.65
-        _box(self, "SquareJointZ", Vector3(size.x - 0.15, 0.014, 0.045), Vector3(center.x, 0.071, z), Color("#555650"))
-
-
-func _stone_tone(index: int) -> Color:
-    var tones := [
-        Color("#66635c"), Color("#706c64"), Color("#5f5d57"),
-        Color("#767168"), Color("#64615b")
-    ]
-    return tones[index % tones.size()]
-
-func _road_stones_z(center: Vector3, width: float, length: float) -> void:
-    var cols := 3
-    var rows := int(length / 2.0)
-    var stone_w := (width - 0.34) / float(cols)
-    var stone_l := length / float(rows)
-    for row in range(rows):
-        var z := center.z - length * 0.5 + (float(row) + 0.5) * stone_l
-        var stagger := stone_w * 0.22 if row % 2 == 1 else 0.0
-        for col in range(cols):
-            var x := center.x - width * 0.5 + (float(col) + 0.5) * stone_w + stagger
-            if x > center.x + width * 0.5 - stone_w * 0.35:
-                x -= width
-            var inset := 0.14 + 0.025 * float((row + col) % 3)
-            _box(self, "RoadStone", Vector3(stone_w - inset, 0.045, stone_l - 0.11), Vector3(x, 0.080, z), _stone_tone(row * cols + col), Vector3.ZERO, 0.98)
-
-func _road_stones_x(center: Vector3, width: float, length: float) -> void:
-    var rows := 3
-    var cols := int(width / 2.0)
-    var stone_w := width / float(cols)
-    var stone_l := (length - 0.34) / float(rows)
-    for col in range(cols):
-        var x := center.x - width * 0.5 + (float(col) + 0.5) * stone_w
-        var stagger := stone_l * 0.22 if col % 2 == 1 else 0.0
-        for row in range(rows):
-            var z := center.z - length * 0.5 + (float(row) + 0.5) * stone_l + stagger
-            if z > center.z + length * 0.5 - stone_l * 0.35:
-                z -= length
-            var inset := 0.14 + 0.025 * float((row + col) % 3)
-            _box(self, "RoadStone", Vector3(stone_w - 0.11, 0.045, stone_l - inset), Vector3(x, 0.080, z), _stone_tone(col * rows + row + 2), Vector3.ZERO, 0.98)
-
-func _market_stones(center: Vector3, size: Vector2) -> void:
-    var cols := 8
-    var rows := 7
-    var stone_w := size.x / float(cols)
-    var stone_l := size.y / float(rows)
-    for row in range(rows):
-        var stagger := stone_w * 0.22 if row % 2 == 1 else 0.0
-        for col in range(cols):
-            var x := center.x - size.x * 0.5 + (float(col) + 0.5) * stone_w + stagger
-            if x > center.x + size.x * 0.5 - stone_w * 0.35:
-                x -= size.x
-            var z := center.z - size.y * 0.5 + (float(row) + 0.5) * stone_l
-            var inset := 0.14 + 0.02 * float((row * 3 + col) % 4)
-            _box(self, "SquareStone", Vector3(stone_w - inset, 0.048, stone_l - 0.11), Vector3(x, 0.083, z), _stone_tone(row * cols + col + 1), Vector3.ZERO, 0.98)
-
-func _road_shoulders() -> void:
-    var dirt := Color("#695744")
-    _box(self, "EntryShoulderL", Vector3(0.44, 0.028, 43.5), Vector3(-3.30, 0.022, 2.0), dirt, Vector3.ZERO, 1.0)
-    _box(self, "EntryShoulderR", Vector3(0.44, 0.028, 43.5), Vector3(3.30, 0.022, 2.0), dirt, Vector3.ZERO, 1.0)
-    _box(self, "CrossShoulderN", Vector3(41.5, 0.028, 0.42), Vector3(0, 0.022, -2.02), dirt, Vector3.ZERO, 1.0)
-    _box(self, "CrossShoulderS", Vector3(41.5, 0.028, 0.42), Vector3(0, 0.022, 4.02), dirt, Vector3.ZERO, 1.0)
+# Pass 2 replaces overlapping paving boxes and their seams with the
+# merged, continuously UV-mapped medieval road network in road_network.gd.
 
 func _configure_hdri_environment(env: Environment) -> bool:
     if not FileAccess.file_exists(HDRI_PATH):
@@ -1039,6 +951,8 @@ func _build_stage() -> void:
     _circle_blockers.clear()
     _oriented_blockers.clear()
     _house_blockers.clear()
+    _road_door_anchors.clear()
+    _road_regions.clear()
     _camera_obstacles.clear()
     _camera_cylinders.clear()
     _door_step_surfaces.clear()
@@ -1113,11 +1027,9 @@ func _build_stage() -> void:
     # blended inside the material, never another exposed circular mesh.
     _box(self, "TownGround", Vector3(58.0, 0.16, 55.0), Vector3(0, -0.08, 0), Color("#70965b"), Vector3.ZERO, 1.0)
 
-    # Unified tiling instead of 150+ giant textured slabs sitting on cobbles.
-    _road_shoulders()
-    _road_base("EntryRoad", Vector3(0,0,2.0), Vector2(6.2,44.0))
-    _road_base("CrossRoad", Vector3(0,0,1.0), Vector2(42.0,5.6))
-    _road_base("MarketSquare", Vector3(0,0,-4.0), Vector2(16.0,14.0))
+    # Road, square and house-side branches are generated together after
+    # scenery placement so imported building entrances drive their endpoints.
+    # The old three overlapping BoxMesh road slabs are deliberately retired.
 
     # Perimeter walls with caps and simple buttresses. The hard software boundary remains authoritative.
     _add_wall_segment(Vector3(-27.6, 1.7, 0), Vector3(1.2, 3.4, 52.0))
@@ -1174,6 +1086,13 @@ func _build_stage() -> void:
     _add_house(Vector3(19.8, 0, 16.2), Vector3(5.2, 3.0, 4.5), Color("#d1be9b"), Color("#603d36"))
     _add_house(Vector3(-10.0, 0, 17.0), Vector3(4.7, 2.8, 4.3), Color("#d8c6a4"), Color("#62443b"))
     _add_house(Vector3(10.0, 0, 17.2), Vector3(4.8, 2.9, 4.2), Color("#d2bc92"), Color("#684438"))
+
+    # Unified medieval paving uses one continuous cobblestone material and a
+    # shallow dirt verge. All ten doors receive a connected walking path.
+    _road_regions = RoadNetwork.plan(_road_door_anchors)
+    var cobble_material := _town_mat("EntryRoad", Color("#aaa397"), 0.99, Vector3.ONE)
+    var verge_material := _town_mat("EntryShoulderL", Color("#81765e"), 1.0, Vector3.ONE)
+    RoadNetwork.build(self, _road_regions, cobble_material, verge_material)
 
     # Old fountain and its collision are removed: the center square is walkable.
 
@@ -1370,7 +1289,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN PASS 1  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN PASS 2  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1865,32 +1784,12 @@ func _update_ground_contact_shadow() -> void:
 
 
 func _ground_surface_y(world_position: Vector3) -> float:
-    var x := world_position.x
-    var z := world_position.z
-    # Grounding follows each tread's actual top surface.
-    for step in _door_step_surfaces:
-        var footprint: Rect2 = step["rect"]
-        if footprint.has_point(Vector2(x, z)):
-            return float(step["height"])
-
-    # Grounding matches the actual visible surfaces, not the removed slabs.
-    var on_entry_road := absf(x) <= 3.10 and z >= -20.0 and z <= 24.0
-    var on_cross_road := absf(x) <= 21.0 and z >= -1.80 and z <= 3.80
-    var on_market_square := absf(x) <= 8.0 and z >= -11.0 and z <= 3.0
-    if on_market_square:
-        return 0.079
-    if on_cross_road:
-        return 0.067
-    if on_entry_road:
-        return 0.055
-
-    # Dirt shoulders are only slightly above the lawn.
-    var on_entry_shoulder := absf(absf(x) - 3.30) <= 0.24 and z >= -19.75 and z <= 23.75
-    var on_cross_shoulder := absf(x) <= 20.75 and (absf(z + 2.02) <= 0.22 or absf(z - 4.02) <= 0.22)
-    if on_entry_shoulder or on_cross_shoulder:
-        return 0.036
-
-    return 0.0
+    # No height mismatch between the player's soles and the visible paving:
+    # road regions, market square and door approaches all share one level.
+    # Stairs are intentionally absent until separate building interiors exist.
+    return RoadNetwork.surface_height(
+        Vector2(world_position.x, world_position.z), _road_regions
+    )
 
 func _align_neutral_feet_to_floor() -> void:
     var surface_y := _ground_surface_y(_actor.global_position)

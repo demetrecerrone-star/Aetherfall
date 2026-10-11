@@ -14,7 +14,7 @@ func _run_check() -> void:
     for i in range(8):
         await process_frame
     var grass := town.find_child("TownGround", true, false) as MeshInstance3D
-    var road := town.find_child("EntryRoad", true, false) as MeshInstance3D
+    var road := town.find_child("UnifiedCobblestoneRoad", true, false) as MeshInstance3D
     var roof := town.find_child("RoofCourse", true, false) as MeshInstance3D
     var stall_post := town.find_child("StallPost", true, false) as MeshInstance3D
     if grass == null or road == null or roof == null or stall_post == null:
@@ -28,8 +28,11 @@ func _run_check() -> void:
     if post_material == null or post_material.albedo_texture == null:
         _fail("Stall posts have no wood texture")
         return
+    if town.find_child("EntryRoad", true, false) != null or town.find_child("CrossRoad", true, false) != null or town.find_child("MarketSquare", true, false) != null:
+        _fail("Three old overlapping paving slabs were not retired")
+        return
     if town.find_child("RoadStone", true, false) != null or town.find_child("SquareStone", true, false) != null:
-        _fail("Old oversized road slabs are still visible")
+        _fail("Legacy per-block road stones returned")
         return
     if town.find_child("GrassPatch", true, false) != null:
         _fail("Raised circular grass patches returned and will leave visible edges")
@@ -37,8 +40,37 @@ func _run_check() -> void:
     var entry := float(town.call("_ground_surface_y", Vector3(0, 0, 18)))
     var cross := float(town.call("_ground_surface_y", Vector3(12, 0, 1)))
     var square := float(town.call("_ground_surface_y", Vector3(0, 0, -4)))
-    if absf(entry - 0.055) > 0.001 or absf(cross - 0.067) > 0.001 or absf(square - 0.079) > 0.001:
-        _fail("Foot grounding no longer matches paved surfaces: %f %f %f" % [entry, cross, square])
+    if absf(entry - 0.066) > 0.001 or absf(cross - 0.066) > 0.001 or absf(square - 0.066) > 0.001:
+        _fail("Continuous roads/plaza have mismatched player footing: %f %f %f" % [entry, cross, square])
+        return
+    if String(town.get_meta("road_style", "")) != "weathered_medieval_cobblestone":
+        _fail("Town road is not the approved weathered medieval cobblestone")
+        return
+    var cobbled := road.mesh.surface_get_material(0) as StandardMaterial3D
+    if cobbled == null or cobbled.albedo_texture == null:
+        _fail("Unified medieval road lacks the imported Poly Haven cobble texture")
+        return
+    if town.find_child("UnifiedDirtRoadVerge", true, false) == null:
+        _fail("Cobblestones end abruptly without a dirt/grass transition")
+        return
+    if int(town.get_meta("road_paving_quad_count", 0)) > 1300:
+        _fail("Too many paving meshes for mobile; consolidate road tiles")
+        return
+    if int(town.get_meta("road_network_segments", 0)) < 30:
+        _fail("Not all town doorways have cobbled path branches")
+        return
+    var route_points: Array = town.get("_road_door_anchors")
+    if route_points.size() != 10:
+        _fail("The road network did not connect all ten house and shop doorways")
+        return
+    for door_point in route_points:
+        var door: Vector2 = door_point
+        var foot_height := float(town.call("_ground_surface_y", Vector3(door.x, 0.0, door.y)))
+        if absf(foot_height - 0.066) > 0.001:
+            _fail("Path does not reach a building entrance: " + str(door))
+            return
+    if absf(float(town.call("_ground_surface_y", Vector3(-24.0, 0.0, 8.0)))) > 0.001:
+        _fail("Cobble road replaced the lawn outside defined streets")
         return
     # These are rustic trestle benches, never the old three-slat modern seats.
     var benches := town.find_children("TownBench*", "Node3D", true, false)
@@ -197,7 +229,7 @@ func _run_check() -> void:
         _fail("Obsolete procedural stairs remain in town")
         return
 
-    print("AETHERFALL_ENVIRONMENT_PASS1_OK: Four inward-backed stalls, two properly sized benches, natural gate-side doors, thick mobile lawn")
+    print("AETHERFALL_ENVIRONMENT_PASS2_OK: One medieval cobble road network, all 10 doorways connected, dirt verges, thick yard lawn and inward-backed stalls")
     town.queue_free()
     quit(0)
 

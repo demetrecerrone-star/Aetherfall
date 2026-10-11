@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download seven CC0 Poly Haven diffuse maps for Aetherfall Starter Town.
+"""Prepare seven CC0 Poly Haven diffuse maps for Aetherfall Starter Town.
 
 The Poly Haven API is queried only by this GitHub Actions build step. Assets are
 resized to 512/1024 px to minimize mobile GPU use, encoded as JPEG, and saved
@@ -18,7 +18,9 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 ASSETS = {
-    "cobble": ("cobblestone_pavement", 1024),
+    # Mossy/mud-grouted medieval cobbles are more fitting for the valley town
+    # than the original clean rectangular urban pavement.
+    "cobble": ("cobblestone_floor_001", 1024),
     "grass": ("leafy_grass", 1024),
     "dirt": ("dirt", 512),
     "plaster": ("plastered_wall", 512),
