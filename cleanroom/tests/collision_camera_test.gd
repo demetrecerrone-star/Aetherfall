@@ -173,6 +173,36 @@ func _check() -> void:
             _fail("Market browsing circuit blocked at " + str(aisle))
             return
 
+    # Every wooden support gets a compact solid footprint, while the stall
+    # canopy itself and a clear walk-under strip remain accessible.
+    for stall in stalls:
+        var marker_positions: Array = (stall as Node3D).get_meta("support_post_positions", [])
+        if marker_positions.size() != 4:
+            _fail("Market awning is missing individual post footprints")
+            return
+        for marker in marker_positions:
+            if not bool(town.call("_world_point_blocked", marker)):
+                _fail("A wooden stall support still allows clipping")
+                return
+        var rotation := Basis(Vector3.UP, deg_to_rad((stall as Node3D).rotation_degrees.y))
+        var clear_point: Vector3 = (stall as Node3D).position + rotation * Vector3(0.0, 0.0, 1.12)
+        if bool(town.call("_world_point_blocked", Vector2(clear_point.x, clear_point.z))):
+            _fail("The walkway below a market canopy is blocked")
+            return
+    var house_support_count := 0
+    for building in town.get_children():
+        if not (building is Node3D) or not building.has_meta("covered_walkway_clearance"):
+            continue
+        var supports: Array = building.get_meta("awning_support_positions", [])
+        for support in supports:
+            house_support_count += 1
+            if not bool(town.call("_world_point_blocked", support)):
+                _fail("A building porch timber post is still pass-through")
+                return
+    if house_support_count < 2:
+        _fail("No individual support posts were registered for the building awnings")
+        return
+
     # Small ornamental foliage should remain deliberately walk-through.
     if bool(town.call("_world_point_blocked", Vector2(15.0, 11.0))):
         _fail("Soft shrub unexpectedly gained solid collision")
