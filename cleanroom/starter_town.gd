@@ -4,8 +4,9 @@ const NatureReplacement = preload("res://nature_replacements.gd")
 const GateAshlar = preload("res://gate_ashlar.gd")
 const GrassField = preload("res://grass_field.gd")
 const GraphicsQuality = preload("res://graphics_quality.gd")
-# Static preload guarantees the user's GLB is included in Android export packs.
-const FOUNTAIN_SCENE = preload("res://models/fountain/MedievalFountain.glb")
+# Runtime .bin holds the same optimized GLB bytes and is explicitly
+# bundled in the Android export (Godot does not reliably preload raw .glb).
+const FOUNTAIN_RUNTIME_PATH := "res://models/fountain/MedievalFountain.bin"
 const RoadNetwork = preload("res://road_network.gd")
 const MountainValley = preload("res://mountain_valley.gd")
 const ZoneTransfer = preload("res://zone_transfer.gd")
@@ -1101,14 +1102,19 @@ func _add_town_fountain() -> void:
     # Actual user-supplied Tripo medieval fountain, not procedural geometry.
     # The 11,226-triangle mesh and all three embedded PBR maps are preserved;
     # textures are optimized for mobile before they are committed to GitHub.
-    var fountain_path := "res://models/fountain/MedievalFountain.glb"
-    var fountain_scene := FOUNTAIN_SCENE as PackedScene
-    if fountain_scene == null:
-        push_error("AETHERFALL_FOUNTAIN_MISSING: " + fountain_path)
+    if not FileAccess.file_exists(FOUNTAIN_RUNTIME_PATH):
+        push_error("AETHERFALL_FOUNTAIN_MISSING: " + FOUNTAIN_RUNTIME_PATH)
         return
-    var fountain_mesh := fountain_scene.instantiate() as Node3D
+    var raw := FileAccess.get_file_as_bytes(FOUNTAIN_RUNTIME_PATH)
+    var document := GLTFDocument.new()
+    var state := GLTFState.new()
+    var err := document.append_from_buffer(raw, "", state)
+    if err != OK:
+        push_error("AETHERFALL_FOUNTAIN_IMPORT_FAILED: %d" % err)
+        return
+    var fountain_mesh := document.generate_scene(state) as Node3D
     if fountain_mesh == null:
-        push_error("AETHERFALL_FOUNTAIN_INVALID: Imported fountain has no Node3D root")
+        push_error("AETHERFALL_FOUNTAIN_INVALID: Runtime GLB has no 3D scene root")
         return
     var fountain := Node3D.new()
     fountain.name = "TownFountain"
@@ -1122,7 +1128,7 @@ func _add_town_fountain() -> void:
     # surrounding market-square loop open for both player and camera.
     _add_circle_blocker(Vector2(0.0, -4.0), 1.60, PLAYER_WORLD_RADIUS + 0.04)
     _add_camera_cylinder(Vector3(0.0, 1.34, -4.0), 1.60, 2.56)
-    fountain.set_meta("fountain_asset", "res://models/fountain/MedievalFountain.glb")
+    fountain.set_meta("fountain_asset", FOUNTAIN_RUNTIME_PATH)
     fountain.set_meta("fountain_imported", true)
     fountain.set_meta("fountain_visual_scale", 3.2)
     fountain.set_meta("fountain_source_triangles", 11226)
