@@ -81,10 +81,54 @@ func _check() -> void:
     if bool(town.call("_world_point_blocked", Vector2(-22.0, -23.80))):
         _fail("North wall buttress blocks empty air")
         return
+    # Barrels are solid but not surrounded by invisible walls. Three barrels
+    # are scattered around the blacksmith and the general shop.
+    var barrel_positions := [
+        Vector2(-15.75, 7.35),
+        Vector2(-15.75, 8.25),
+        Vector2(15.20, 8.10)
+    ]
+    for barrel_pos in barrel_positions:
+        if not bool(town.call("_world_point_blocked", barrel_pos)):
+            _fail("Barrel is no-clipping at " + str(barrel_pos))
+            return
+        var away: float = -1.0 if barrel_pos.x < 0.0 else 1.0
+        if not bool(town.call("_world_point_blocked", barrel_pos + Vector2(away * 0.65, 0.0))):
+            _fail("Barrel rim permits clipping at " + str(barrel_pos))
+            return
+        if bool(town.call("_world_point_blocked", barrel_pos + Vector2(away * 0.86, 0.0))):
+            _fail("Barrel collision has too much invisible clearance at " + str(barrel_pos))
+            return
+
+    # Street lamp bases need collision even while the poles remain slim.
+    var lamp_positions := [
+        Vector2(-4.70, -10.25),
+        Vector2(4.70, -10.25),
+        Vector2(-5.45, 4.45),
+        Vector2(5.45, 4.45)
+    ]
+    for lamp_pos in lamp_positions:
+        var away: float = -1.0 if lamp_pos.x < 0.0 else 1.0
+        if not bool(town.call("_world_point_blocked", lamp_pos + Vector2(away * 0.40, 0.0))):
+            _fail("Freestanding post still no-clips at " + str(lamp_pos))
+            return
+        if bool(town.call("_world_point_blocked", lamp_pos + Vector2(away * 0.55, 0.0))):
+            _fail("Post has too much invisible clearance at " + str(lamp_pos))
+            return
+    # Vendor stalls already have a counter-sized body that includes four posts.
+    for stall_x in [-5.1, 5.1]:
+        if not bool(town.call("_world_point_blocked", Vector2(stall_x - 1.08, 0.8 + 0.46))):
+            _fail("Market stall post no longer collides")
+            return
+
+    # Small ornamental foliage should remain deliberately walk-through.
+    if bool(town.call("_world_point_blocked", Vector2(15.0, 11.0))):
+        _fail("Soft shrub unexpectedly gained solid collision")
+        return
     if not bool(town.get("_loaded")):
         _fail("Character loading failed")
         return
-    print("AETHERFALL_COLLISION_CAMERA_02U_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells")
+    print("AETHERFALL_COLLISION_CAMERA_02U_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
     town.queue_free()
     quit(0)
 

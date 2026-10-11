@@ -686,6 +686,7 @@ func _add_market_stall(position: Vector3, awning: Color) -> void:
         _box(stall, "AwningStripe", Vector3(0.54, 0.12, 1.72), Vector3(sx, 2.52, -0.04), stripe_color, Vector3(-8, 0, 0), 0.84)
     _box(stall, "CrateA", Vector3(0.62, 0.55, 0.62), Vector3(-0.70, 0.30, -0.35), Color("#79543a"))
     _box(stall, "CrateB", Vector3(0.55, 0.40, 0.55), Vector3(0.62, 0.22, 0.30), Color("#875f40"))
+    # Includes the four wooden StallPost supports and the stocked counter.
     _add_blocker(Vector2(position.x, position.z), Vector2(2.65, 1.72), PLAYER_WORLD_RADIUS + 0.025)
 
 func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
@@ -710,6 +711,10 @@ func _add_barrel(position: Vector3) -> void:
     _cylinder(barrel, "Barrel", 0.34, 0.82, Vector3(0, 0.41, 0), Color("#765039"))
     _cylinder(barrel, "BandLow", 0.355, 0.07, Vector3(0, 0.18, 0), Color("#333638"), 0.45)
     _cylinder(barrel, "BandHigh", 0.355, 0.07, Vector3(0, 0.64, 0), Color("#333638"), 0.45)
+    # The barrel and its iron bands need a shared footprint. Leave just
+    # a couple of centimeters beyond the visible rim plus player radius.
+    _add_circle_blocker(Vector2(position.x, position.z), 0.355, PLAYER_WORLD_RADIUS + 0.025)
+    _add_camera_obstacle(position + Vector3(0.0, 0.41, 0.0), Vector3(0.71, 0.82, 0.71))
 
 func _add_lamp(position: Vector3) -> void:
     var lamp := Node3D.new()
@@ -725,6 +730,10 @@ func _add_lamp(position: Vector3) -> void:
     glow.omni_range = 3.8
     glow.shadow_enabled = false
     lamp.add_child(glow)
+    # Freestanding street lamps were previously visual-only: fit collision to
+    # the narrow base instead of a giant invisible square around the lantern.
+    _add_circle_blocker(Vector2(position.x, position.z), 0.08, PLAYER_WORLD_RADIUS + 0.025)
+    _add_camera_obstacle(position + Vector3(0.0, 1.35, 0.0), Vector3(0.16, 2.70, 0.16))
 
 func _add_wall_segment(position: Vector3, size: Vector3) -> void:
     var stone := Color("#716f68")
@@ -1255,7 +1264,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2V  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2W  |  " + title
     if _detail != null:
         _detail.text = detail
 
