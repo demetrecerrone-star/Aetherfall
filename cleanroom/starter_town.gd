@@ -991,6 +991,36 @@ func _align_imported_stall_display_with_desk(imported_stand: Node3D) -> bool:
     imported_stand.set_meta("merchandise_platform_desk_aligned", true)
     return true
 
+# Keep the imported Quaternius canopy and frame, but supply a real
+# waist-height service desk. The Quaternius source contains a low, 0.44m storage
+# shelf: lowering the old display down to it left the stall looking empty.
+# Attach the tabletop to the stall itself, not to the scaled imported model.
+# The top is 1.01m above paving, with matching supports down to the ground.
+func _add_vendor_service_counter(stall: Node3D) -> void:
+    var oak := Color("#694630")
+    var oak_edge := Color("#825a3b")
+    var support_wood := Color("#402b22")
+    var tray_wood := Color("#59402b")
+    _box(stall, "VendorCountertop", Vector3(2.10, 0.14, 1.07), Vector3(0.0, 0.94, 0.0), oak)
+    _box(stall, "VendorCounterFrontApron", Vector3(2.08, 0.17, 0.095), Vector3(0.0, 0.83, 0.49), support_wood)
+    _box(stall, "VendorCounterFrontLip", Vector3(2.13, 0.045, 1.10), Vector3(0.0, 1.0, 0.0), oak_edge)
+    for leg_x in [-0.86, 0.86]:
+        for leg_z in [-0.38, 0.38]:
+            _box(stall, "VendorCounterLeg", Vector3(0.115, 0.90, 0.115),
+                Vector3(float(leg_x), 0.45, float(leg_z)), support_wood)
+    # A few compact goods sit ON the counter, not on another elevated
+    # platform. They remain below the market awning and inside its frame.
+    _box(stall, "VendorGoodsTray", Vector3(0.61, 0.045, 0.34),
+        Vector3(-0.50, 1.045, -0.07), tray_wood)
+    for fruit_index in range(3):
+        var fruit_x := -0.69 + float(fruit_index) * 0.18
+        var fruit_color := Color("#a45b36") if fruit_index == 1 else Color("#927a37")
+        _sphere(stall, "VendorProduce", 0.066, Vector3(fruit_x, 1.125, -0.065), fruit_color)
+    _box(stall, "VendorGoodsWoodenCrate", Vector3(0.43, 0.12, 0.34),
+        Vector3(0.52, 1.075, -0.06), Color("#654932"))
+    _box(stall, "VendorGoodsCloth", Vector3(0.33, 0.038, 0.26),
+        Vector3(0.52, 1.155, -0.06), Color("#6e7651"))
+
 func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     var stall := Node3D.new()
     stall.position = position
@@ -1022,6 +1052,7 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
         var imported_stand := stall.get_node_or_null("Quaternius_" + stall_asset) as Node3D
         if imported_stand != null:
             _align_imported_stall_display_with_desk(imported_stand)
+            _add_vendor_service_counter(stall)
     stall.set_meta("vendor_stall_style", "backed_awning")
     # The canopy is walk-under; solid collision belongs to the COUNTER and
     # four posts. Rotate the footprint with the model so visitors can loop

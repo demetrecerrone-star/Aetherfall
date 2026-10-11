@@ -30,3 +30,13 @@ vertices by 0.245427 source-model units, flush with the desk, at runtime.
 The roof/canopy, frame, legs, and original collision volumes remain untouched.
 This remains effective when the original 20-model archive is unpacked in CI.
 The scenery asset regression checks the shelf geometry on each signed APK build.
+
+## Pass 3 follow-up: restored standing-height vendor counter
+The source imported market stand's low storage shelf was mistakenly used as
+the retail desk in the previous correction. Runtime construction now retains
+the lowered storage shelf but adds a **supported solid wooden selling counter**
+with its surface at approximately 1.01m world height. Small sample merchandise
+is placed directly atop this desk, not on a second raised slab. Countertop,
+front apron and wooden legs are in the same stall-local frame; the Quaternius
+roof, posts, existing collision, and camera blocking remain unchanged. The
+signed Android build verifies the desk and goods positions automatically.
