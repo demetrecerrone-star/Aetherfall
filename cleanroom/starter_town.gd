@@ -257,7 +257,7 @@ func _refresh_diagnostics() -> void:
             state = "READY - no startup errors detected"
         elif _startup_failed:
             state = "FAILED - photograph this panel"
-        _diag_detail_label.text = "Starter Town v0.2Y diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
+        _diag_detail_label.text = "Starter Town v0.2Z diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
 
 func _load_town_textures() -> void:
     _town_textures.clear()
@@ -616,9 +616,12 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     elif title == "BLACKSMITH":
         facade = "Blacksmith"
     var landmark := not title.is_empty()
+    # Match imported doorway clearance to a standing adventurer. The former
+    # height left several low arches at the player's shoulder level.
+    var doorway_scale := 1.22 if landmark else 1.26
     var desired_size := Vector3(
         width + (0.72 if landmark else 0.38),
-        body_size.y + (3.55 if landmark else 2.72),
+        (body_size.y + (3.55 if landmark else 2.72)) * doorway_scale,
         depth + (0.66 if landmark else 0.36)
     )
     var imported := SceneryReplacement.place(house, facade, desired_size,
@@ -629,20 +632,31 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
         var shop_label := house.get_node_or_null("Label3D") as Label3D
         if shop_label != null:
             shop_label.position = Vector3(0.0, desired_size.y * 0.58, desired_size.z * 0.52 + 0.16)
-    # Leave a narrow margin for roof eaves and allow the player to approach
-    # the stone doorway instead of colliding with an oversized invisible shell.
-    var solid_half := Vector2(collision_size.x * 0.435, collision_size.z * 0.435)
+    # Use the imported stone/plaster footprint, NOT roof or covered-porch
+    # extents. This leaves sheltered walks beneath the wooden overhangs while
+    # the ground-floor stone walls and closed doors remain solid.
+    var wall_footprint: Rect2 = house.get_meta(
+        "scenery_wall_footprint",
+        Rect2(Vector2(-collision_size.x * 0.37, -collision_size.z * 0.37),
+            Vector2(collision_size.x * 0.74, collision_size.z * 0.74))
+    )
+    var core_center := Vector2(position.x, position.z) + wall_footprint.position + wall_footprint.size * 0.5
+    var core_half := wall_footprint.size * 0.5
     _house_blockers.append({
-        "center": Vector2(position.x, position.z),
-        "half": solid_half + Vector2.ONE * (PLAYER_WORLD_RADIUS + 0.045),
+        "center": core_center,
+        "half": core_half + Vector2.ONE * (PLAYER_WORLD_RADIUS + 0.04),
         "asset": imported,
         "door_stop_z": door_face + PLAYER_WORLD_RADIUS + 0.035,
         "door_half_width": 0.64
     })
-    house.set_meta("collision_half", solid_half)
+    house.set_meta("collision_half", core_half)
+    house.set_meta("collision_center", core_center)
+    house.set_meta("covered_walkway_clearance", true)
+    # Match orbit-camera collision to the masonry too, so the camera may
+    # travel beneath an awning instead of reacting to empty porch air.
     _add_camera_obstacle(
-        Vector3(position.x, collision_size.y * 0.5, position.z),
-        collision_size * Vector3(0.94, 1.0, 0.94)
+        Vector3(core_center.x, collision_size.y * 0.45, core_center.y),
+        Vector3(wall_footprint.size.x, collision_size.y * 0.90, wall_footprint.size.y)
     )
     return house
 
@@ -770,29 +784,37 @@ func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
     bench.position = position
     bench.rotation_degrees.y = yaw
     add_child(bench)
-    # The existing CC0 wood texture now reaches the named slats; iron remains iron.
-    var wood := Color("#795034")
-    var iron := Color("#353739")
-    for row in range(3):
-        var z := -0.20 + float(row) * 0.20
-        var shade := wood.lightened(0.055) if row == 1 else wood
-        _box(bench, "BenchSeatSlat%02d" % row, Vector3(2.0, 0.14, 0.17), Vector3(0, 0.62, z), shade, Vector3.ZERO, 0.82)
-    # Seating faces local -Z; +10 degrees leans the back AWAY from the sitter.
-    # The prior -8 degrees leaned into the sitter's shoulders.
-    for row in range(3):
-        var y := 0.87 + float(row) * 0.22
-        var z := 0.31 + (y - 0.78) * tan(deg_to_rad(10.0))
-        var shade := wood.lightened(0.035) if row == 1 else wood.darkened(0.05)
-        _box(bench, "BenchBackSlat%02d" % row, Vector3(2.0, 0.16, 0.11), Vector3(0, y, z), shade, Vector3(10, 0, 0), 0.85)
-    for x in [-0.79, 0.79]:
-        _box(bench, "IronLeg", Vector3(0.13, 0.59, 0.13), Vector3(x, 0.295, -0.12), iron)
-        _box(bench, "IronRearLeg", Vector3(0.13, 0.59, 0.13), Vector3(x, 0.295, 0.24), iron)
-        _box(bench, "IronBackSupport", Vector3(0.10, 0.77, 0.11), Vector3(x, 1.045, 0.355), iron, Vector3(10, 0, 0))
-    _box(bench, "IronSeatBrace", Vector3(1.75, 0.10, 0.10), Vector3(0, 0.53, -0.06), iron)
-    # Preserve preexisting solid bench boundaries and market clearance.
-    var sx := absf(cos(deg_to_rad(yaw))) * 2.15 + absf(sin(deg_to_rad(yaw))) * 0.85
-    var sz := absf(sin(deg_to_rad(yaw))) * 2.15 + absf(cos(deg_to_rad(yaw))) * 0.85
-    _add_blocker(Vector2(position.x, position.z), Vector2(sx, sz), 0.25)
+    # Rustic medieval trestle bench. Broad oak planks, carved supports and
+    # wrought-iron bolt heads replace the modern metal frame/slatted furniture.
+    var oak := Color("#6b4125")
+    var dark_oak := Color("#44291a")
+    var edge := Color("#91653c")
+    var iron := Color("#383c3c")
+    for x in [-0.75, 0.75]:
+        var px := float(x)
+        _box(bench, "CarvedTrestleFoot", Vector3(0.31, 0.18, 0.75), Vector3(px, 0.10, 0.02), dark_oak)
+        _box(bench, "TrestlePost", Vector3(0.22, 0.57, 0.22), Vector3(px, 0.40, 0.0), oak)
+        _box(bench, "IronFootBand", Vector3(0.245, 0.065, 0.245), Vector3(px, 0.22, 0), iron)
+        _box(bench, "DiagonalWoodBraceFront", Vector3(0.12, 0.51, 0.12),
+            Vector3(px, 0.39, -0.21), dark_oak, Vector3(25.0, 0, 0))
+        _box(bench, "DiagonalWoodBraceBack", Vector3(0.12, 0.51, 0.12),
+            Vector3(px, 0.39, 0.21), dark_oak, Vector3(-25.0, 0, 0))
+    _box(bench, "SolidOakSeat", Vector3(2.20, 0.17, 0.65), Vector3(0.0, 0.74, -0.06), oak)
+    _box(bench, "RoundedSeatEdge", Vector3(2.25, 0.065, 0.70), Vector3(0, 0.842, -0.06), edge)
+    _box(bench, "BackBeam", Vector3(2.10, 0.44, 0.13), Vector3(0, 1.15, 0.30),
+        oak, Vector3(9, 0, 0))
+    _box(bench, "CarvedBackCap", Vector3(2.22, 0.09, 0.16), Vector3(0, 1.42, 0.35), edge)
+    for x in [-0.88, 0.88]:
+        var px := float(x)
+        _box(bench, "BackTrestle", Vector3(0.13, 0.88, 0.14),
+            Vector3(px, 1.05, 0.31), dark_oak, Vector3(9, 0, 0))
+        _sphere(bench, "IronSeatRivet", 0.044, Vector3(px, 0.865, -0.27), iron, 0.33)
+        _sphere(bench, "IronBackRivet", 0.045, Vector3(px, 1.18, 0.22), iron, 0.33)
+    bench.set_meta("bench_style", "medieval_trestle")
+    var sx := absf(cos(deg_to_rad(yaw))) * 2.25 + absf(sin(deg_to_rad(yaw))) * 0.92
+    var sz := absf(sin(deg_to_rad(yaw))) * 2.25 + absf(cos(deg_to_rad(yaw))) * 0.92
+    _add_blocker(Vector2(position.x, position.z), Vector2(sx, sz), 0.24)
+
 
 func _add_barrel(position: Vector3) -> void:
     var barrel := Node3D.new()
@@ -809,22 +831,50 @@ func _add_barrel(position: Vector3) -> void:
 
 func _add_lamp(position: Vector3) -> void:
     var lamp := Node3D.new()
+    lamp.name = "MedievalStreetLamp"
     lamp.position = position
     add_child(lamp)
-    _tapered_cylinder(lamp, "Post", 0.08, 0.055, 2.7, Vector3(0, 1.35, 0), Color("#2e3337"))
-    _box(lamp, "Arm", Vector3(0.65, 0.08, 0.08), Vector3(0.25, 2.55, 0), Color("#2e3337"))
-    _sphere(lamp, "Lantern", 0.18, Vector3(0.55, 2.40, 0), Color("#ffd889"), 0.28)
+    var timber := Color("#533721")
+    var dark_iron := Color("#363434")
+    var sandstone := Color("#817969")
+    # A small foundation and a carved oak column replace the modern thin pole.
+    _cylinder(lamp, "StonePlinth", 0.15, 0.23, Vector3(0, 0.12, 0), sandstone)
+    _tapered_cylinder(lamp, "OakLampMast", 0.13, 0.085, 2.30,
+        Vector3(0, 1.37, 0), timber)
+    _cylinder(lamp, "ForgedIronCollar", 0.15, 0.13,
+        Vector3(0, 2.41, 0), dark_iron, 0.42)
+    _box(lamp, "LampCrossBeam", Vector3(0.19, 0.17, 0.90),
+        Vector3(0, 2.55, 0.31), timber)
+    _box(lamp, "LampDiagonalBrace", Vector3(0.11, 0.70, 0.11),
+        Vector3(0, 2.29, 0.25), timber, Vector3(-35, 0, 0))
+    _cylinder(lamp, "CanopyFinial", 0.13, 0.17, Vector3(0, 2.78, 0), dark_iron, 0.40)
+    # The actual licensed fantasy lantern is in the existing 20-model pack.
+    # No extra asset download or mobile APK size penalty is required.
+    var hanging := Node3D.new()
+    hanging.name = "QuaterniusLanternMount"
+    hanging.position = Vector3(0, 1.82, 0.52)
+    lamp.add_child(hanging)
+    var imported := SceneryReplacement.place(
+        hanging, "Lantern_Wall", Vector3(0.50, 0.96, 0.77)
+    )
+    if not imported:
+        _box(hanging, "ForgedIronLanternCage", Vector3(0.35, 0.52, 0.35),
+            Vector3(0, 0.42, 0), dark_iron)
+        _sphere(hanging, "WarmGlassGlow", 0.13, Vector3(0, 0.45, 0),
+            Color("#ffd385"), 0.25)
     var glow := OmniLight3D.new()
-    glow.position = Vector3(0.55, 2.40, 0)
+    glow.name = "WarmLanternLight"
+    glow.position = Vector3(0, 2.38, 0.52)
     glow.light_color = Color("#ffd38a")
     glow.light_energy = 0.55
-    glow.omni_range = 3.8
+    glow.omni_range = 4.0
     glow.shadow_enabled = false
     lamp.add_child(glow)
-    # Freestanding street lamps were previously visual-only: fit collision to
-    # the narrow base instead of a giant invisible square around the lantern.
-    _add_circle_blocker(Vector2(position.x, position.z), 0.08, PLAYER_WORLD_RADIUS + 0.025)
-    _add_camera_obstacle(position + Vector3(0.0, 1.35, 0.0), Vector3(0.16, 2.70, 0.16))
+    lamp.set_meta("lamp_style", "medieval_oak_and_lantern")
+    lamp.set_meta("lantern_asset_loaded", imported)
+    _add_circle_blocker(Vector2(position.x, position.z), 0.15, PLAYER_WORLD_RADIUS + 0.025)
+    _add_camera_obstacle(position + Vector3(0, 1.37, 0),
+        Vector3(0.28, 2.75, 0.28))
 
 func _add_wall_segment(position: Vector3, size: Vector3) -> void:
     var stone := Color("#716f68")
@@ -1313,7 +1363,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2Y  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2Z  |  " + title
     if _detail != null:
         _detail.text = detail
 
