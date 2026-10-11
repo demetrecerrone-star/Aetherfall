@@ -1192,18 +1192,36 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     stall.set_meta("support_post_positions", post_positions)
     stall.set_meta("facing_degrees", yaw)
     _add_camera_obstacle(position + Vector3(0, 1.0, 0), Vector3(2.75, 2.0, 2.75))
-    # Pass 4.2: these fit on the EXISTING solid counter, so no new barriers
-    # appear in the browsing ring. The original decorated crate placeholders
-    # are hidden by SceneryReplacement.place() above, not doubled.
+    # Pass 4.2b fixes the near-empty stalls seen on the real Android screen.
+    # The original y=1.18 stock was almost swallowed by the imported counter.
+    # A narrow raised oak merchandising rack makes the crates visible above
+    # the counter, WITHOUT blocking the browsing ring or changing stall physics.
+    var display := Node3D.new()
+    display.name = "RaisedMerchandiseRack"
+    stall.add_child(display)
+    var oak := Color("#6b4a31")
+    var trim := Color("#493222")
+    _box(display, "OakDisplayShelf", Vector3(2.23, 0.095, 0.86),
+        Vector3(0, 1.395, 0.15), oak, Vector3.ZERO, 0.95)
+    _box(display, "DisplayFrontLip", Vector3(2.25, 0.10, 0.070),
+        Vector3(0, 1.46, 0.555), trim)
+    _box(display, "DisplayBackLip", Vector3(2.25, 0.075, 0.070),
+        Vector3(0, 1.45, -0.255), trim)
+    for shelf_x in [-0.88, 0.88]:
+        _box(display, "ShelfSupport", Vector3(0.12, 0.33, 0.54),
+            Vector3(float(shelf_x), 1.18, 0.13), trim)
     var produce_stall := position.x < 0.0
     var first_asset := "FarmCrate_Apple" if produce_stall else "Crate_Wooden"
     var second_asset := "Crate_Wooden" if produce_stall else "FarmCrate_Apple"
     _add_market_counter_goods(stall, "CounterStock_Primary", first_asset,
-        Vector3(-0.52, 1.18, -0.06), Vector3(0.54, 0.43, 0.53))
+        Vector3(-0.72, 1.455, 0.09), Vector3(0.62, 0.55, 0.62))
     _add_market_counter_goods(stall, "CounterStock_Secondary", second_asset,
-        Vector3(0.49, 1.18, -0.09), Vector3(0.44, 0.35, 0.44))
-    stall.set_meta("market_wares_style", "curated_existing_quaternius_crates")
-    stall.set_meta("market_wares_expected", 2)
+        Vector3(0, 1.455, 0.10), Vector3(0.60, 0.52, 0.60))
+    _add_market_counter_goods(stall, "CounterStock_Third", first_asset,
+        Vector3(0.72, 1.455, 0.09), Vector3(0.62, 0.55, 0.62))
+    stall.set_meta("market_wares_style", "curated_raised_oak_merchandise_rack")
+    stall.set_meta("market_wares_expected", 3)
+    stall.set_meta("market_wares_shelf_height_m", 1.4425)
 
 
 func _add_market_counter_goods(stall: Node3D, label: String,
@@ -1218,29 +1236,6 @@ func _add_market_counter_goods(stall: Node3D, label: String,
     goods.set_meta("model", asset)
     goods.set_meta("placement", "on_existing_solid_counter")
     goods.set_meta("no_extra_collision", true)
-
-
-func _add_existing_shop_stock(position: Vector3, shop_name: String,
-        asset: String) -> void:
-    # Carefully chosen side-of-building stock locations, NOT the front doors
-    # or the central marketplace. Each floor crate has a compact solid blocker.
-    var p := Vector2(position.x, position.z)
-    if _world_point_blocked(p):
-        push_warning("Shop stock location blocked; skipping: " + str(p))
-        return
-    var stock := Node3D.new()
-    stock.name = "ShopStock_%s" % shop_name
-    stock.position = position
-    add_child(stock)
-    if not SceneryReplacement.place(stock, asset, Vector3(0.70, 0.66, 0.70)):
-        push_error("AETHERFALL_SHOP_STOCK_MISSING: " + asset)
-        stock.queue_free()
-        return
-    stock.set_meta("model", asset)
-    stock.set_meta("stock_for", shop_name)
-    stock.set_meta("decoration_source", "existing_cc0_scenery_pack")
-    _add_circle_blocker(p, 0.37, PLAYER_WORLD_RADIUS + 0.025)
-    _add_camera_obstacle(position + Vector3(0, 0.34, 0), Vector3(0.74, 0.68, 0.74))
 
 
 func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
@@ -1618,13 +1613,9 @@ func _build_stage() -> void:
     _add_barrel(Vector3(-15.75,0,8.25))
     _add_barrel(Vector3(15.20,0,8.10))
 
-    # Pass 4.2 deliberately REUSES the existing decor. Add only two grounded
-    # supply crates outside commercial side walls; do not duplicate barrels,
-    # trees, flowerbeds, benches, lanterns, or gate props.
-    _add_existing_shop_stock(Vector3(-15.90, 0.0, -7.60),
-        "Guild", "Crate_Wooden")
-    _add_existing_shop_stock(Vector3(15.65, 0.0, 9.65),
-        "GeneralGoods", "FarmCrate_Apple")
+    # Phone-test feedback: isolated new supply crates sat in thick grass.
+    # Retire these loose props until Pass 4.3 provides proper loading docks
+    # or wagon storage; existing barrels and house landscaping stay untouched.
 
     # Alternate broadleaf/mossy deciduous trees with taller, dark evergreens.
     # Extra pines along the wall bring scale variation and a valley silhouette.
