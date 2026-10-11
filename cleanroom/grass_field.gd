@@ -3,10 +3,12 @@ const NatureReplacement = preload("res://nature_replacements.gd")
 ## Low, soft, curved meadow grass batched into 8m chunks for mobile rendering.
 ## Five-leaf tuft ribbons replace spike-like triangles. Roads stay clear.
 const CELL_SIZE := 8.0
-# 40x40 rather than 34x34 per eight-metre chunk: 38% more
-# possible planting positions before road/obstacle rejection.
-const TUFT_SPACING := 0.20
-const SAMPLES_PER_CELL := 40
+# 56x56 rather than 40x40 per 8m cell: 3,136 vs 1,600 candidates,
+# 1.96x the previous lawn sampling density. Preserve mobile MultiMesh
+# batching, and restrain clover/ferns to avoid doubling decoration.
+const SAMPLES_PER_CELL := 56
+const TUFT_SPACING := CELL_SIZE / float(SAMPLES_PER_CELL)
+const GRASS_DENSITY_MULTIPLIER := 1.96
 
 static func _blade_mesh() -> ArrayMesh:
     # Five slightly curved, tapered leaf blades per tuft instead of the old
@@ -82,8 +84,8 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                 for gz in range(SAMPLES_PER_CELL):
                     if rng.randf() < 0.012:
                         continue
-                    var x := float(tx) + (float(gx) + 0.5) * TUFT_SPACING + rng.randf_range(-0.089, 0.089)
-                    var z := float(tz) + (float(gz) + 0.5) * TUFT_SPACING + rng.randf_range(-0.089, 0.089)
+                    var x := float(tx) + (float(gx) + 0.5) * TUFT_SPACING + rng.randf_range(-0.066, 0.066)
+                    var z := float(tz) + (float(gz) + 0.5) * TUFT_SPACING + rng.randf_range(-0.066, 0.066)
                     if absf(x) > 25.7 or absf(z) > 23.5:
                         continue
                     # All four plants require *actual bare lawn* rather than
@@ -104,11 +106,11 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                     var roll := rng.randf()
                     var type_id := 0
                     if native_enabled:
-                        if is_edge and roll < 0.013 and cluster > -0.25:
+                        if is_edge and roll < 0.0065 and cluster > -0.25:
                             type_id = 3
-                        elif roll < (0.045 if cluster < 0.15 else 0.075):
+                        elif roll < (0.025 if cluster < 0.15 else 0.040):
                             type_id = 2
-                        elif roll < (0.21 if cluster > 0.22 else 0.16):
+                        elif roll < (0.175 if cluster > 0.22 else 0.140):
                             type_id = 1
                         # Bigger fern footprint must also remain completely
                         # inside the grass and outside solid scenery.
@@ -175,6 +177,9 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
     town.set_meta("grass_style", "quaternius_mixed_fantasy_meadow" if native_enabled else "soft_curved_meadow_grass")
     town.set_meta("grass_nature_model_loaded", native_enabled)
     town.set_meta("grass_spacing_m", TUFT_SPACING)
+    town.set_meta("grass_sampling_per_cell", SAMPLES_PER_CELL)
+    town.set_meta("grass_density_multiplier", GRASS_DENSITY_MULTIPLIER)
+    town.set_meta("grass_density_goal", "approximately_double_common_and_wispy")
     town.set_meta("grass_coverage_pass", "dense_foundation_edges")
     town.set_meta("grass_source_tile_size_m", CELL_SIZE)
     town.set_meta("grass_blade_nominal_height_m", 0.184)
