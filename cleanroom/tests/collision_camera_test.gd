@@ -64,7 +64,7 @@ func _check() -> void:
         _fail("Removed stairs still affect boot grounding")
         return
     # Stone finish should match nearby stone foundations, not the old timber.
-    var stone_towers := town.find_children("StoneGateTower", "MeshInstance3D", true, false)
+    var stone_towers := town.find_children("StoneGateTower_*", "MeshInstance3D", true, false)
     if stone_towers.size() != 2:
         _fail("Gate watchtowers must both be weathered masonry")
         return
