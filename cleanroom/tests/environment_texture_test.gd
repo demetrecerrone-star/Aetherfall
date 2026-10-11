@@ -138,20 +138,50 @@ func _run_check() -> void:
         _fail("Foliage leaf cards are still one-sided")
         return
 
-    # Regression: broad striped wall faces must have stone at normal scale,
-    # not BoxMesh facade UVs stretched from their thin axis.
-    # Godot renames duplicate generic nodes when they share a parent. Every
-    # wall is created by _add_wall_segment with the same TownWall material.
-    var wall := town.find_child("TownWall", true, false) as MeshInstance3D
-    if wall == null:
-        _fail("Missing perimeter stone wall")
+    # Pass 3: the old flat rectangular stone box is gone.
+    if town.find_child("TownWall", true, false) != null:
+        _fail("The old rectangular stone perimeter is still rendered")
         return
-    var wall_mat := wall.material_override as StandardMaterial3D
-    if wall_mat == null or wall_mat.albedo_texture == null or not wall_mat.uv1_triplanar:
-        _fail("Town wall faces need properly projected stone, not stretched stripes")
+    var cliffs := town.find_children("ValleyCliffs_*", "MeshInstance3D", true, false)
+    if cliffs.size() != 3:
+        _fail("Mountain valley needs north/west/east rocky cliff silhouettes")
         return
-    if absf(wall_mat.uv1_scale.x - wall_mat.uv1_scale.y) > 0.01 or absf(wall_mat.uv1_scale.y - wall_mat.uv1_scale.z) > 0.01:
-        _fail("Wall texture scaling is not uniform on all facade faces")
+    var stockade := town.get_node_or_null("ValleyTimberPalisade") as MultiMeshInstance3D
+    var pointed := town.get_node_or_null("ValleyTimberPointedTips") as MultiMeshInstance3D
+    if stockade == null or pointed == null:
+        _fail("Timber palisade mesh and opaque pointed logs are required")
+        return
+    if stockade.multimesh == null or pointed.multimesh == null:
+        _fail("Timber wall has no batched mesh")
+        return
+    if stockade.multimesh.instance_count < 300 or stockade.multimesh.instance_count != pointed.multimesh.instance_count:
+        _fail("The perimeter timber wall contains gaps")
+        return
+    if stockade.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+        _fail("Palisade shadows are too expensive for Android")
+        return
+    if town.get_meta("perimeter_style", "") != "mountain_valley_timber_palisade":
+        _fail("The approved mountain valley has not replaced the boxed walls")
+        return
+    if not bool(town.get_meta("main_gate_permanently_closed", false)):
+        _fail("Town gate must remain permanently closed")
+        return
+    var gate_leaves := town.find_children("ClosedWoodGateLeaf*", "MeshInstance3D", true, false)
+    if gate_leaves.size() != 2:
+        _fail("Gate has transparent gaps or lacks its two solid wooden leaves")
+        return
+    if town.find_child("GateBar", true, false) != null:
+        _fail("See-through portcullis remains")
+        return
+    var transfer := town.get_node_or_null("AetherfallZoneTransfer")
+    if transfer == null or transfer.get_node_or_null("ZonePreviewNotice") == null:
+        _fail("Closed gate has no Iruna-style area loading / next-zone system")
+        return
+    if transfer.get_node_or_null("AreaLoadingOverlay") == null:
+        _fail("Dedicated regional loading-screen overlay is missing")
+        return
+    if not String(town.get_meta("gate_destination_scene", "")).begins_with("res://areas/"):
+        _fail("Future area path not configured at town gate")
         return
 
     # Former fountain square now hosts additional market stands, with a clear aisle.
@@ -229,7 +259,7 @@ func _run_check() -> void:
         _fail("Obsolete procedural stairs remain in town")
         return
 
-    print("AETHERFALL_ENVIRONMENT_PASS2_OK: One medieval cobble road network, all 10 doorways connected, dirt verges, thick yard lawn and inward-backed stalls")
+    print("AETHERFALL_ENVIRONMENT_PASS3_OK: One medieval cobble road network, all 10 doorways connected, dirt verges, thick yard lawn and inward-backed stalls")
     town.queue_free()
     quit(0)
 

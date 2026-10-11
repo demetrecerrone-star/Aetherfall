@@ -23,12 +23,16 @@
 - Source edits and regression assertions exist, but full Godot runtime and phone screenshots are **not yet verified**. No APK has been generated.
 
 
-## Pass 3 — Mountain valley, timber wall and closed gate
+## Pass 3 — Mountain valley, timber wall and closed gate (source changes staged)
 
-- Mountains/cliffs along the rear and sides of the village; reinforced timber palisades along accessible boundaries.
-- Main solid wooden double gate remains **visually closed at all times**; it does not open.
-- On approach, trigger **Iruna Online-style zone loading**: show a dedicated area loading screen and load the separately authored next region. Retain player identity, inventory and progress.
-- No need to render an explorable outer world beyond the starter-town boundary.
+- Replaces flat stone rectangle with three low-poly, irregular ridgelines along the north/back, west and east. Cliffs rise beyond the already-playable bounds, avoiding the need to create an exterior world.
+- Replaces old stone wall facade and individual buttress decorations with continuous opaque timber palisades. Logs and sharpened tips use **two MultiMesh batches**, retaining simple narrow rectangular collision boundaries and aligned camera blockers. Supports/crossbeams make the interior appear engineered rather than a featureless wooden fence.
+- Keeps gatehouse watch towers at the proven 2.3 m gameplay collision radius, but visually integrates them with timber walls and wooden gatehouse.
+- Removes the see-through portcullis. Two **fully solid oak gate leaves** overlap the tower opening, with dark wood plank seams, iron straps, hinges and a heavy overhead timber lintel. Gate is NEVER openable.
+- Adds `zone_transfer.gd` as a reusable scene-transition controller with a loading overlay and retained character/inventory/equipment/progress dictionary.
+- Walking into the approach zone at the main gate (narrow central corridor and front of the closed doors) registers the named destination `res://areas/valley_outskirts.tscn`. When that scene becomes available, transition occurs with loading progress while the previous scene is unloaded. When not yet authored, show a short **nonmodal** notice rather than falsely opening the gate or loading an empty map.
+- This is the **foundation** for Iruna Online-like discrete zones. The next area's exterior terrain and reverse-transfer arrival point are a separate future task, not fabricated as part of Pass 3.
+- **No APK** or Android export has been requested or created. Godot runtime and phone visual QA remain outstanding.
 
 ## Passes 4–9
 

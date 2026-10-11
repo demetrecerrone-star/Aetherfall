@@ -2,6 +2,10 @@ extends Node3D
 const SceneryReplacement = preload("res://scenery_replacements.gd")
 const GrassField = preload("res://grass_field.gd")
 const RoadNetwork = preload("res://road_network.gd")
+const MountainValley = preload("res://mountain_valley.gd")
+const ZoneTransfer = preload("res://zone_transfer.gd")
+const NEXT_ZONE_SCENE := "res://areas/valley_outskirts.tscn"
+const NEXT_ZONE_NAME := "Valley Outskirts"
 ## Runtime Tripo/Mixamo QA scene for Aetherfall character pass.
 ## Loads the supplied GLB directly and adds game-ready preview behavior:
 ## gameplay locomotion test: touch movement, camera orbit, auto animation states, grounding.
@@ -113,6 +117,8 @@ var _camera_fade_surfaces: Array[Dictionary] = []
 var _camera_fade_alpha := 1.0
 var _door_step_surfaces: Array[Dictionary] = []
 var _boundary_flash := 0.0
+var _zone_transfer: Node
+var _gate_zone_latched := false
 
 # Permanent on-device startup diagnostics. Parse errors are blocked by CI before
 # an APK is shipped; runtime startup stages are shown here on the phone.
@@ -139,6 +145,11 @@ func _ready() -> void:
     _diag_stage("AF-TOWN-220", "Building Starter Town geometry and collision blockers.")
     _build_stage()
     _diag_stage("AF-TOWN-221", "Starter Town geometry finished successfully.")
+
+    # Area transition controller can show a custom loading screen once
+    # the next region exists. Until then, the closed gate gives a notice.
+    _zone_transfer = ZoneTransfer.new()
+    add_child(_zone_transfer)
 
     _diag_stage("AF-PLAYER-230", "Creating player actor root.")
     _actor = Node3D.new()
@@ -260,7 +271,7 @@ func _refresh_diagnostics() -> void:
             state = "READY - no startup errors detected"
         elif _startup_failed:
             state = "FAILED - photograph this panel"
-        _diag_detail_label.text = "Starter Town Pass 2 diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
+        _diag_detail_label.text = "Starter Town Pass 3 diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
 
 func _load_town_textures() -> void:
     _town_textures.clear()
@@ -287,6 +298,8 @@ func _town_texture_group(name: String) -> String:
         return "roof"
     if n == "plasterwalls":
         return "plaster"
+    if n.begins_with("closedwoodgate") or n.begins_with("timbergate") or n.begins_with("gatehouse") or n.begins_with("gatediagonal"):
+        return "wood"
     if n in ["roadstone", "squarestone", "entryroad", "crossroad", "marketsquare"]:
         return "cobble"
     if n.contains("foundation") or n.contains("cornerstone") or n.contains("wallcap") or n.contains("buttress") or n == "townwall" or n.begins_with("gatetower") or n.begins_with("chimney") or n == "rock":
@@ -1031,47 +1044,75 @@ func _build_stage() -> void:
     # scenery placement so imported building entrances drive their endpoints.
     # The old three overlapping BoxMesh road slabs are deliberately retired.
 
-    # Perimeter walls with caps and simple buttresses. The hard software boundary remains authoritative.
-    _add_wall_segment(Vector3(-27.6, 1.7, 0), Vector3(1.2, 3.4, 52.0))
-    _add_wall_segment(Vector3(27.6, 1.7, 0), Vector3(1.2, 3.4, 52.0))
-    _add_wall_segment(Vector3(0, 1.7, -25.6), Vector3(56.4, 3.4, 1.2))
-    _add_wall_segment(Vector3(-15.3, 1.7, 25.6), Vector3(25.8, 3.4, 1.2))
-    _add_wall_segment(Vector3(15.3, 1.7, 25.6), Vector3(25.8, 3.4, 1.2))
-    # Decorative buttresses project in front of the long wall plane.
-    # Give each visible support a tightly fitting player and camera blocker.
-    # The broad world bounds still handle the wall between supports.
-    for z in range(-21, 22, 6):
-        for wall_x in [-26.72, 26.72]:
-            var side: String = "L" if wall_x < 0.0 else "R"
-            var pillar_center := Vector3(wall_x, 1.2, float(z))
-            var pillar_size := Vector3(0.55, 2.4, 0.85)
-            _box(self, "WallButtress" + side, pillar_size, pillar_center, Color("#625f59"))
-            _add_blocker(Vector2(wall_x, float(z)), Vector2(0.55, 0.85), PLAYER_WORLD_RADIUS + 0.025)
-            _add_camera_obstacle(pillar_center, pillar_size)
-    for x in range(-22, 23, 6):
-        var pillar_center := Vector3(float(x), 1.2, -24.72)
-        var pillar_size := Vector3(0.85, 2.4, 0.55)
-        _box(self, "WallButtressN", pillar_size, pillar_center, Color("#625f59"))
-        _add_blocker(Vector2(float(x), -24.72), Vector2(0.85, 0.55), PLAYER_WORLD_RADIUS + 0.025)
-        _add_camera_obstacle(pillar_center, pillar_size)
+    # Mountain valley: rugged cliffs along north and both sides conceal the
+    # unloaded world, backed by a fully opaque, overlapping timber palisade.
+    # The wall collision is a compact solid strip, not hundreds of physics bodies.
+    MountainValley.build(self,
+        _town_textures.get("stone", null) as Texture2D,
+        _town_textures.get("wood", null) as Texture2D)
+    for side in [-1, 1]:
+        _add_blocker(Vector2(float(side) * 26.67, 0.0),
+            Vector2(0.64, 49.2), PLAYER_WORLD_RADIUS + 0.025)
+        _add_camera_obstacle(Vector3(float(side) * 26.67, 2.05, 0.0),
+            Vector3(0.64, 4.10, 49.2))
+    _add_blocker(Vector2(0.0, -24.65), Vector2(53.4, 0.64),
+        PLAYER_WORLD_RADIUS + 0.025)
+    _add_camera_obstacle(Vector3(0.0, 2.05, -24.65),
+        Vector3(53.4, 4.10, 0.64))
+    for side in [-1, 1]:
+        _add_blocker(Vector2(float(side) * 16.55, 24.64),
+            Vector2(20.8, 0.64), PLAYER_WORLD_RADIUS + 0.025)
+        _add_camera_obstacle(Vector3(float(side) * 16.55, 2.05, 24.64),
+            Vector3(20.8, 4.10, 0.64))
 
-    # Gatehouse towers, roofs and closed portcullis.
-    _cylinder(self, "GateTowerL", 2.3, 6.0, Vector3(-4.1, 3.0, 24.6), Color("#706e68"))
-    _cylinder(self, "GateTowerR", 2.3, 6.0, Vector3(4.1, 3.0, 24.6), Color("#706e68"))
-    _tapered_cylinder(self, "GateRoofL", 2.65, 0.08, 2.2, Vector3(-4.1, 7.05, 24.6), Color("#5d3931"))
-    _tapered_cylinder(self, "GateRoofR", 2.65, 0.08, 2.2, Vector3(4.1, 7.05, 24.6), Color("#5d3931"))
-    # Match the actual 2.30 m tower radius plus player clearance.
-    # 0.2U used 2.35 + 0.68 m and stopped the actor far from visible stone.
-    _add_circle_blocker(Vector2(-4.1,24.6), 2.30, PLAYER_WORLD_RADIUS + 0.035)
-    _add_circle_blocker(Vector2(4.1,24.6), 2.30, PLAYER_WORLD_RADIUS + 0.035)
-    # The portcullis is a closed solid barrier, even after tightening towers.
-    _add_blocker(Vector2(0.0, 25.0), Vector2(4.4, 0.24), PLAYER_WORLD_RADIUS + 0.035)
-    _add_camera_cylinder(Vector3(-4.1, 3.0, 24.6), 2.30, 6.0)
-    _add_camera_cylinder(Vector3(4.1, 3.0, 24.6), 2.30, 6.0)
-    _add_camera_obstacle(Vector3(0.0, 1.63, 25.0), Vector3(4.5, 3.25, 0.28))
-    for x in range(-2, 3):
-        _box(self, "GateBar", Vector3(0.18, 3.25, 0.22), Vector3(float(x) * 0.75, 1.63, 25.0), Color("#3e2c24"))
-    _box(self, "GateCrossbar", Vector3(4.4, 0.20, 0.24), Vector3(0, 2.15, 25.0), Color("#3e2c24"))
+    # Reinforced front gatehouse, with two heavy watch towers that fit the
+    # existing proven player/camera collision radius. The gate NEVER opens.
+    for side in [-1, 1]:
+        var tower_x := float(side) * 4.1
+        _cylinder(self, "TimberGateTower", 2.3, 5.85,
+            Vector3(tower_x, 2.925, 24.6), Color("#705035"))
+        _tapered_cylinder(self, "TimberGateRoof", 2.65, 0.10, 2.05,
+            Vector3(tower_x, 6.82, 24.6), Color("#51372b"))
+        for edge in [-1, 1]:
+            _box(self, "GatehouseUpright", Vector3(0.28, 5.25, 0.30),
+                Vector3(tower_x + float(edge) * 1.63, 2.63, 22.99), Color("#4a3326"))
+        _add_circle_blocker(Vector2(tower_x, 24.6), 2.30,
+            PLAYER_WORLD_RADIUS + 0.035)
+        _add_camera_cylinder(Vector3(tower_x, 2.925, 24.6), 2.30, 5.85)
+
+    # TWO continuous solid wooden leaves; their planks overlap the tower
+    # opening so there are no sight-lines to an unbuilt exterior map.
+    for side in [-1, 1]:
+        var half_x := float(side) * 1.125
+        _box(self, "ClosedWoodGateLeaf", Vector3(2.28, 4.60, 0.42),
+            Vector3(half_x, 2.30, 24.62), Color("#62412c"))
+        for groove in range(5):
+            var gx := half_x - 0.95 + float(groove) * 0.47
+            _box(self, "ClosedWoodGatePlank", Vector3(0.045, 4.43, 0.055),
+                Vector3(gx, 2.32, 24.37), Color("#392c24"))
+        for bar_y in [1.05, 3.35]:
+            _box(self, "ClosedWoodGateIronStrap", Vector3(2.33, 0.16, 0.10),
+                Vector3(half_x, float(bar_y), 24.34), Color("#363a3a"))
+        _box(self, "GateDiagonalBrace", Vector3(0.23, 3.55, 0.13),
+            Vector3(half_x, 2.35, 24.30), Color("#48301f"),
+            Vector3(0, 0, 24.0 * float(side)))
+        for hinge_y in [1.10, 3.36]:
+            _cylinder(self, "GateIronHinge", 0.095, 0.12,
+                Vector3(half_x + float(side) * 0.89, float(hinge_y), 24.26),
+                Color("#313332"))
+    _box(self, "GateCentralJoin", Vector3(0.18, 4.76, 0.48),
+        Vector3(0.0, 2.38, 24.59), Color("#38281f"))
+    _box(self, "GatehouseHeavyLintel", Vector3(10.9, 0.95, 1.65),
+        Vector3(0.0, 5.20, 24.68), Color("#594029"))
+    _box(self, "GatehouseSign", Vector3(4.20, 0.60, 0.16),
+        Vector3(0.0, 5.40, 23.73), Color("#30261d"))
+    _add_blocker(Vector2(0.0, 24.64), Vector2(4.55, 0.50),
+        PLAYER_WORLD_RADIUS + 0.035)
+    _add_camera_obstacle(Vector3(0.0, 2.30, 24.62), Vector3(4.55, 4.60, 0.50))
+    set_meta("main_gate_permanently_closed", true)
+    set_meta("gate_interaction", "approach_loading_zone")
+    set_meta("gate_destination_scene", NEXT_ZONE_SCENE)
+    set_meta("gate_destination_label", NEXT_ZONE_NAME)
 
     # Landmark buildings.
     _add_house(Vector3(-10.5, 0, -7.5), Vector3(7.7, 3.8, 6.3), Color("#d4c29e"), Color("#704039"), "ADVENTURERS GUILD")
@@ -1289,7 +1330,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN PASS 2  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN PASS 3  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1929,6 +1970,27 @@ func _update_gameplay_movement(delta: float) -> void:
     elif _animation != null:
         _animation.speed_scale = 1.0
 
+func _update_gate_zone() -> void:
+    if _zone_transfer == null or _actor == null or not _loaded or _paused:
+        return
+    var near_gate := absf(_actor.position.x) <= 1.35 and _actor.position.z >= 22.45
+    if near_gate and not _gate_zone_latched:
+        _gate_zone_latched = true
+        # The gate never opens. A completed destination is loaded as a separate
+        # Godot scene; while missing it shows an honest availability message.
+        var carried := {
+            "character_variant": _character_variant,
+            "inventory": {},
+            "equipment": {},
+            "quest_progress": {},
+            "origin_zone": "starter_town"
+        }
+        _zone_transfer.call("attempt_transfer", NEXT_ZONE_SCENE,
+            NEXT_ZONE_NAME, carried, "valley_entrance")
+    elif not near_gate and _gate_zone_latched:
+        _gate_zone_latched = false
+        _zone_transfer.call("clear_hint")
+
 func _process(delta: float) -> void:
     if not _startup_complete and not _startup_failed:
         _startup_elapsed += delta
@@ -1936,6 +1998,7 @@ func _process(delta: float) -> void:
             _diag_failure("AF-WATCH-500", "Startup stopped before READY. Last stage: " + _diag_code + " - " + _diag_detail_text)
     _boundary_flash = maxf(0.0, _boundary_flash - delta)
     _update_gameplay_movement(delta)
+    _update_gate_zone()
     if _loaded and not _paused:
         _apply_transition(delta)
         _lock_root_motion()

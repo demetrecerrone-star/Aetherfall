@@ -63,36 +63,65 @@ func _check() -> void:
     if footing > 0.1:
         _fail("Removed stairs still affect boot grounding")
         return
+    # Gate towers remain 2.3m-radius solid, but the visible entrance is
+    # now an opaque fixed oak double gate instead of barred portcullis.
     if not bool(town.call("_world_point_blocked", Vector2(-4.1, 24.0))):
-        _fail("Gate tower is no longer blocked")
+        _fail("Wooden gate watch tower is missing its solid footprint")
         return
-    # Tower: 2.3m physical radius + 0.34m player + 0.035m skin.
-    # Points 2.65m and 2.75m from tower center straddle this boundary.
     if not bool(town.call("_world_point_blocked", Vector2(-4.1, 21.95))):
-        _fail("Approach clips through the gate tower")
+        _fail("Gate tower visual may be clipped")
         return
     if bool(town.call("_world_point_blocked", Vector2(-4.1, 21.85))):
-        _fail("Gate tower still has too large an invisible collision halo")
+        _fail("Wooden watch tower has a large invisible halo")
         return
-    if not bool(town.call("_world_point_blocked", Vector2(0.0, 24.65))):
-        _fail("Closed portcullis is passable")
+    if not bool(town.call("_world_point_blocked", Vector2(0.0, 24.30))):
+        _fail("Player can walk through the closed wooden gate")
         return
-    # Each visible town-wall support has fitted collision, without
-    # blocking empty air beyond its own projection.
-    for wall_x in [-26.72, 26.72]:
-        var approaching_x := -26.30 if wall_x < 0.0 else 26.30
-        var free_x := -25.80 if wall_x < 0.0 else 25.80
-        if not bool(town.call("_world_point_blocked", Vector2(approaching_x, -21.0))):
-            _fail("Side wall buttress is missing its collision")
+    if bool(town.call("_world_point_blocked", Vector2(0.0, 22.40))):
+        _fail("Approach zone has invisible blockers preventing area transfer")
+        return
+    # Front gate is fully sealed; side/rear wood walls match their visible
+    # log rows without the old jutting stone buttress blockers.
+    for wall_x in [-26.67, 26.67]:
+        var approach := -26.30 if wall_x < 0.0 else 26.30
+        var clear_x := -25.80 if wall_x < 0.0 else 25.80
+        if not bool(town.call("_world_point_blocked", Vector2(approach, -21.0))):
+            _fail("Solid timber perimeter was not registered as collision")
             return
-        if bool(town.call("_world_point_blocked", Vector2(free_x, -21.0))):
-            _fail("Side wall buttress blocks empty space")
+        if bool(town.call("_world_point_blocked", Vector2(clear_x, -21.0))):
+            _fail("Timber wall invisible collision extends into village")
             return
     if not bool(town.call("_world_point_blocked", Vector2(-22.0, -24.20))):
-        _fail("North wall buttress is missing its collision")
+        _fail("Rear palisade is not solid")
         return
     if bool(town.call("_world_point_blocked", Vector2(-22.0, -23.80))):
-        _fail("North wall buttress blocks empty air")
+        _fail("Palisade invisible wall protrudes into lawn")
+        return
+    if not bool(town.get_meta("main_gate_permanently_closed", false)):
+        _fail("Closed gate can be opened")
+        return
+    if town.get_meta("gate_interaction", "") != "approach_loading_zone":
+        _fail("No trigger associated with permanent wooden gate")
+        return
+    var controller := town.get_node_or_null("AetherfallZoneTransfer")
+    if controller == null:
+        _fail("Separate-zone transition controller missing")
+        return
+    var destination := String(town.get_meta("gate_destination_scene", ""))
+    if bool(controller.call("has_destination", destination)):
+        _fail("Unexpectedly found the not-yet-authored valley outskirts scene")
+        return
+    if bool(controller.call("attempt_transfer", destination,
+        "Valley Outskirts", {}, "valley_entrance")):
+        _fail("Gate transferred the player to a nonexistent zone")
+        return
+    var notice := controller.get_node_or_null("ZonePreviewNotice") as Label
+    if notice == null or not notice.visible:
+        _fail("Missing future area does not show an availability notice")
+        return
+    controller.call("clear_hint")
+    if notice.visible:
+        _fail("Future-area notice cannot be dismissed by leaving gate")
         return
     # Barrels are solid but not surrounded by invisible walls. Three barrels
     # are scattered around the blacksmith and the general shop.
@@ -195,7 +224,7 @@ func _check() -> void:
         _fail("Camera did not recover third-person distance")
         return
 
-    print("AETHERFALL_COLLISION_CAMERA_02Z_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
+    print("AETHERFALL_COLLISION_CAMERA_PASS3_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
     town.queue_free()
     quit(0)
 

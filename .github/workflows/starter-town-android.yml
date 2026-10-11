@@ -9,6 +9,8 @@ on:
       - "cleanroom/scenery_replacements.gd"
       - "cleanroom/grass_field.gd"
       - "cleanroom/road_network.gd"
+      - "cleanroom/mountain_valley.gd"
+      - "cleanroom/zone_transfer.gd"
       - "cleanroom/tests/scenery_asset_test.gd"
       - "Aetherfall-Scenery-Assets-For-GitHub.zip"
       - "cleanroom/export_presets.cfg"
@@ -34,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install optimized Quaternius scenery assets
-        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || github.ref == 'refs/heads/feature/starter-town-pass2-roads'
+        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || github.ref == 'refs/heads/feature/starter-town-pass3-valley')
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -177,7 +179,7 @@ jobs:
           text = path.read_text()
           version = 100000000 + int(os.environ["GITHUB_RUN_NUMBER"])
           text = re.sub(r"version/code=\d+", f"version/code={version}", text, count=1)
-          text = re.sub(r'version/name="[^"]+"', f'version/name="pass2-scenery.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
+          text = re.sub(r'version/name="[^"]+"', f'version/name="pass3-scenery.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
           path.write_text(text)
           print("Android version code:", version)
           PY
@@ -189,7 +191,7 @@ jobs:
           godot --headless --editor --path cleanroom --quit
 
       - name: Validate all 20 imported Quaternius models
-        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || github.ref == 'refs/heads/feature/starter-town-pass2-roads'
+        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || github.ref == 'refs/heads/feature/starter-town-pass3-valley')
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/scenery_asset_test.gd 2>&1 | tee /tmp/scenery-assets-qa.log
@@ -217,7 +219,7 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/environment_texture_test.gd 2>&1 | tee /tmp/environment-qa.log
-          grep -F 'AETHERFALL_ENVIRONMENT_PASS2_OK' /tmp/environment-qa.log
+          grep -F 'AETHERFALL_ENVIRONMENT_PASS3_OK' /tmp/environment-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_ENVIRONMENT_FAIL:' /tmp/environment-qa.log; then
             exit 1
           fi
@@ -226,7 +228,7 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/collision_camera_test.gd 2>&1 | tee /tmp/collision-camera-qa.log
-          grep -F 'AETHERFALL_COLLISION_CAMERA_02Z_OK' /tmp/collision-camera-qa.log
+          grep -F 'AETHERFALL_COLLISION_CAMERA_PASS3_OK' /tmp/collision-camera-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_COLLISION_CAMERA_FAIL' /tmp/collision-camera-qa.log; then
             exit 1
           fi
@@ -244,18 +246,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p cleanroom/builds "$RUNNER_TEMP/pack-audit"
-          godot --headless --path cleanroom --export-pack Android "$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-Pass2.pck"
-          test -s cleanroom/builds/Aetherfall-StarterTown-Pass2.pck
+          godot --headless --path cleanroom --export-pack Android "$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-Pass3.pck"
+          test -s cleanroom/builds/Aetherfall-StarterTown-Pass3.pck
           printf 'config_version=5\n\n[application]\nconfig/name="Aetherfall Pack Audit"\n' > "$RUNNER_TEMP/pack-audit/project.godot"
           cp cleanroom/tests/verify_pack_model.gd "$RUNNER_TEMP/pack-audit/verify_pack_model.gd"
-          export AETHERFALL_PACK_FILE="$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-Pass2.pck"
+          export AETHERFALL_PACK_FILE="$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-Pass3.pck"
           godot --headless --path "$RUNNER_TEMP/pack-audit" --script res://verify_pack_model.gd
 
       - name: Export signed Aetherfall Starter Town APK
         run: |
           mkdir -p cleanroom/builds
-          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-Pass2.apk)
-          test -s cleanroom/builds/Aetherfall-StarterTown-Pass2.apk
+          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-Pass3.apk)
+          test -s cleanroom/builds/Aetherfall-StarterTown-Pass3.apk
 
       - name: Verify APK signing certificate
         env:
@@ -263,7 +265,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          APK="cleanroom/builds/Aetherfall-StarterTown-Pass2.apk"
+          APK="cleanroom/builds/Aetherfall-StarterTown-Pass3.apk"
           "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
           ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
           EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
@@ -273,7 +275,7 @@ jobs:
       - name: Upload phone test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-StarterTown-Pass2-Android
-          path: cleanroom/builds/Aetherfall-StarterTown-Pass2.apk
+          name: Aetherfall-StarterTown-Pass3-Android
+          path: cleanroom/builds/Aetherfall-StarterTown-Pass3.apk
           if-no-files-found: error
           retention-days: 30
