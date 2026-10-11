@@ -6,6 +6,8 @@ on:
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
+      - "cleanroom/models/fountain/*.glb"
+      - "cleanroom/tests/fountain_asset_test.gd"
       - "cleanroom/nature_replacements.gd"
       - "cleanroom/tools/install_nature_megakit.py"
       - "cleanroom/tests/nature_asset_test.gd"
@@ -215,6 +217,14 @@ jobs:
           godot --headless --path cleanroom --script res://tests/nature_asset_test.gd 2>&1 | tee /tmp/nature-assets-qa.log
           grep -F 'AETHERFALL_NATURE_ASSETS_OK' /tmp/nature-assets-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_NATURE_ASSETS_FAIL' /tmp/nature-assets-qa.log; then exit 1; fi
+
+      - name: Verify authentic user fountain asset and playable square
+        if: github.ref_name == 'feature/quaternius-nature-megakit-import'
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/fountain_asset_test.gd 2>&1 | tee /tmp/fountain-qa.log
+          grep -F 'AETHERFALL_AUTHENTIC_FOUNTAIN_OK' /tmp/fountain-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_AUTHENTIC_FOUNTAIN_FAIL:' /tmp/fountain-qa.log; then exit 1; fi
 
       - name: Runtime smoke test imported animation playback
         run: |
