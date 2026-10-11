@@ -153,6 +153,17 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                 if transforms.is_empty():
                     continue
                 var colors: Array = colors_by_type[kind]
+                # Keep a random but deterministic order so lowering
+                # visible_instance_count at a distance thins the WHOLE patch,
+                # rather than cutting one side of the tile into a bare rectangle.
+                for k in range(transforms.size() - 1, 0, -1):
+                    var swap_index := rng.randi_range(0, k)
+                    var previous_transform: Transform3D = transforms[k]
+                    transforms[k] = transforms[swap_index]
+                    transforms[swap_index] = previous_transform
+                    var previous_color: Color = colors[k]
+                    colors[k] = colors[swap_index]
+                    colors[swap_index] = previous_color
                 var batch := MultiMesh.new()
                 batch.transform_format = MultiMesh.TRANSFORM_3D
                 batch.use_colors = true
@@ -164,6 +175,9 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                 var render := MultiMeshInstance3D.new()
                 render.name = ("GrassField_" if kind == 0 else "MeadowAccent_%d_" % kind) + "%02d" % tile_index
                 render.position = Vector3(float(tx), 0, float(tz))
+                # Exact 8m tile centres for cheap runtime distance-based LOD.
+                render.set_meta("meadow_center", Vector3(
+                    float(tx) + CELL_SIZE * 0.5, 0.0, float(tz) + CELL_SIZE * 0.5))
                 render.multimesh = batch
                 render.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
                 town.add_child(render)
