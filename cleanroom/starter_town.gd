@@ -1335,9 +1335,8 @@ func _build_stage() -> void:
     _fountain_glow.shadow_enabled = false
     add_child(_fountain_glow)
 
-    # Low decorative stone accents outside the collision ring keep the square open.
-    for accent_pos in [Vector3(-2.55,0.13,-5.85), Vector3(2.55,0.13,-5.85)]:
-        _cylinder(self, "FountainAccent", 0.34, 0.26, accent_pos, Color("#737873"), 0.92)
+    # Keep the fountain plaza clear; the two detached rear stone discs were
+    # mistaken for dropped fountain pieces and have no gameplay function.
 
     _add_circle_blocker(Vector2(0,-4.0), 2.32, PLAYER_WORLD_RADIUS + 0.025)
 

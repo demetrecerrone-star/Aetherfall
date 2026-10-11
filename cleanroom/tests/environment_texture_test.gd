@@ -94,6 +94,10 @@ func _run_check() -> void:
         return
     var sheets := town.find_children("FountainCascade*", "MeshInstance3D", true, false)
     var droplets := town.find_children("FountainDroplet*", "MeshInstance3D", true, false)
+    # The detached rear ground discs are not part of the fountain basin.
+    if town.find_child("FountainAccent", true, false) != null:
+        _fail("Detached stone discs have returned behind the fountain")
+        return
     var fake_rings := town.find_children("FountainRipple*", "MeshInstance3D", true, false)
     if sheets.size() != 8 or droplets.size() != 24 or fake_rings.size() != 0:
         _fail("Expected eight falling water curtains, 24 fine splash droplets and no fake ripples")
