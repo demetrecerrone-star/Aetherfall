@@ -1,0 +1,41 @@
+name: Extract original market stall mesh
+
+on:
+  push:
+    branches: [feature/starter-town-pass3-valley]
+    paths:
+      - ".github/workflows/stall-source-extract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract-market-stall:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract original market stand from existing GitHub archive
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          source = Path("Aetherfall-Scenery-Assets-For-GitHub.zip")
+          destination = Path("cleanroom/models/scenery/MarketStand_1.glb")
+          with ZipFile(source) as archive:
+              raw = archive.read("models/scenery/MarketStand_1.glb")
+          assert raw[:4] == b"glTF", "Source market stand is not a GLB"
+          assert int.from_bytes(raw[8:12], "little") == len(raw), "Corrupt GLB"
+          destination.parent.mkdir(parents=True, exist_ok=True)
+          destination.write_bytes(raw)
+          print("Recovered MarketStand_1.glb from already uploaded scenery archive:", len(raw), "bytes")
+          PY
+      - name: Commit extracted GLB for reproducible source mesh fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cleanroom/models/scenery/MarketStand_1.glb
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: recover original market stand GLB from scenery archive"
+            git push
+          fi
