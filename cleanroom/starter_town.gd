@@ -923,6 +923,8 @@ func _shrub_fits_lawn(center: Vector3, scale_factor: float, flowering: bool) -> 
 
 func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
     var flowering := variant % 4 == 2
+    # Green rounded shrub for some variants; rectangular green hedges for the rest.
+    # Previously these variants were reddish 'Bush_Common_Flowers'.
     # Search expanding rings rather than defaulting to the original point:
     # even a narrow patch of cobble underneath is unacceptable. Prefer spots
     # close to the intended house, not distant random open lawn.
@@ -954,23 +956,15 @@ func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) 
     if not flowering:
         _add_trimmed_hedge(shrub, scale_factor, variant)
     else:
-        shrub.name = "TownFlowerBush_%02d" % variant
-        var leaf_ground_sink := 0.31 * scale_factor
-        var installed := NatureReplacement.place(shrub, "Bush_Common_Flowers",
-            Vector3(1.60, 1.20, 1.60) * scale_factor, leaf_ground_sink)
-        if not installed:
-            installed = SceneryReplacement.place(shrub, "Bush_Flowers",
-                Vector3(1.42, 1.49, 1.42) * scale_factor,
-                PackedStringArray(), 0.0, leaf_ground_sink)
-            if installed:
-                _mute_imported_shrub(shrub)
-        if not installed:
+        shrub.name = "TownGreenBush_%02d" % variant
+        var ground_sink := 0.20 * scale_factor
+        if not NatureReplacement.place(shrub, "Bush_Common",
+            Vector3(1.54, 1.13, 1.54) * scale_factor, ground_sink):
             _add_trimmed_hedge(shrub, scale_factor, variant)
-        shrub.set_meta("scenery_ground_sink", leaf_ground_sink)
+        shrub.set_meta("green_bush_only", true)
         _foliage_grass_masks.append(Rect2(
-            Vector2(chosen.x - 0.47 * scale_factor, chosen.z - 0.47 * scale_factor),
-            Vector2.ONE * (0.94 * scale_factor)))
-        shrub.set_meta("leaf_ground_sink_m", leaf_ground_sink)
+            Vector2(chosen.x - 0.60 * scale_factor, chosen.z - 0.60 * scale_factor),
+            Vector2.ONE * (1.20 * scale_factor)))
     shrub.set_meta("grounded", true)
 
 
@@ -1020,17 +1014,64 @@ func _add_grass_clump(position: Vector3, scale_factor: float = 1.0) -> void:
     _box(clump, "BladeC", Vector3(0.035, 0.38, 0.05) * scale_factor, Vector3(0.12, 0.18, 0), green_a, Vector3(0, 0, 16))
     SceneryReplacement.place(clump, "Grass_Small", Vector3(0.55, 0.65, 0.55) * scale_factor)
 
+func _flower_patch_fits_lawn(center: Vector3, radius: float) -> bool:
+    # A full 3x3 patch footprint must be grass, NOT the centre alone.
+    # Unlike the former decorative prototypes this never touches cobbles.
+    for dx in [-1.0, 0.0, 1.0]:
+        for dz in [-1.0, 0.0, 1.0]:
+            var sample := center + Vector3(float(dx) * radius, 0.0, float(dz) * radius)
+            if _ground_surface_y(sample) >= 0.011:
+                return false
+            if _world_point_blocked(Vector2(sample.x, sample.z)):
+                return false
+            for mask in _foliage_grass_masks:
+                if mask.grow(0.05).has_point(Vector2(sample.x, sample.z)):
+                    return false
+    return true
+
+
 func _add_flower_patch(position: Vector3, flower_color: Color) -> void:
-    var patch := Node3D.new()
-    patch.position = position
-    add_child(patch)
-    var stem := Color("#47683f")
-    for i in range(4):
-        var x: float = -0.30 + float(i) * 0.20
-        var z: float = 0.10 if i % 2 == 0 else -0.10
-        var h: float = 0.26 + 0.04 * float(i % 2)
-        _box(patch, "FlowerStem", Vector3(0.025, h, 0.025), Vector3(x, h * 0.5, z), stem)
-        _sphere(patch, "FlowerHead", 0.07, Vector3(x, h + 0.03, z), flower_color)
+    # Real Quaternius wildflower groups; none of the old box stems or ball
+    # heads remain. Deterministic irregular clusters, not a regular row.
+    var patch_id: int = int(get_meta("wildflower_patch_count", 0))
+    var chosen := position
+    var found := false
+    for ring in range(13):
+        var distance := float(ring) * 0.36
+        var slots := 1 if ring == 0 else 20
+        for n in range(slots):
+            var angle := TAU * float(n) / float(slots) + float(patch_id) * 0.48
+            var candidate := position + Vector3(cos(angle) * distance, 0.0,
+                sin(angle) * distance)
+            if _flower_patch_fits_lawn(candidate, 0.45):
+                chosen = candidate
+                found = true
+                break
+        if found:
+            break
+    if not found:
+        push_warning("No real lawn bed available for flower patch %d; skipping." % patch_id)
+        return
+
+    var flower := Node3D.new()
+    flower.name = "WildflowerPatch_%02d" % patch_id
+    flower.position = chosen
+    flower.rotation.y = float(patch_id) * 0.77
+    add_child(flower)
+    var asset_name := "Flower_3_Group" if patch_id % 2 == 0 else "Flower_4_Group"
+    var flower_width := 0.72 + 0.16 * float(patch_id % 3)
+    var flower_height := 0.40 + 0.06 * float(patch_id % 4)
+    if not NatureReplacement.place(flower, asset_name,
+        Vector3(flower_width, flower_height, flower_width * 0.88), 0.035):
+        flower.queue_free()
+        push_warning("Quaternius flower model missing: " + asset_name)
+        return
+    flower.set_meta("landscaping_style", "real_meadow_wildflowers")
+    flower.set_meta("planted_in_lawn", true)
+    flower.set_meta("flower_group_asset", asset_name)
+    flower.set_meta("flower_tint_hint", flower_color)
+    flower.set_meta("patch_search_radius_m", 0.45)
+    set_meta("wildflower_patch_count", patch_id + 1)
 
 func _add_rock(position: Vector3, scale_factor: float = 1.0) -> void:
     var rock := Node3D.new()
@@ -1469,19 +1510,39 @@ func _build_stage() -> void:
     var shrub_index := 0
     for shrub_pos in [
         Vector3(-15,0,-11), Vector3(-6,0,-11), Vector3(6,0,-11), Vector3(15,0,-11),
-        Vector3(-15,0,11), Vector3(-7,0,11), Vector3(7,0,11), Vector3(15,0,11)
+        Vector3(-15,0,11), Vector3(-7,0,11), Vector3(7,0,11), Vector3(15,0,11),
+        Vector3(-19,0,-17), Vector3(19,0,-17), Vector3(-18,0,16),
+        Vector3(18,0,16), Vector3(-22,0,1), Vector3(22,0,-1)
     ]:
         _add_shrub(shrub_pos, 0.9, shrub_index)
         shrub_index += 1
 
     # Dense grass is placed after all solid scenery to avoid doorways and paths.
 
-    _add_flower_patch(Vector3(-14.3,0,-10.9), Color("#d9879b"))
-    _add_flower_patch(Vector3(-7.0,0,-11.1), Color("#d9b05f"))
-    _add_flower_patch(Vector3(7.3,0,-11.0), Color("#8ea9d8"))
-    _add_flower_patch(Vector3(14.2,0,-10.8), Color("#d9879b"))
-    _add_flower_patch(Vector3(-14.0,0,11.0), Color("#9f86cf"))
-    _add_flower_patch(Vector3(13.8,0,11.1), Color("#d9b05f"))
+    # Broader but deliberately irregular wildflower pockets among the grass
+    # near houses, tree edges and the palisade. Each checks its entire 0.9 m
+    # footprint against road surface, walls and shrub beds before placement.
+    for flower_info in [
+        [Vector3(-14.3,0,-10.9), Color("#c996ac")],
+        [Vector3(-7.0,0,-11.1), Color("#c6b68c")],
+        [Vector3(7.3,0,-11.0), Color("#aaa8c3")],
+        [Vector3(14.2,0,-10.8), Color("#c996ac")],
+        [Vector3(-14.0,0,11.0), Color("#bbb0c3")],
+        [Vector3(13.8,0,11.1), Color("#c6b68c")],
+        [Vector3(-20.5,0,-12.5), Color("#bbb0c3")],
+        [Vector3(20.5,0,-11.9), Color("#c6b68c")],
+        [Vector3(-21.0,0,12.8), Color("#c996ac")],
+        [Vector3(21.2,0,13.4), Color("#aaa8c3")],
+        [Vector3(-17.8,0,2.9), Color("#c6b68c")],
+        [Vector3(17.7,0,3.5), Color("#c996ac")],
+        [Vector3(-12.4,0,-17.5), Color("#aaa8c3")],
+        [Vector3(12.5,0,-17.3), Color("#c6b68c")],
+        [Vector3(-20.8,0,18.8), Color("#c996ac")],
+        [Vector3(20.0,0,19.1), Color("#bbb0c3")],
+        [Vector3(-8.6,0,16.1), Color("#c6b68c")],
+        [Vector3(9.2,0,16.3), Color("#aaa8c3")],
+    ]:
+        _add_flower_patch(flower_info[0] as Vector3, flower_info[1] as Color)
 
     for rock_pos in [
         Vector3(-24.0,0,-14.0), Vector3(24.1,0,-14.3),
