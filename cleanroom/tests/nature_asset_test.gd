@@ -5,7 +5,8 @@ const REQUIRED := [
     "Bush_Common", "Bush_Common_Flowers",
     "Pine_1", "Pine_2", "Pine_3", "Pine_4", "Pine_5",
     "CommonTree_1", "CommonTree_2", "CommonTree_3",
-    "Grass_Common_Short", "Grass_Wispy_Short", "Fern_1", "Clover_1"
+    "Grass_Common_Short", "Grass_Wispy_Short", "Fern_1", "Clover_1",
+    "Flower_3_Group", "Flower_4_Group"
 ]
 
 func _initialize() -> void:
@@ -31,14 +32,15 @@ func _run() -> void:
             return
         obj.free()
 
-    var native_grass := NatureReplacement.grass_mesh()
-    if native_grass == null or native_grass.get_surface_count() == 0:
-        _fail("Real short-grass mesh failed to load")
-        return
-    var blades := native_grass.get_faces().size() / 3
-    if blades < 20 or blades > 190:
-        _fail("Native grass is outside mobile triangle budget")
-        return
+    for plant_model in ["Grass_Common_Short", "Grass_Wispy_Short", "Clover_1", "Fern_1"]:
+        var native_grass := NatureReplacement.grass_mesh(plant_model)
+        if native_grass == null or native_grass.get_surface_count() == 0:
+            _fail("Real meadow groundcover mesh missing: " + plant_model)
+            return
+        var triangles := native_grass.get_faces().size() / 3
+        if triangles < 20 or triangles > 600:
+            _fail("Groundcover outside per-instance Android geometry budget: " + plant_model)
+            return
 
     var packed := load("res://starter_town.tscn") as PackedScene
     if packed == null:
@@ -54,9 +56,25 @@ func _run() -> void:
     if not bool(town.get_meta("grass_nature_model_loaded", false)):
         _fail("Grass Field still uses procedural vegetation")
         return
-    if String(town.get_meta("grass_style", "")) != "quaternius_textured_short_grass":
-        _fail("The new grass style was not applied")
+    if String(town.get_meta("grass_style", "")) != "quaternius_mixed_fantasy_meadow":
+        _fail("The four-species fantasy meadow mix was not applied")
         return
+    var species: Array = town.get_meta("grass_species_counts", [])
+    if species.size() != 4 or int(species[1]) < 500 or int(species[2]) < 150 or int(species[3]) < 1:
+        _fail("Actual wispy grass, clover and sparse ferns are not being instanced")
+        return
+    var flowers := town.find_children("WildflowerPatch_*", "Node3D", true, false)
+    if flowers.size() < 12:
+        _fail("The additional grass-bed flowers did not spawn")
+        return
+    for flower in flowers:
+        var plant := flower as Node3D
+        if not bool(town.call("_flower_patch_fits_lawn", plant.position, 0.45)):
+            _fail("At least one genuine flower cluster is on a cobbled road")
+            return
+        if String(plant.get_meta("flower_group_asset", "")).is_empty():
+            _fail("Flower is missing its Quaternius model reference")
+            return
 
     var planted_hedges := town.find_children("TownHedge_*", "Node3D", true, false)
     var actual_hedges := 0
@@ -89,7 +107,7 @@ func _run() -> void:
         _fail("Broadleaf used old tree geometry instead of MegaKit")
         return
 
-    print("AETHERFALL_NATURE_ASSETS_OK: 14 optimized models, textured trees, hip-high hedges, real lawn grass")
+    print("AETHERFALL_NATURE_ASSETS_OK: 16 CC0 plants, textured trees, green hedges, real flower groups and four-species meadow")
     town.queue_free()
     quit(0)
 
