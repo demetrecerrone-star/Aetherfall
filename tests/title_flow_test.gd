@@ -37,7 +37,7 @@ func _run() -> void:
 	if not studio_open or menu_hud == null:
 		_fail("studio entry or gameplay menu missing")
 		return
-	menu_hud.menu_tapped.emit()
+	menu_hud.emit_signal("menu_tapped")
 	await process_frame
 	await process_frame
 	var returned := current_scene != null and current_scene.name == "AetherfallTitleScreen"
