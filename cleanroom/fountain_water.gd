@@ -1,7 +1,7 @@
 extends Node3D
-## Quiet, three-tier water for the user's original medieval fountain.
-## Actual bowl elevations were measured from the supplied GLB at x3.55:
-## lower basin ~0.44m, middle basin ~1.60m, top bowl rim ~2.40m.
+## Calm water in the TWO hollow basins of the original three-level fountain.
+## The highest tier is solid ornamental stone, not a third hollow bowl.
+## Lower water ~0.44m; middle basin ~1.60m at model scale x3.55.
 ## Binbun-inspired animated water surfaces and lightweight small ripples
 ## are GPU shader-driven. No hanging water streams or particle systems.
 ## Never changes camera, fountain position/size or player collision.
@@ -10,10 +10,8 @@ const WATER_RIPPLE_SHADER = preload("res://fountain_water_ripple.gdshader")
 
 const LOWER_WATER_Y := 0.435
 const MIDDLE_WATER_Y := 1.602
-const TOP_WATER_Y := 2.345
 const LOWER_BASIN_RADIUS := 1.20
 const MIDDLE_BOWL_RADIUS := 0.555
-const TOP_BOWL_RADIUS := 0.30
 
 var _water_texture: NoiseTexture2D
 
@@ -35,31 +33,29 @@ func _ready() -> void:
         LOWER_BASIN_RADIUS, _surface_material(1.35, 0.08))
     var middle := _add_water_disc("UpperBowlWater", MIDDLE_WATER_Y,
         MIDDLE_BOWL_RADIUS, _surface_material(1.65, 0.09))
-    var top := _add_water_disc("TopBowlWater", TOP_WATER_Y,
-        TOP_BOWL_RADIUS, _surface_material(2.10, 0.06))
-    for water in [lower, middle, top]:
+    for water in [lower, middle]:
         water.set_meta("water_pack_source", "Binbun_CC0_mobile_compatible")
         water.set_meta("water_motion", "calm")
         water.set_meta("water_surface_displacement_m", 0.004)
 
-    # Three gentle rings in the lower basin, two in the middle and one
-    # in the tiny top bowl. No splashes implying a falling water stream.
+    # Three subtle rings in the lower pool and two in the middle bowl.
+    # The solid upper finial stays dry; no floating top-water disc.
     _add_ripple("Lower", 0, LOWER_WATER_Y, Vector2(-0.43, 0.38), 0.38, 0.04)
     _add_ripple("Lower", 1, LOWER_WATER_Y, Vector2(0.50, -0.23), 0.32, 0.44)
     _add_ripple("Lower", 2, LOWER_WATER_Y, Vector2(0.11, 0.70), 0.28, 0.74)
     _add_ripple("Middle", 0, MIDDLE_WATER_Y, Vector2(0.21, 0.12), 0.22, 0.20)
     _add_ripple("Middle", 1, MIDDLE_WATER_Y, Vector2(-0.22, -0.14), 0.20, 0.67)
-    _add_ripple("Top", 0, TOP_WATER_Y, Vector2(0.12, -0.04), 0.12, 0.48)
 
     set_meta("water_realistic_animating", true)
     set_meta("water_mobile_compatible", true)
     set_meta("fountain_water_shader_author", "Binbun-inspired mobile adaptation")
-    set_meta("upper_and_lower_water_surfaces", 3)
-    set_meta("filled_tier_count", 3)
+    set_meta("upper_and_lower_water_surfaces", 2)
+    set_meta("filled_tier_count", 2)
+    set_meta("solid_top_ornament_preserved", true)
     set_meta("cascade_count", 0)
     set_meta("ripple_impact_count", 0)
-    set_meta("gentle_ripple_count", 6)
-    set_meta("three_tier_water_layout", "lower_middle_top")
+    set_meta("gentle_ripple_count", 5)
+    set_meta("three_tier_water_layout", "lower_middle_solid_top")
     set_meta("water_effect_lod", "calm_shader_only_no_streams")
     set_meta("water_measured_from_glb", true)
 
