@@ -1,27 +1,42 @@
 extends RefCounted
-## Short, overlapping lawn grass batched into 8m chunks for mobile rendering.
-## Dense instances cover the turf continuously; hard paving stays clear.
+## Low, soft, curved meadow grass batched into 8m chunks for mobile rendering.
+## Five-leaf tuft ribbons replace spike-like triangles. Roads stay clear.
 const CELL_SIZE := 8.0
 const TUFT_SPACING := 0.235
 const SAMPLES_PER_CELL := 34
 
 static func _blade_mesh() -> ArrayMesh:
+    # Five slightly curved, tapered leaf blades per tuft instead of the old
+    # four straight triangular spikes. These low-poly ribbons carry a soft
+    # gradient from mossy base to desaturated sage-green tips. They are still
+    # lightweight enough for Android MultiMesh batching.
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-    for i in range(4):
-        var angle := TAU * float(i) / 4.0 + 0.24
-        var side := Vector3(cos(angle), 0, sin(angle))
-        # Broader but MUCH shorter leaves resemble maintained yard grass,
-        # not the tall triangular spikes of the original test lawn.
-        var width := 0.097 if i % 2 == 0 else 0.087
-        var height := 0.205 if i % 2 == 0 else 0.162
-        var lean := Vector3(sin(angle), 0, -cos(angle)) * 0.032
-        tool.set_color(Color("#345f2e"))
-        tool.add_vertex(-side * width)
-        tool.set_color(Color("#46743a"))
-        tool.add_vertex(side * width)
-        tool.set_color(Color("#75a362"))
-        tool.add_vertex(Vector3(0, height, 0) + lean)
+    var base_color := Color("#3c5133")
+    var middle_color := Color("#58724c")
+    var tip_color := Color("#879b71")
+    for i in range(5):
+        var angle := TAU * float(i) / 5.0 + 0.28
+        var outward := Vector3(cos(angle), 0.0, sin(angle))
+        var sideways := Vector3(-outward.z, 0.0, outward.x)
+        var height := 0.184 if i % 3 == 0 else (0.158 if i % 3 == 1 else 0.172)
+        var width := 0.048 if i % 2 == 0 else 0.042
+        var base := outward * 0.013
+        var mid := outward * 0.066 + Vector3(0.0, height * 0.50, 0.0)
+        var tip := outward * 0.116 + Vector3(0.0, height, 0.0)
+        var left_bottom := base - sideways * (width * 0.55)
+        var right_bottom := base + sideways * (width * 0.55)
+        var left_mid := mid - sideways * width
+        var right_mid := mid + sideways * width
+        for vertex in [left_bottom, right_bottom, left_mid]:
+            tool.set_color(base_color)
+            tool.add_vertex(vertex)
+        for vertex in [left_mid, right_bottom, right_mid]:
+            tool.set_color(middle_color)
+            tool.add_vertex(vertex)
+        for vertex in [left_mid, right_mid, tip]:
+            tool.set_color(tip_color)
+            tool.add_vertex(vertex)
     tool.generate_normals()
     var mesh := tool.commit()
     var material := StandardMaterial3D.new()
@@ -29,7 +44,7 @@ static func _blade_mesh() -> ArrayMesh:
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     material.roughness = 1.0
     material.metallic = 0.0
-    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     mesh.surface_set_material(0, material)
     return mesh
 
@@ -65,9 +80,9 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                     var basis := Basis(Vector3.UP, angle).scaled(Vector3(scale_factor, blade_height, scale_factor))
                     transforms.append(Transform3D(basis, Vector3(x - float(tx), 0.008, z - float(tz))))
                     colors.append(Color(
-                        rng.randf_range(0.90, 1.06),
-                        rng.randf_range(0.94, 1.08),
-                        rng.randf_range(0.89, 1.03),
+                        rng.randf_range(0.86, 1.04),
+                        rng.randf_range(0.90, 1.04),
+                        rng.randf_range(0.87, 1.02),
                         1.0
                     ))
             if transforms.is_empty():
@@ -90,7 +105,7 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
             total += transforms.size()
     town.set_meta("grass_instance_count", total)
     town.set_meta("grass_chunk_count", tile_index)
-    town.set_meta("grass_style", "dense_short_yard_grass")
+    town.set_meta("grass_style", "soft_curved_meadow_grass")
     town.set_meta("grass_spacing_m", TUFT_SPACING)
-    town.set_meta("grass_blade_nominal_height_m", 0.205)
+    town.set_meta("grass_blade_nominal_height_m", 0.184)
     return total
