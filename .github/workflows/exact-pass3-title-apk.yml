@@ -1,0 +1,73 @@
+name: Aetherfall Exact Uploaded Pass3 + Title
+on:
+  push:
+    branches: [feature/exact-pass3-apk-title-overlay]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  preserve-and-sign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - name: Checkout safe APK overlay patcher
+        uses: actions/checkout@v4
+      - name: Download user's exact uploaded APK
+        env:
+          SOURCE_URL: "https://sdmntprwestcentralus.oaiusercontent.com/files/00000000-6e34-81fb-8480-b1f57cca6920/raw?se=2026-10-11T23%3A09%3A59Z&sp=r&sv=2026-02-06&sr=b&scid=45ea1317-538e-5f6f-9bc3-ceb553300100&skoid=db055408-822b-485f-92f8-bfeb3ea92408&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-11T22%3A35%3A47Z&ske=2026-10-12T22%3A35%3A47Z&sks=b&skv=2026-02-06&sig=XtcbFtAJjBauSPlNriQu9wJX4xpM0wFY6dqIOUonx1w%3D"
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 2 --connect-timeout 30 --max-time 240 "$SOURCE_URL" -o /tmp/exact-pass3.apk
+          test "$(stat -c%s /tmp/exact-pass3.apk)" -eq 92131006
+          echo "ffb31a8ee17bc955799ab2fb112f2f1da3f4f72ac127b85c47525f0a03e0cc49  /tmp/exact-pass3.apk" | sha256sum -c -
+      - name: Download proven Godot title resources
+        uses: actions/download-artifact@v4
+        with:
+          name: Aetherfall-StarterTown-Pass3-Android
+          run-id: 38181401643
+          github-token: ${{ github.token }}
+          path: /tmp/title-template
+      - name: Patch only title resources, preserving every original asset
+        run: |
+          set -euo pipefail
+          python3 tools/patch_exact_pass3_apk.py --base /tmp/exact-pass3.apk --template /tmp/title-template/Aetherfall-StarterTown-Pass3.apk --output /tmp/aetherfall-unsigned.apk
+      - name: Verify Android build tools
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "build-tools;35.0.1"
+      - name: Restore verified original signing identity
+        env:
+          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 || secrets.AETHERFALL_KEYSTORE_BASE64 }}
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$KEYSTORE_ALIAS"
+          test -n "$KEYSTORE_PASSWORD"
+          printf "%s" "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/aetherfall-release.keystore"
+          keytool -list -keystore "$RUNNER_TEMP/aetherfall-release.keystore" -alias "$KEYSTORE_ALIAS" -storepass "$KEYSTORE_PASSWORD" >/dev/null
+          echo "AETHERFALL_KEYSTORE_PATH=$RUNNER_TEMP/aetherfall-release.keystore" >> "$GITHUB_ENV"
+      - name: Align and sign the user's exact game
+        env:
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p builds
+          "$ANDROID_HOME/build-tools/35.0.1/zipalign" -p -f 4 /tmp/aetherfall-unsigned.apk /tmp/aetherfall-aligned.apk
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" sign --ks "$AETHERFALL_KEYSTORE_PATH" --ks-key-alias "$KEYSTORE_ALIAS" --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD --out builds/Aetherfall-Exact-Pass3-With-Title.apk /tmp/aetherfall-aligned.apk
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose builds/Aetherfall-Exact-Pass3-With-Title.apk
+          ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs builds/Aetherfall-Exact-Pass3-With-Title.apk | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
+          EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$AETHERFALL_KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
+          test -n "$ACTUAL"
+          test "$ACTUAL" = "$EXPECTED"
+          echo "Signed uploaded APK with preserved town and original certificate."
+      - name: Upload exact APK for phone installation
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-Exact-Pass3-With-Title
+          path: builds/Aetherfall-Exact-Pass3-With-Title.apk
+          if-no-files-found: error
+          retention-days: 30
