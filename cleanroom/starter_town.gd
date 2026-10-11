@@ -1,5 +1,6 @@
 extends Node3D
 const SceneryReplacement = preload("res://scenery_replacements.gd")
+const HangingShopSigns = preload("res://hanging_shop_signs.gd")
 const NatureReplacement = preload("res://nature_replacements.gd")
 const GateAshlar = preload("res://gate_ashlar.gd")
 const GrassField = preload("res://grass_field.gd")
@@ -642,15 +643,8 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _box(house, "Chimney", Vector3(0.52, 1.28, 0.52), Vector3(width * 0.25, body_size.y + 1.63, -depth * 0.18), Color("#5f5c58"))
     _box(house, "ChimneyCap", Vector3(0.68, 0.15, 0.68), Vector3(width * 0.25, body_size.y + 2.29, -depth * 0.18), Color("#474744"))
 
-    if not title.is_empty():
-        var sign_back := _box(house, "ShopSign", Vector3(minf(width * 0.75, 5.6), 0.54, 0.12), Vector3(0, body_size.y + 0.08, depth * 0.575), Color("#4a3528"))
-        var sign := Label3D.new()
-        sign.text = title
-        sign.font_size = 36
-        sign.outline_size = 7
-        sign.modulate = Color("#f6e2ad")
-        sign.position = Vector3(0, body_size.y + 0.08, depth * 0.65)
-        house.add_child(sign)
+    # Pass 4.1 replaces flat ShopSign and floating Label3D with physical
+    # carved hanging signs after imported facade sizing is finalized.
 
     # Import at a human-scale door height, then fit collision to the rendered
     # exterior, NOT the old procedural house dimensions (or stair footprints).
@@ -668,14 +662,14 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
         (body_size.y + (3.55 if landmark else 2.72)) * doorway_scale,
         depth + (0.66 if landmark else 0.36)
     )
-    var imported := SceneryReplacement.place(house, facade, desired_size,
-        PackedStringArray(["ShopSign"]))
+    var imported := SceneryReplacement.place(house, facade, desired_size)
     var collision_size := Vector3(width + 0.50, body_size.y + 1.7, depth + 0.50)
     if imported:
         collision_size = house.get_meta("scenery_model_size", desired_size)
-        var shop_label := house.get_node_or_null("Label3D") as Label3D
-        if shop_label != null:
-            shop_label.position = Vector3(0.0, desired_size.y * 0.58, desired_size.z * 0.52 + 0.16)
+    if landmark:
+        # Imported Quaternius roofs/awnings vary in width and depth. Anchor the
+        # wrought-iron street-facing arm outside the ACTUAL fitted facade.
+        HangingShopSigns.place(house, title, collision_size)
     # Use the imported stone/plaster footprint, NOT roof or covered-porch
     # extents. This leaves sheltered walks beneath the wooden overhangs while
     # the ground-floor stone walls and closed doors remain solid.
