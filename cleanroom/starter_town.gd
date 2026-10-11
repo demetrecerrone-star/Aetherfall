@@ -1395,24 +1395,25 @@ func _build_stage() -> void:
     for side in [-1, 1]:
         var tower_x := float(side) * 4.1
         var tower := _cylinder(self, "StoneGateTower_%s" % ("Left" if side < 0 else "Right"), 2.30, 5.85,
-            Vector3(tower_x, 2.925, 24.6), Color("#535855"))
-        tower.material_override = _mat(Color("#525753"), 1.0)
+            Vector3(tower_x, 2.925, 24.6), Color("#424a45"))
+        tower.material_override = _mat(Color("#424a45"), 1.0)
         for band_y in [0.46, 4.92, 5.62]:
             var course := _cylinder(self, "StoneGateCourse", 2.32, 0.14,
-                Vector3(tower_x, float(band_y), 24.6), Color("#7c807b"))
-            course.material_override = _mat(Color("#838780"), 0.98)
+                Vector3(tower_x, float(band_y), 24.6), Color("#606963"))
+            course.material_override = _mat(Color("#606963"), 0.98)
         var wood_texture := _town_textures.get("wood", null) as Texture2D
         var roof := _tapered_cylinder(self, "TimberGateRoof", 2.65, 0.10, 2.05,
-            Vector3(tower_x, 6.82, 24.6), Color("#765437"))
-        roof.material_override = MountainValley._log_material(wood_texture, Color("#765437"))
+            Vector3(tower_x, 6.82, 24.6), Color("#92704e"))
+        roof.material_override = MountainValley._log_material(wood_texture, Color("#92704e"))
         for edge in [-1, 1]:
             var pier := _box(self, "GatePierStone", Vector3(0.28, 5.25, 0.30),
-                Vector3(tower_x + float(edge) * 1.63, 2.63, 22.99), Color("#92928b"))
-            pier.material_override = _mat(Color("#92928b"), 0.98)
+                Vector3(tower_x + float(edge) * 1.63, 2.63, 22.99), Color("#696f69"))
+            pier.material_override = _mat(Color("#696f69"), 0.98)
         _add_circle_blocker(Vector2(tower_x, 24.6), 2.30,
             PLAYER_WORLD_RADIUS + 0.035)
         _add_camera_cylinder(Vector3(tower_x, 2.925, 24.6), 2.30, 5.85)
     GateAshlar.build(self)
+    set_meta("gate_roof_wood_matches_leaves", true)
 
     # Same textured timber and exact tint as the exterior palisade logs.
     # Cross-bracing uses the same darker palette as its support beams.
