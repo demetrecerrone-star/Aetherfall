@@ -63,6 +63,22 @@ func _check() -> void:
     if footing > 0.1:
         _fail("Removed stairs still affect boot grounding")
         return
+    # Stone finish should match nearby stone foundations, not the old timber.
+    var stone_towers := town.find_children("StoneGateTower", "MeshInstance3D", true, false)
+    if stone_towers.size() != 2:
+        _fail("Gate watchtowers must both be weathered masonry")
+        return
+    if not town.find_children("TimberGateTower", "MeshInstance3D", true, false).is_empty():
+        _fail("Old timber tower cylinders still visible")
+        return
+    if String(town.get_meta("gate_tower_material", "")) != "weathered_stone":
+        _fail("Gate masonry metadata missing")
+        return
+    for tower_mesh in stone_towers:
+        var stone := (tower_mesh as MeshInstance3D).material_override as StandardMaterial3D
+        if stone == null or stone.albedo_texture == null:
+            _fail("Gate stone tower missing its weathered masonry texture")
+            return
     # Gate towers remain 2.3m-radius solid, but the visible entrance is
     # now an opaque fixed oak double gate instead of barred portcullis.
     if not bool(town.call("_world_point_blocked", Vector2(-4.1, 24.0))):
