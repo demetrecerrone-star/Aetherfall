@@ -393,15 +393,23 @@ func _run_check() -> void:
     if fountain.get_node_or_null("ImportedMedievalFountain") == null:
         _fail("Actual GLB geometry is missing from fountain root")
         return
-    if fountain.position.distance_to(Vector3(0, 0.066, -4.0)) > 0.03:
+    if fountain.position.distance_to(Vector3(0, 0.066, -1.825)) > 0.03:
         _fail("Fountain has moved away from its town-square position")
         return
-    if not bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
-        _fail("Character can walk through the fountain basin")
+    if not bool(fountain.get_meta("fountain_centered_between_stalls", false)):
+        _fail("Fountain centering should follow both stall rows, not the old offset")
         return
-    if bool(town.call("_world_point_blocked", Vector2(0.0, -1.8))) or bool(town.call("_world_point_blocked", Vector2(0.0, -6.1))):
-        _fail("Fountain player blocker obstructs the main plaza circulation loop")
+    if absf(float(fountain.get_meta("fountain_visual_scale", 0.0)) - 3.55) > 0.01:
+        _fail("The fountain was not enlarged by the requested amount")
         return
+    if not bool(town.call("_world_point_blocked", Vector2(0.0, -1.825))):
+        _fail("Character can walk through the larger fountain basin")
+        return
+    for route in [Vector2(0.0, -4.55), Vector2(0.0, 0.95),
+        Vector2(-2.75, -1.825), Vector2(2.75, -1.825)]:
+        if bool(town.call("_world_point_blocked", route)):
+            _fail("Resized fountain blocked marketplace route at " + str(route))
+            return
     var stalls := town.find_children("MarketStall_*", "Node3D", true, false)
     if stalls.size() != 4:
         _fail("Expected all four open-air market stands around the fountain")
@@ -410,7 +418,7 @@ func _run_check() -> void:
         if not bool(town.call("_world_point_blocked", stall_pos)):
             _fail("Diagonal stall has no counter collision: " + str(stall_pos))
             return
-    for spot in [Vector2(0, -1.8), Vector2(0, -6.1), Vector2(0, 2.45), Vector2(-2.0, -2.0), Vector2(2.0, -2.0)]:
+    for spot in [Vector2(0, -4.55), Vector2(0, -6.1), Vector2(0, 2.45), Vector2(-2.75, -2.0), Vector2(2.75, -2.0)]:
         if bool(town.call("_world_point_blocked", spot)):
             _fail("Marketplace loop is blocked at " + str(spot))
             return
