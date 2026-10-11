@@ -173,6 +173,19 @@ func _run_check() -> void:
         _fail("Foliage leaf cards are still one-sided")
         return
 
+    # No planted ornamentals may sit on road stone or their dirt verges.
+    var all_shrubs := town.find_children("TownHedge_*", "Node3D", true, false)
+    all_shrubs.append_array(town.find_children("TownFlowerBush_*", "Node3D", true, false))
+    for plant in all_shrubs:
+        var root_plant := plant as Node3D
+        if not bool(root_plant.get_meta("planted_in_lawn", false)):
+            _fail("Ornamental bush was not placed in a real lawn bed")
+            return
+        var is_flower := root_plant.name.begins_with("TownFlowerBush")
+        if not bool(town.call("_shrub_fits_lawn", root_plant.position, 0.9, is_flower)):
+            _fail("A bush overhangs the cobblestone/dirt verge: " + root_plant.name)
+            return
+
     var hedges := town.find_children("TownHedge_*", "Node3D", true, false)
     if hedges.size() < 5:
         _fail("Too few muted rectangular hedges were placed")
@@ -347,8 +360,36 @@ func _run_check() -> void:
     if tuft.get_faces().size() > (600 if native_nature else 75):
         _fail("Grass tuft exceeds its mobile-poly budget")
         return
-    if float(town.get_meta("grass_spacing_m", 1.0)) > 0.26:
-        _fail("Grass spacing is too sparse for a believable lawn")
+    if float(town.get_meta("grass_spacing_m", 1.0)) > 0.205:
+        _fail("Latest grass pass reverted to sparse planting")
+        return
+    if String(town.get_meta("grass_coverage_pass", "")) != "dense_foundation_edges":
+        _fail("Dense ground/foundation grass pass not activated")
+        return
+    if grass_count < 12500:
+        _fail("Grass density upgrade produced too few lawn tufts: " + str(grass_count))
+        return
+    # Player clearance is broad, but grass should get almost to the house
+    # foundation. Confirm some lawn positions exist inside the player's
+    # padded obstruction halo without allowing grass through solid masonry.
+    var found_close_grass := false
+    var house_blocks: Array = town.get("_house_blockers")
+    for house in house_blocks:
+        var center: Vector2 = house["center"]
+        var padded: Vector2 = house["half"]
+        for side in [-1.0, 1.0]:
+            for distance in [0.15, 0.22]:
+                var probe := Vector2(center.x + float(side) * (padded.x - float(distance)), center.y)
+                if float(town.call("_ground_surface_y", Vector3(probe.x, 0.0, probe.y))) < 0.011:
+                    if bool(town.call("_world_point_blocked", probe)) and not bool(town.call("_grass_point_blocked", probe)):
+                        found_close_grass = true
+                        break
+            if found_close_grass:
+                break
+        if found_close_grass:
+            break
+    if not found_close_grass:
+        _fail("Grass still obeys the player's oversized building collision radius")
         return
     var chunk := town.find_child("GrassField_*", true, false) as MultiMeshInstance3D
     if chunk == null or chunk.multimesh == null:
