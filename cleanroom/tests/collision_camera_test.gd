@@ -128,6 +128,50 @@ func _check() -> void:
     if not bool(town.get("_loaded")):
         _fail("Character loading failed")
         return
+    # Regression: a diagonal position can be outside the 2.3m round tower
+    # yet inside its old 4.6m square camera AABB. The camera must remain free.
+    var diagonal := Vector3(-6.0, 1.75, 22.75)
+    var clear_destination := Vector3(-7.4, 1.75, 21.35)
+    var camera_corner: Vector3 = town.call("_camera_safe_goal", diagonal, clear_destination)
+    if camera_corner.distance_to(clear_destination) > 0.01:
+        _fail("Round tower's empty diagonal corner still pulls camera into character")
+        return
+
+    # Approach the front of the gate while the camera points through the tower.
+    # The camera should stop at stone and fully hide the player before its
+    # shortened arm can show close-up fabric or skin.
+    var avatar := town.get_node_or_null("TripoActor") as Node3D
+    var orbit := town.get_node_or_null("OrbitCamera") as Camera3D
+    if avatar == null or orbit == null:
+        _fail("Camera / avatar nodes missing")
+        return
+    avatar.position = Vector3(-4.1, avatar.position.y, 21.85)
+    town.set("_camera_yaw", 0.0)
+    town.set("_camera_pitch", 0.18)
+    town.set("_camera_distance", 4.0)
+    town.call("_update_camera", 1.0)
+    if orbit.global_position.z > 22.20:
+        _fail("Camera went through front gate tower")
+        return
+    if float(town.get("_camera_fade_alpha")) > 0.05:
+        _fail("Avatar was not faded when the camera was forced too close")
+        return
+    var fade_surfaces: Array = town.get("_camera_fade_surfaces")
+    if fade_surfaces.is_empty():
+        _fail("No imported character materials can fade on Android")
+        return
+
+    # Restore a clear angle: the opaque materials and regular follow distance
+    # must return. The player can still be swapped between both character rigs.
+    town.set("_camera_yaw", PI)
+    town.call("_update_camera", 1.0)
+    if float(town.get("_camera_fade_alpha")) < 0.995:
+        _fail("Character did not return to full opacity")
+        return
+    if orbit.global_position.distance_to(avatar.global_position + Vector3(0, 1.03, 0)) < 3.0:
+        _fail("Camera did not recover third-person distance")
+        return
+
     print("AETHERFALL_COLLISION_CAMERA_02U_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
     town.queue_free()
     quit(0)
