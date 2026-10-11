@@ -780,9 +780,11 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
 # foliage in less saturated greens (instead of bright neon-green spheres).
 func _add_trimmed_hedge(root: Node3D, scale_factor: float, variant: int) -> void:
     root.name = "TownHedge_%02d" % variant
-    var length := 1.80 if variant % 3 == 0 else 1.45
-    var depth := 0.68 if variant % 2 == 0 else 0.80
-    var height := 0.68 if variant % 3 == 1 else 0.77
+    var length := 2.10 if variant % 3 == 0 else 1.92
+    var depth := 0.82 if variant % 2 == 0 else 0.94
+    # World target after 0.90 scenery scaling: 0.95-1.02 m, approximately
+    # the character's hip rather than a low border planting.
+    var height := 1.13 if variant % 3 == 1 else 1.06
     length *= scale_factor
     depth *= scale_factor
     height *= scale_factor
@@ -855,7 +857,19 @@ func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) 
     ]
     var chosen := position
     for candidate in candidates:
-        if _ground_surface_y(candidate) < 0.011 and not _world_point_blocked(Vector2(candidate.x, candidate.z)):
+        var clear := true
+        # Bigger hip-high hedges must fit their full footprint inside lawn
+        # islands. A clear center alone can still overlap a stone road.
+        var footprint_half := Vector2(1.04, 0.49) * scale_factor
+        for dx in [-1.0, 0.0, 1.0]:
+            for dz in [-1.0, 0.0, 1.0]:
+                var sample := candidate + Vector3(float(dx) * footprint_half.x, 0.0, float(dz) * footprint_half.y)
+                if _ground_surface_y(sample) >= 0.011 or _world_point_blocked(Vector2(sample.x, sample.z)):
+                    clear = false
+                    break
+            if not clear:
+                break
+        if clear:
             chosen = candidate
             break
     var shrub := Node3D.new()
@@ -868,7 +882,7 @@ func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) 
         # Keep some naturally grown, muted flowering bushes for variety.
         var leaf_ground_sink := 0.31 * scale_factor
         var installed := SceneryReplacement.place(shrub, "Bush_Flowers",
-            Vector3(1.12, 1.02, 1.12) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
+            Vector3(1.42, 1.49, 1.42) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
         if installed:
             _mute_imported_shrub(shrub)
         else:
