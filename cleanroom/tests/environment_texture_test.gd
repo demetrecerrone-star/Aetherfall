@@ -50,6 +50,21 @@ func _run_check() -> void:
     if cobbled == null or cobbled.albedo_texture == null:
         _fail("Unified medieval road lacks the imported Poly Haven cobble texture")
         return
+    if cobbled.cull_mode != BaseMaterial3D.CULL_DISABLED:
+        _fail("Cobble paving may disappear from the overhead player camera due to face culling")
+        return
+    var stone_vertices: PackedVector3Array = road.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+    if stone_vertices.size() < 6 or absf(stone_vertices[0].y - 0.066) > 0.002:
+        _fail("Town paving has no visible raised cobblestone surface")
+        return
+    var verge_mesh := town.find_child("UnifiedDirtRoadVerge", true, false) as MeshInstance3D
+    if verge_mesh == null or verge_mesh.mesh == null:
+        _fail("Road verge mesh disappeared")
+        return
+    var verge_material := verge_mesh.mesh.surface_get_material(0) as StandardMaterial3D
+    if verge_material == null or verge_material.cull_mode != BaseMaterial3D.CULL_DISABLED:
+        _fail("Dirt transition is at risk of back-face culling")
+        return
     if town.find_child("UnifiedDirtRoadVerge", true, false) == null:
         _fail("Cobblestones end abruptly without a dirt/grass transition")
         return
