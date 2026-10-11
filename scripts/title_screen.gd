@@ -1,9 +1,12 @@
 extends Control
 ## Aetherfall's native, landscape-safe title screen. No external art or plugins required.
 const LOADING_SCENE := "res://scenes/loading_screen.tscn"
+const BACKDROP_SCRIPT = preload("res://scripts/title_backdrop.gd")
 const SETTINGS_PATH := "user://aetherfall_frontend.cfg"
 
-var _seconds := 0.0
+var _transitioning := false
+var _backdrop: Control
+var _veil: ColorRect
 var _reduced_motion := false
 var _master_volume := 0.85
 var _modal: Control
@@ -12,50 +15,30 @@ var _prefs := ConfigFile.new()
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_load_settings()
+	_install_backdrop()
 	_build_menu()
-	queue_redraw()
+	_install_veil()
+	AetherfallAmbience.play_menu()
+	var fade := create_tween()
+	fade.tween_property(_veil, "modulate:a", 0.0, .55 if not _reduced_motion else .07)
 
-func _process(delta: float) -> void:
-	if not _reduced_motion:
-		_seconds += delta
-		queue_redraw()
+func _install_backdrop() -> void:
+	_backdrop = Control.new()
+	_backdrop.name = "CinematicAetherfallVista"
+	_backdrop.set_script(BACKDROP_SCRIPT)
+	_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_backdrop.set("reduced_motion", _reduced_motion)
+	add_child(_backdrop)
 
-func _draw() -> void:
-	var w := size.x
-	var h := size.y
-	if w <= 1.0 or h <= 1.0:
-		return
-	var sky_top := Color("08162c")
-	var sky_bottom := Color("315476")
-	for i in range(26):
-		var t := float(i) / 26.0
-		draw_rect(Rect2(0, h * t, w, h / 26.0 + 2), sky_top.lerp(sky_bottom, t * 0.85))
-	# Distant valley silhouettes, castle spires and a luminous aether gate.
-	draw_colored_polygon(PackedVector2Array([Vector2(0,h*.75),Vector2(w*.20,h*.40),Vector2(w*.34,h*.70),Vector2(w*.52,h*.45),Vector2(w*.70,h*.72),Vector2(w,h*.43),Vector2(w,h),Vector2(0,h)]), Color("233b59"))
-	draw_colored_polygon(PackedVector2Array([Vector2(0,h*.89),Vector2(w*.20,h*.68),Vector2(w*.34,h*.82),Vector2(w*.62,h*.66),Vector2(w*.82,h*.84),Vector2(w,h*.64),Vector2(w,h),Vector2(0,h)]), Color("11253f"))
-	for i in range(48):
-		var x := fposmod(float(i * 673 + 59), w)
-		var y := fposmod(float(i * 293 + 31), h * .67)
-		var twinkle := .5 if _reduced_motion else (.45 + .4 * sin(_seconds * 1.7 + float(i)))
-		draw_circle(Vector2(x,y), 1.2 if i % 3 else 2.1, Color(0.81,0.92,1,twinkle))
-	var center := Vector2(w * .765, h * .50)
-	var r := minf(w,h) * .225
-	for i in range(6, 0, -1):
-		draw_circle(center, r * (1.1 + i * .14), Color(.11,.70,.92,.014))
-	draw_circle(center, r*.91, Color(.23,.77,.94,.075))
-	for ring in range(3):
-		var a := _seconds * (.08 if ring % 2 == 0 else -.10)
-		draw_arc(center, r * (.74 + ring * .14), a, a + TAU*.84, 90, Color(.46,.91,1,.48 - ring*.09), 2.5, true)
-	for i in range(12):
-		var theta := float(i)/12.0 * TAU + _seconds * .07
-		var p1 := center + Vector2(cos(theta),sin(theta))*r*.72
-		var p2 := center + Vector2(cos(theta),sin(theta))*r*.79
-		draw_line(p1,p2,Color(.84,.92,.70,.75),2.0,true)
-	# Foreground battlements anchor the composition.
-	draw_rect(Rect2(w*.63,h*.83,w*.37,h*.17),Color("091525"))
-	for i in range(8):
-		draw_rect(Rect2(w*(.65+i*.048),h*.793,w*.025,h*.052),Color("091525"))
-	draw_rect(Rect2(0,0,w*.49,h),Color(0.025,0.047,0.10,.45))
+func _install_veil() -> void:
+	_veil = ColorRect.new()
+	_veil.name = "SceneTransitionVeil"
+	_veil.color = Color("081321")
+	_veil.modulate.a = 1.0
+	_veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_veil)
 
 func _panel_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -131,10 +114,23 @@ func _build_menu() -> void:
 	stack.add_child(edition)
 
 func _start(mode: String) -> void:
+	if _transitioning:
+		return
+	_transitioning = true
+	_veil.mouse_filter = Control.MOUSE_FILTER_STOP
 	get_tree().set_meta("aetherfall_open_studio", mode == "studio")
+	var fade := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	fade.tween_property(_veil, "modulate:a", 1.0, .34 if not _reduced_motion else .06)
+	await fade.finished
+	if not is_inside_tree():
+		return
 	var code := get_tree().change_scene_to_file(LOADING_SCENE)
 	if code != OK:
 		push_error("Aetherfall: unable to open loading scene (%d)" % code)
+		_transitioning = false
+		_veil.modulate.a = 0.0
+		_veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		get_tree().remove_meta("aetherfall_open_studio")
 
 func _load_settings() -> void:
 	_prefs.load(SETTINGS_PATH)
@@ -198,6 +194,8 @@ func _open_modal(which: String) -> void:
 		motion.add_theme_font_size_override("font_size", 16)
 		motion.toggled.connect(func(value: bool) -> void:
 			_reduced_motion = value
+			if is_instance_valid(_backdrop):
+				_backdrop.set("reduced_motion", value)
 			_save_settings()
 			queue_redraw()
 		)
