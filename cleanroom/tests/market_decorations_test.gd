@@ -22,6 +22,7 @@ func _check() -> void:
     if stalls.size() != 4:
         _fail("Existing four market stalls changed count")
         return
+    _print_native_stall_counter_probe(stalls[0] as Node3D)
     var good_count := 0
     for name in EXPECTED_STALLS:
         var stand := town.get_node_or_null(name) as Node3D
@@ -121,3 +122,68 @@ func _check() -> void:
 func _fail(message: String) -> void:
     push_error("AETHERFALL_MARKET_DECOR_FAIL: " + message)
     quit(1)
+
+# One-time native geometry audit used to eliminate the wrongly inserted
+# second table. Print approximate level bands of upward-facing surfaces.
+func _print_native_stall_counter_probe(stall: Node3D) -> void:
+    var imported := stall.get_node_or_null("Quaternius_MarketStand_1") as Node3D
+    if imported == null:
+        return
+    print("AF_STALL_PROBE start imported_scale=", imported.scale,
+        " imported_rotation=", imported.rotation_degrees, " imported_pos=", imported.position)
+    var mesh_parts := imported.find_children("*", "MeshInstance3D", true, false)
+    var by_level: Dictionary = {}
+    for part in mesh_parts:
+        var mesh_part := part as MeshInstance3D
+        if mesh_part.mesh == null:
+            continue
+        var bound := mesh_part.get_aabb()
+        var l0: Vector3 = stall.to_local(mesh_part.to_global(bound.position))
+        var l1: Vector3 = stall.to_local(mesh_part.to_global(bound.end))
+        print("AF_STALL_MESH name=", mesh_part.name, " surfaces=", mesh_part.mesh.get_surface_count(),
+            " approx_local_bound=", l0, " through ", l1)
+        for surface in range(mesh_part.mesh.get_surface_count()):
+            var arrays := mesh_part.mesh.surface_get_arrays(surface)
+            if arrays.is_empty():
+                continue
+            var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+            var ids: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+            var tri_count := ids.size() / 3 if not ids.is_empty() else verts.size() / 3
+            for tri in range(tri_count):
+                var ia: int = ids[tri * 3] if not ids.is_empty() else tri * 3
+                var ib: int = ids[tri * 3 + 1] if not ids.is_empty() else tri * 3 + 1
+                var ic: int = ids[tri * 3 + 2] if not ids.is_empty() else tri * 3 + 2
+                var a: Vector3 = stall.to_local(mesh_part.to_global(verts[ia]))
+                var b: Vector3 = stall.to_local(mesh_part.to_global(verts[ib]))
+                var c: Vector3 = stall.to_local(mesh_part.to_global(verts[ic]))
+                var normal := (b - a).cross(c - a)
+                if normal.length_squared() < 0.000001 or absf(normal.normalized().y) < 0.94:
+                    continue
+                var mean := (a + b + c) / 3.0
+                if mean.y < 0.45 or mean.y > 1.7:
+                    continue
+                var height := roundi(mean.y * 20.0)
+                var front := roundi(mean.z * 5.0)
+                var key := "%s_%s" % [height, front]
+                var prev: Dictionary = by_level.get(key, {"area": 0.0, "xmin": 100.0,
+                    "xmax": -100.0, "zmin": 100.0, "zmax": -100.0})
+                prev["area"] = float(prev["area"]) + normal.length() * 0.5
+                prev["xmin"] = minf(float(prev["xmin"]), minf(a.x, minf(b.x, c.x)))
+                prev["xmax"] = maxf(float(prev["xmax"]), maxf(a.x, maxf(b.x, c.x)))
+                prev["zmin"] = minf(float(prev["zmin"]), minf(a.z, minf(b.z, c.z)))
+                prev["zmax"] = maxf(float(prev["zmax"]), maxf(a.z, maxf(b.z, c.z)))
+                by_level[key] = prev
+    var records: Array = []
+    for key in by_level.keys():
+        var parts := String(key).split("_")
+        var level := float(parts[0]) / 20.0
+        var front := float(parts[1]) / 5.0
+        var stats: Dictionary = by_level[key]
+        if float(stats["area"]) >= 0.06:
+            records.append({"level": level, "front": front,
+                "area": snappedf(float(stats["area"]), 0.001),
+                "xmin": stats["xmin"], "xmax": stats["xmax"],
+                "zmin": stats["zmin"], "zmax": stats["zmax"]})
+    records.sort_custom(func(x: Dictionary, y: Dictionary) -> bool:
+        return float(x["area"]) > float(y["area"]))
+    print("AF_STALL_COUNTER_SURFACE_PROBE_TOP=", records.slice(0, 24))
