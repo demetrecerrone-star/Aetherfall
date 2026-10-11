@@ -1140,7 +1140,7 @@ func _build_stage() -> void:
     # footprint; only the rendered masonry is new. Keep wooden roofs and gate.
     for side in [-1, 1]:
         var tower_x := float(side) * 4.1
-        _cylinder(self, "StoneGateTower", 2.30, 5.85,
+        _cylinder(self, "StoneGateTower_%s" % ("Left" if side < 0 else "Right"), 2.30, 5.85,
             Vector3(tower_x, 2.925, 24.6), Color("#777873"))
         for band_y in [0.46, 4.92, 5.62]:
             _cylinder(self, "StoneGateCourse", 2.315, 0.17,
