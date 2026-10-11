@@ -2,7 +2,7 @@ name: Aetherfall Starter Town Android APK
 
 on:
   push:
-    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade, feature/starter-town-pass3-valley]
+    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade]
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
