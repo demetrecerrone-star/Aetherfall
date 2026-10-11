@@ -232,6 +232,14 @@ jobs:
           grep -F 'AETHERFALL_PERFORMANCE_OPT_OK' /tmp/performance-optimisation-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_PERFORMANCE_OPT_FAIL:' /tmp/performance-optimisation-qa.log; then exit 1; fi
 
+      - name: Inspect imported market counter geometry
+        if: github.ref_name == 'feature/quaternius-nature-megakit-import'
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/market_counter_geometry_probe.gd 2>&1 | tee /tmp/market-counter-probe.log
+          grep -F 'MARKET_PROBE_OK' /tmp/market-counter-probe.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|MARKET_PROBE_FAIL' /tmp/market-counter-probe.log; then exit 1; fi
+
       - name: Pass 4.2 authentic marketplace decoration with retained street assets
         if: github.ref_name == 'feature/quaternius-nature-megakit-import'
         run: |
