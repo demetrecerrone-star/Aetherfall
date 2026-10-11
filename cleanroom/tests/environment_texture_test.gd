@@ -93,12 +93,38 @@ func _run_check() -> void:
     if bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
         _fail("Former fountain position still blocks the market aisle")
         return
-    for stall_x in [-4.0, 4.0]:
-        if not bool(town.call("_world_point_blocked", Vector2(stall_x, -4.0))):
-            _fail("New market stand is missing collision")
+    for stall_pos in [Vector2(-5.4, -6.1), Vector2(5.4, -6.1), Vector2(-5.4, 2.45), Vector2(5.4, 2.45)]:
+        if not bool(town.call("_world_point_blocked", stall_pos)):
+            _fail("Diagonal stall has no counter collision: " + str(stall_pos))
+            return
+    for spot in [Vector2(0, -1.8), Vector2(0, -6.1), Vector2(0, 2.45), Vector2(-2.0, -2.0), Vector2(2.0, -2.0)]:
+        if bool(town.call("_world_point_blocked", spot)):
+            _fail("Marketplace loop is blocked at " + str(spot))
+            return
+    for market_stall in stalls:
+        var yaw := absf((market_stall as Node3D).rotation_degrees.y)
+        if absf(yaw - 45.0) > 0.1 and absf(yaw - 135.0) > 0.1:
+            _fail("Marketplace stall does not face inward diagonally")
             return
 
-    print("AETHERFALL_ENVIRONMENT_02T_OK: Seam-free lawn, open plaza, four solid market stalls, tiled roofs and three ground heights")
+    # Dense instanced grass, not 14 disconnected tufts, on lawn only.
+    var grass_count: int = town.get_meta("grass_instance_count", 0)
+    var chunk_count: int = town.get_meta("grass_chunk_count", 0)
+    if grass_count < 3000 or chunk_count < 20 or chunk_count > 64:
+        _fail("Missing dense, chunked mobile grass: %d instances / %d batches" % [grass_count, chunk_count])
+        return
+    var chunk := town.find_child("GrassField_*", true, false) as MultiMeshInstance3D
+    if chunk == null or chunk.multimesh == null:
+        _fail("Dense grass was not batched into MultiMesh rendering")
+        return
+    if chunk.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+        _fail("Mobile grass still casts expensive shadows")
+        return
+    if not town.find_children("DoorStep*", "Node", true, false).is_empty():
+        _fail("Obsolete procedural stairs remain in town")
+        return
+
+    print("AETHERFALL_ENVIRONMENT_02Y_OK: Four diagonal market stands, central browsing loop, zero stale stairs, and dense batched grass")
     town.queue_free()
     quit(0)
 

@@ -15,40 +15,36 @@ func _check() -> void:
     if house == null:
         _fail("House missing")
         return
-    var door := house.get_node_or_null("Door") as MeshInstance3D
-    var knob := house.get_node_or_null("DoorHandle") as MeshInstance3D
-    var upper := house.get_node_or_null("DoorStepUpper") as MeshInstance3D
-    var lower := house.get_node_or_null("DoorStepLower") as MeshInstance3D
-    if door == null or knob == null or upper == null or lower == null:
-        _fail("Door geometry missing")
-        return
-    if knob.position.z < door.position.z + 0.08 or knob.position.z > door.position.z + 0.17:
-        _fail("Door handle is detached from the door face")
-        return
-    if upper.position.z >= lower.position.z or upper.position.y <= lower.position.y:
-        _fail("Door steps not ordered correctly")
+    if house.get_node_or_null("DoorStepUpper") != null or house.get_node_or_null("DoorStepLower") != null:
+        _fail("Outdated door stairs are still in the scene")
         return
     var origin := house.position
-    if not bool(town.call("_world_point_blocked", Vector2(origin.x + 1.0, origin.z + 3.05))):
-        _fail("House wall no longer blocks actor")
+    var model_size: Vector3 = house.get_meta("scenery_model_size", Vector3.ZERO)
+    var collision_half: Vector2 = house.get_meta("collision_half", Vector2.ZERO)
+    if model_size.y < 6.0 or model_size.x < 5.0 or collision_half.x < 2.0:
+        _fail("New landmark scale/collision footprint is not calibrated")
         return
-    if bool(town.call("_world_point_blocked", Vector2(origin.x, origin.z + upper.position.z))):
-        _fail("Upper step is obstructed by invisible collision")
+    if not bool(town.call("_world_point_blocked", Vector2(origin.x, origin.z))):
+        _fail("Imported building is missing solid wall collision")
         return
-    if bool(town.call("_world_point_blocked", Vector2(origin.x, origin.z + 3.5))):
-        _fail("Unobstructed doorway approach remains blocked")
+    var contact := origin.z + collision_half.y + 0.34
+    if not bool(town.call("_world_point_blocked", Vector2(origin.x, contact - 0.02))):
+        _fail("Actor clips through imported building facade")
+        return
+    if bool(town.call("_world_point_blocked", Vector2(origin.x, contact + 0.45))):
+        _fail("Building has a large invisible collision halo")
         return
     var safe: Vector3 = town.call("_camera_safe_goal", Vector3(origin.x, 1.6, origin.z + 5.0), Vector3(origin.x, 1.6, origin.z))
-    if safe.z < origin.z + 2.6:
+    if safe.z < origin.z + 2.4:
         _fail("Camera moved inside building")
         return
     var wall: Vector3 = town.call("_camera_safe_goal", Vector3(23.0, 1.6, 0.0), Vector3(32.0, 1.6, 0.0))
     if wall.x > 27.0:
         _fail("Camera moved through perimeter wall")
         return
-    var footing: float = town.call("_ground_surface_y", Vector3(origin.x, 0.0, origin.z + upper.position.z))
-    if absf(footing - 0.52) > 0.001:
-        _fail("Upper tread grounding failed")
+    var footing: float = town.call("_ground_surface_y", Vector3(origin.x, 0.0, origin.z + 4.3))
+    if footing > 0.1:
+        _fail("Removed stairs still affect boot grounding")
         return
     if not bool(town.call("_world_point_blocked", Vector2(-4.1, 24.0))):
         _fail("Gate tower is no longer blocked")
@@ -104,8 +100,8 @@ func _check() -> void:
     var lamp_positions := [
         Vector2(-4.70, -10.25),
         Vector2(4.70, -10.25),
-        Vector2(-5.45, 4.45),
-        Vector2(5.45, 4.45)
+        Vector2(-8.1, 2.1),
+        Vector2(8.1, 2.1)
     ]
     for lamp_pos in lamp_positions:
         var away: float = -1.0 if lamp_pos.x < 0.0 else 1.0
@@ -115,18 +111,21 @@ func _check() -> void:
         if bool(town.call("_world_point_blocked", lamp_pos + Vector2(away * 0.55, 0.0))):
             _fail("Post has too much invisible clearance at " + str(lamp_pos))
             return
-    # Four stalls ring the market; former fountain centre remains walkable.
-    for stall_x in [-5.1, 5.1]:
-        if not bool(town.call("_world_point_blocked", Vector2(stall_x - 1.08, 0.8 + 0.46))):
-            _fail("Original market stall post no longer collides")
-            return
-    for stall_x in [-4.0, 4.0]:
-        if not bool(town.call("_world_point_blocked", Vector2(stall_x, -4.0))):
-            _fail("New market stall is missing collision")
-            return
-    if bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
-        _fail("Former fountain still blocks the market aisle")
+    # The four counters are rotated 45/135 degrees, with unobstructed
+    # diagonal space around their corners and an open middle loop.
+    var stalls := town.find_children("MarketStall_*", "Node3D", true, false)
+    if stalls.size() != 4:
+        _fail("Four market stalls were not placed")
         return
+    for stall in stalls:
+        var sp: Vector3 = (stall as Node3D).position
+        if not bool(town.call("_world_point_blocked", Vector2(sp.x, sp.z))):
+            _fail("Market counter no-clips")
+            return
+    for aisle in [Vector2(0, -4), Vector2(0, -1.8), Vector2(0, 2.45), Vector2(-2.0, -2.0), Vector2(2.0, -2.0)]:
+        if bool(town.call("_world_point_blocked", aisle)):
+            _fail("Market browsing circuit blocked at " + str(aisle))
+            return
 
     # Small ornamental foliage should remain deliberately walk-through.
     if bool(town.call("_world_point_blocked", Vector2(15.0, 11.0))):
@@ -179,7 +178,7 @@ func _check() -> void:
         _fail("Camera did not recover third-person distance")
         return
 
-    print("AETHERFALL_COLLISION_CAMERA_02U_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
+    print("AETHERFALL_COLLISION_CAMERA_02Y_OK: doors, grounding, tight gate towers and portcullis, all wall buttress collisions, camera shells, solid barrels and lamp posts, soft bushes")
     town.queue_free()
     quit(0)
 

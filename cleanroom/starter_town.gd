@@ -1,5 +1,6 @@
 extends Node3D
 const SceneryReplacement = preload("res://scenery_replacements.gd")
+const GrassField = preload("res://grass_field.gd")
 ## Runtime Tripo/Mixamo QA scene for Aetherfall character pass.
 ## Loads the supplied GLB directly and adds game-ready preview behavior:
 ## gameplay locomotion test: touch movement, camera orbit, auto animation states, grounding.
@@ -99,6 +100,7 @@ var _character_variant := "male"
 var _idle_option_index := 0
 var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
+var _oriented_blockers: Array[Dictionary] = []
 var _house_blockers: Array[Dictionary] = []
 var _camera_obstacles: Array[AABB] = []
 # Towers are round; square camera volumes erroneously envelop players at corners.
@@ -255,7 +257,7 @@ func _refresh_diagnostics() -> void:
             state = "READY - no startup errors detected"
         elif _startup_failed:
             state = "FAILED - photograph this panel"
-        _diag_detail_label.text = "Starter Town v0.1.9 diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
+        _diag_detail_label.text = "Starter Town v0.2Y diagnostics\nState: " + state + "\n\n" + _diag_detail_text + "\n\nLast stage: " + _diag_code
 
 func _load_town_textures() -> void:
     _town_textures.clear()
@@ -399,6 +401,13 @@ func _add_blocker(center: Vector2, size: Vector2, padding: float = PLAYER_WORLD_
 func _add_circle_blocker(center: Vector2, radius: float, padding: float = PLAYER_WORLD_RADIUS) -> void:
     _circle_blockers.append(Vector3(center.x, center.y, radius + padding))
 
+func _add_oriented_blocker(center: Vector2, size: Vector2, yaw: float, padding: float = PLAYER_WORLD_RADIUS) -> void:
+    _oriented_blockers.append({
+        "center": center,
+        "half": size * 0.5 + Vector2.ONE * padding,
+        "yaw": deg_to_rad(yaw)
+    })
+
 func _add_camera_obstacle(center: Vector3, size: Vector3) -> void:
     _camera_obstacles.append(AABB(center - size * 0.5, size))
 
@@ -527,17 +536,10 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _box(house, "BraceL", Vector3(0.13, 1.55, 0.18), Vector3(-width * 0.31, 2.15, front_z + 0.01), beam, Vector3(0, 0, -28))
     _box(house, "BraceR", Vector3(0.13, 1.55, 0.18), Vector3(width * 0.31, 2.15, front_z + 0.01), beam, Vector3(0, 0, 28))
 
-    # Door with accessible stone steps and a shallow, safe approach.
+    # Old procedural entrance steps were misaligned with the imported doors.
+    # Ground-level thresholds belong to the actual buildings, not this fallback.
     var door_face := depth * 0.515 + 0.08
     _box(house, "Door", Vector3(1.05, 1.95, 0.16), Vector3(0, 1.46, depth * 0.515), door_wood, Vector3.ZERO, 0.72)
-    _box(house, "DoorThreshold", Vector3(1.35, 0.12, 0.55), Vector3(0, 0.62, depth * 0.60), stone_light)
-    var step_upper_z := depth * 0.5 + 0.67
-    var step_lower_z := depth * 0.5 + 1.23
-    _box(house, "DoorStepUpper", Vector3(1.62, 0.34, 0.64), Vector3(0, 0.35, step_upper_z), stone_light)
-    _box(house, "DoorStepLower", Vector3(1.90, 0.20, 0.61), Vector3(0, 0.10, step_lower_z), stone)
-    _add_door_step_surface(Vector2(position.x, position.z + step_upper_z), Vector2(1.62, 0.64), 0.52)
-    _add_door_step_surface(Vector2(position.x, position.z + step_lower_z), Vector2(1.90, 0.61), 0.20)
-    _box(house, "DoorHood", Vector3(1.65, 0.14, 0.88), Vector3(0, 2.52, depth * 0.60), roof_color, Vector3(-10, 0, 0))
 
     var left_front_window := Vector3(-width * 0.27, 2.10, depth * 0.518)
     var right_front_window := Vector3(width * 0.27, 2.10, depth * 0.518)
@@ -606,23 +608,42 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
         sign.position = Vector3(0, body_size.y + 0.08, depth * 0.65)
         house.add_child(sign)
 
-    # Fitted shell collider with a doorway recess: the actor can reach the
-    # upper step but cannot enter through the closed door.
-    _house_blockers.append({
-        "center": Vector2(position.x, position.z),
-        "half": Vector2(width * 0.5 + 0.29 + PLAYER_WORLD_RADIUS + 0.035, depth * 0.5 + 0.29 + PLAYER_WORLD_RADIUS + 0.035),
-        "door_stop_z": door_face + PLAYER_WORLD_RADIUS + 0.035,
-        "door_half_width": 0.64
-    })
-    _add_camera_obstacle(Vector3(position.x, (body_size.y + 1.6) * 0.5, position.z), Vector3(width + 0.22, body_size.y + 1.6, depth + 0.22))
+    # Import at a human-scale door height, then fit collision to the rendered
+    # exterior, NOT the old procedural house dimensions (or stair footprints).
     var facade := "House_%d" % (1 + absi(roundi(position.x * 13.0 + position.z * 7.0)) % 4)
     if title == "THE INN":
         facade = "Inn"
     elif title == "BLACKSMITH":
         facade = "Blacksmith"
-    # Keep original approach steps and signage visible after facade replacement.
-    SceneryReplacement.place(house, facade, Vector3(width + 0.4, body_size.y + 2.1, depth + 0.4),
-        PackedStringArray(["DoorStepUpper", "DoorStepLower", "DoorThreshold", "ShopSign"]))
+    var landmark := not title.is_empty()
+    var desired_size := Vector3(
+        width + (0.72 if landmark else 0.38),
+        body_size.y + (3.55 if landmark else 2.72),
+        depth + (0.66 if landmark else 0.36)
+    )
+    var imported := SceneryReplacement.place(house, facade, desired_size,
+        PackedStringArray(["ShopSign"]))
+    var collision_size := Vector3(width + 0.50, body_size.y + 1.7, depth + 0.50)
+    if imported:
+        collision_size = house.get_meta("scenery_model_size", desired_size)
+        var shop_label := house.get_node_or_null("Label3D") as Label3D
+        if shop_label != null:
+            shop_label.position = Vector3(0.0, desired_size.y * 0.58, desired_size.z * 0.52 + 0.16)
+    # Leave a narrow margin for roof eaves and allow the player to approach
+    # the stone doorway instead of colliding with an oversized invisible shell.
+    var solid_half := Vector2(collision_size.x * 0.435, collision_size.z * 0.435)
+    _house_blockers.append({
+        "center": Vector2(position.x, position.z),
+        "half": solid_half + Vector2.ONE * (PLAYER_WORLD_RADIUS + 0.045),
+        "asset": imported,
+        "door_stop_z": door_face + PLAYER_WORLD_RADIUS + 0.035,
+        "door_half_width": 0.64
+    })
+    house.set_meta("collision_half", solid_half)
+    _add_camera_obstacle(
+        Vector3(position.x, collision_size.y * 0.5, position.z),
+        collision_size * Vector3(0.94, 1.0, 0.94)
+    )
     return house
 
 func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
@@ -653,7 +674,7 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
     _sphere(tree, "LeafF", 0.44 * scale_factor, Vector3(0.02, 2.92, -0.52) * scale_factor, leaf_mid)
     _add_circle_blocker(Vector2(position.x, position.z), 0.30 * scale_factor, PLAYER_WORLD_RADIUS + 0.035)
     var tree_asset := "BirchTree_1" if absi(roundi(position.x + position.z)) % 2 == 0 else "MapleTree_1"
-    SceneryReplacement.place(tree, tree_asset, Vector3(3.0, 5.1, 3.0) * scale_factor)
+    SceneryReplacement.place(tree, tree_asset, Vector3(3.0, 5.1, 3.0) * scale_factor, PackedStringArray(), 0.0, 0.035)
 
 func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
     var shrub := Node3D.new()
@@ -672,7 +693,8 @@ func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) 
         _sphere(shrub, "ShrubC", 0.31 * scale_factor, Vector3(0.31, 0.31, 0.05), light)
         _sphere(shrub, "ShrubD", 0.22 * scale_factor, Vector3(0.12, 0.58, 0.00), mid)
     var shrub_asset := "Bush" if variant % 3 == 0 else ("Bush_Large" if variant % 3 == 1 else "Bush_Flowers")
-    SceneryReplacement.place(shrub, shrub_asset, Vector3(1.3, 1.15, 1.3) * scale_factor)
+    SceneryReplacement.place(shrub, shrub_asset, Vector3(1.3, 1.15, 1.3) * scale_factor, PackedStringArray(), 0.0, 0.145)
+    shrub.set_meta("grounded", true)
 
 func _add_grass_clump(position: Vector3, scale_factor: float = 1.0) -> void:
     var clump := Node3D.new()
@@ -704,9 +726,10 @@ func _add_rock(position: Vector3, scale_factor: float = 1.0) -> void:
     _sphere(rock, "Rock", 0.26 * scale_factor, Vector3(0, 0.18 * scale_factor, 0), Color("#686861"), 1.0)
     rock.scale = Vector3(1.25, 0.70, 0.95)
 
-func _add_market_stall(position: Vector3, awning: Color) -> void:
+func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     var stall := Node3D.new()
     stall.position = position
+    stall.rotation_degrees.y = yaw
     stall.name = "MarketStall_%d_%d" % [roundi(position.x * 100.0), roundi(position.z * 100.0)]
     add_child(stall)
     var wood := Color("#5b3c2a")
@@ -729,8 +752,17 @@ func _add_market_stall(position: Vector3, awning: Color) -> void:
     # The Quaternius asset has a narrow native X axis, hence the 90-degree turn.
     var stall_asset := "MarketStand_1" if position.x < 0.0 else "MarketStand_2"
     SceneryReplacement.place(stall, stall_asset, Vector3(2.60, 2.65, 1.65), PackedStringArray(), 90.0)
-    # Includes the four wooden StallPost supports and the stocked counter.
-    _add_blocker(Vector2(position.x, position.z), Vector2(2.65, 1.72), PLAYER_WORLD_RADIUS + 0.025)
+    # The canopy is walk-under; solid collision belongs to the COUNTER and
+    # four posts. Rotate the footprint with the model so visitors can loop
+    # between diagonal stalls without hitting invisible rectangular corners.
+    _add_oriented_blocker(Vector2(position.x, position.z), Vector2(2.43, 1.02), yaw, PLAYER_WORLD_RADIUS + 0.025)
+    var rotation := Basis(Vector3.UP, deg_to_rad(yaw))
+    for px in [-1.08, 1.08]:
+        for pz in [-0.46, 0.46]:
+            var wp := position + rotation * Vector3(float(px), 0.0, float(pz))
+            _add_circle_blocker(Vector2(wp.x, wp.z), 0.08, PLAYER_WORLD_RADIUS + 0.02)
+    stall.set_meta("facing_degrees", yaw)
+    _add_camera_obstacle(position + Vector3(0, 1.0, 0), Vector3(2.75, 2.0, 2.75))
 
 func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
     var bench := Node3D.new()
@@ -947,6 +979,7 @@ func _configure_fallback_environment(env: Environment) -> void:
 func _build_stage() -> void:
     _world_blockers.clear()
     _circle_blockers.clear()
+    _oriented_blockers.clear()
     _house_blockers.clear()
     _camera_obstacles.clear()
     _camera_cylinders.clear()
@@ -1088,11 +1121,12 @@ func _build_stage() -> void:
 
     # Market and props. Vendor fronts/backs are reserved: no benches, lamps, or
     # loose storage are placed inside the stall working/customer zones.
-    _add_market_stall(Vector3(-5.1, 0, 0.8), Color("#9d4540"))
-    _add_market_stall(Vector3(5.1, 0, 0.8), Color("#416791"))
-    # Two more market stands flank the former fountain, leaving an open aisle.
-    _add_market_stall(Vector3(-4.0, 0, -4.0), Color("#638457"))
-    _add_market_stall(Vector3(4.0, 0, -4.0), Color("#bf9654"))
+    # Four diagonal corner stalls, facing toward the open browsing circuit.
+    # Each sits between the square and one of the four landmark shops.
+    _add_market_stall(Vector3(-5.4, 0, -6.1), Color("#9d4540"), -135.0)
+    _add_market_stall(Vector3(5.4, 0, -6.1), Color("#416791"), 135.0)
+    _add_market_stall(Vector3(-5.4, 0, 2.45), Color("#638457"), -45.0)
+    _add_market_stall(Vector3(5.4, 0, 2.45), Color("#bf9654"), 45.0)
 
     # Storage props sit beside buildings with explicit clearance from foundations.
     # Blacksmith barrels are on the west service side; shop barrel is east of the shop.
@@ -1115,15 +1149,7 @@ func _build_stage() -> void:
         _add_shrub(shrub_pos, 0.9, shrub_index)
         shrub_index += 1
 
-    # Lightweight landscaping around foundations and perimeter green space.
-    for grass_pos in [
-        Vector3(-18.0,0,-10.8), Vector3(-16.8,0,-12.2), Vector3(-7.5,0,-12.0),
-        Vector3(8.2,0,-11.8), Vector3(17.2,0,-10.7), Vector3(18.4,0,-12.1),
-        Vector3(-18.4,0,11.7), Vector3(-8.2,0,12.1), Vector3(8.6,0,12.0),
-        Vector3(17.9,0,11.5), Vector3(-23.2,0,-11.5), Vector3(23.0,0,-10.8),
-        Vector3(-23.0,0,12.0), Vector3(23.1,0,12.4)
-    ]:
-        _add_grass_clump(grass_pos, 1.0)
+    # Dense grass is placed after all solid scenery to avoid doorways and paths.
 
     _add_flower_patch(Vector3(-14.3,0,-10.9), Color("#d9879b"))
     _add_flower_patch(Vector3(-7.0,0,-11.1), Color("#d9b05f"))
@@ -1142,14 +1168,17 @@ func _build_stage() -> void:
     # Rest zones stay on the square perimeter and never occupy vendor work space.
     _add_bench(Vector3(-3.9,0,-8.9), 0)
     _add_bench(Vector3(3.9,0,-8.9), 0)
-    _add_bench(Vector3(-3.15,0,4.35), 180)
-    _add_bench(Vector3(3.15,0,4.35), 180)
+    _add_bench(Vector3(-3.15,0,5.12), 180)
+    _add_bench(Vector3(3.15,0,5.12), 180)
 
     # Lamps sit on clear road/square edges, outside all building and stall footprints.
     _add_lamp(Vector3(-4.70,0,-10.25))
     _add_lamp(Vector3(4.70,0,-10.25))
-    _add_lamp(Vector3(-5.45,0,4.45))
-    _add_lamp(Vector3(5.45,0,4.45))
+    _add_lamp(Vector3(-8.1,0,2.1))
+    _add_lamp(Vector3(8.1,0,2.1))
+
+    # Coverage is split into small instanced chunks for mobile frustum culling.
+    GrassField.populate(self, Callable(self, "_world_point_blocked"), Callable(self, "_ground_surface_y"))
 
 func _round_style(color: Color, radius: int) -> StyleBoxFlat:
     var style := StyleBoxFlat.new()
@@ -1284,7 +1313,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2X  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2Y  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1858,14 +1887,25 @@ func _world_point_blocked(point: Vector2) -> bool:
         var half: Vector2 = house["half"]
         var local := point - center
         if absf(local.x) <= half.x and absf(local.y) <= half.y:
-            var door_stop: float = house["door_stop_z"]
-            var door_half: float = house["door_half_width"]
-            if absf(local.x) <= door_half and local.y > door_stop:
-                continue
+            if not bool(house["asset"]):
+                var door_stop: float = house["door_stop_z"]
+                var door_half: float = house["door_half_width"]
+                if absf(local.x) <= door_half and local.y > door_stop:
+                    continue
             return true
     for circle in _circle_blockers:
         var center := Vector2(circle.x, circle.y)
         if point.distance_to(center) < circle.z:
+            return true
+    for obstacle in _oriented_blockers:
+        var delta: Vector2 = point - (obstacle["center"] as Vector2)
+        var theta: float = float(obstacle["yaw"])
+        var local := Vector2(
+            cos(theta) * delta.x - sin(theta) * delta.y,
+            sin(theta) * delta.x + cos(theta) * delta.y
+        )
+        var half: Vector2 = obstacle["half"]
+        if absf(local.x) <= half.x and absf(local.y) <= half.y:
             return true
     return false
 

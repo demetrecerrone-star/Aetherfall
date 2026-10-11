@@ -4,7 +4,7 @@ extends RefCounted
 
 const MODEL_DIR := "res://models/scenery/"
 
-static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visible: PackedStringArray = PackedStringArray(), yaw_degrees: float = 0.0) -> bool:
+static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visible: PackedStringArray = PackedStringArray(), yaw_degrees: float = 0.0, ground_sink: float = 0.0) -> bool:
     var path := MODEL_DIR + asset + ".glb"
     if not ResourceLoader.exists(path):
         return false
@@ -59,10 +59,18 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
     model.scale = fitted_scale
     model.position = Vector3(
         -(bounds.position.x + bounds.size.x * 0.5) * fitted_scale.x,
-        -bounds.position.y * fitted_scale.y,
+        -bounds.position.y * fitted_scale.y - ground_sink,
         -(bounds.position.z + bounds.size.z * 0.5) * fitted_scale.z
     )
 
+    # Collision and QA can read the rendered model's actual fitted dimensions,
+    # rather than retaining the old procedural building/counter footprint.
+    owner.set_meta("scenery_model_size", Vector3(
+        bounds.size.x * fitted_scale.x,
+        bounds.size.y * fitted_scale.y,
+        bounds.size.z * fitted_scale.z
+    ))
+    owner.set_meta("scenery_ground_sink", ground_sink)
     # Preserve original mesh nodes for QA and safe fallback. Physics blockers
     # belong to the town controller and are deliberately never removed.
     for child in owner.get_children():
