@@ -2,10 +2,14 @@ name: Aetherfall Starter Town Android APK
 
 on:
   push:
-    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade, feature/starter-town-pass3-valley]
+    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade, feature/starter-town-pass3-valley, feature/quaternius-nature-megakit-import]
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
+      - "cleanroom/nature_replacements.gd"
+      - "cleanroom/tools/install_nature_megakit.py"
+      - "cleanroom/tests/nature_asset_test.gd"
+      - "Aetherfall-Nature-Assets-For-GitHub.zip"
       - "cleanroom/scenery_replacements.gd"
       - "cleanroom/grass_field.gd"
       - "cleanroom/road_network.gd"
@@ -36,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install optimized Quaternius scenery assets
-        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || github.ref == 'refs/heads/feature/starter-town-pass3-valley')
+        if: contains(fromJSON('["feature/quaternius-scenery-upgrade","feature/starter-town-pass2-roads","feature/starter-town-pass3-valley","feature/quaternius-nature-megakit-import"]'), github.ref_name)
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -64,6 +68,10 @@ jobs:
                   raise SystemExit("Invalid optimized scenery GLB: " + name)
           print(f"Prepared {len(expected)} optimized CC0 Quaternius scenery GLBs")
           PY
+
+      - name: Install checked Quaternius Stylized Nature MegaKit
+        if: github.ref_name == 'feature/quaternius-nature-megakit-import'
+        run: python3 cleanroom/tools/install_nature_megakit.py
 
       - name: Verify exact runtime Mixamo GLB
         run: |
@@ -191,12 +199,20 @@ jobs:
           godot --headless --editor --path cleanroom --quit
 
       - name: Validate all 20 imported Quaternius models
-        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade' || (github.ref == 'refs/heads/feature/starter-town-pass2-roads' || github.ref == 'refs/heads/feature/starter-town-pass3-valley')
+        if: contains(fromJSON('["feature/quaternius-scenery-upgrade","feature/starter-town-pass2-roads","feature/starter-town-pass3-valley","feature/quaternius-nature-megakit-import"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/scenery_asset_test.gd 2>&1 | tee /tmp/scenery-assets-qa.log
           grep -F 'AETHERFALL_SCENERY_ASSETS_OK' /tmp/scenery-assets-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_SCENERY_FAIL' /tmp/scenery-assets-qa.log; then exit 1; fi
+
+      - name: Verify real imported nature models and optimized grass
+        if: github.ref_name == 'feature/quaternius-nature-megakit-import'
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/nature_asset_test.gd 2>&1 | tee /tmp/nature-assets-qa.log
+          grep -F 'AETHERFALL_NATURE_ASSETS_OK' /tmp/nature-assets-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_NATURE_ASSETS_FAIL' /tmp/nature-assets-qa.log; then exit 1; fi
 
       - name: Runtime smoke test imported animation playback
         run: |
