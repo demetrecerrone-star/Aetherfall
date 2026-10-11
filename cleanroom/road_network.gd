@@ -19,8 +19,10 @@ static func plan(door_anchors: Array[Vector2]) -> Array[Rect2]:
     var regions: Array[Rect2] = []
     # One continuous route from the front gate to the square.
     regions.append(Rect2(Vector2(-2.95, -20.0), Vector2(5.90, 44.0)))
-    # East-west spine, linked to the gate road and all village side lanes.
-    regions.append(Rect2(Vector2(-21.0, -1.60), Vector2(42.0, 5.00)))
+    # Secondary east-west spine: trim the 5 m boulevard down to 4.25 m.
+    # It still comfortably fits people passing in both directions. The
+    # 5.90 m entry road, 2 m building spurs, and marketplace stay untouched.
+    regions.append(Rect2(Vector2(-21.0, -1.225), Vector2(42.0, 4.25)))
     # Broad market plaza: vendors remain inside, the middle stays walkable.
     regions.append(Rect2(Vector2(-8.0, -11.0), Vector2(16.0, 14.4)))
     for point in door_anchors:
