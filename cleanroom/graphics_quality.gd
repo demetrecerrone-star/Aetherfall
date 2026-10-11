@@ -50,6 +50,19 @@ static func shadow_atlas_size(name: String) -> int:
             return 4096
 
 
+# Godot's directional shadow filter quality is global. The old starter town
+# forced SOFT_HIGH even when 3D rendering was scaled down to PERFORMANCE.
+# Retain pleasantly blurred shadows, but cut filtering samples on mobile.
+static func shadow_filter_quality(name: String) -> RenderingServer.ShadowQuality:
+    match name:
+        PERFORMANCE:
+            return RenderingServer.SHADOW_QUALITY_SOFT_LOW
+        BALANCED:
+            return RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM
+        _:
+            return RenderingServer.SHADOW_QUALITY_SOFT_HIGH
+
+
 static func apply(name: String, viewport: Viewport, sun: DirectionalLight3D) -> void:
     if not valid(name):
         return
@@ -58,6 +71,7 @@ static func apply(name: String, viewport: Viewport, sun: DirectionalLight3D) -> 
     viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
     viewport.scaling_3d_scale = resolution_scale(name)
     RenderingServer.directional_shadow_atlas_set_size(shadow_atlas_size(name), true)
+    RenderingServer.directional_soft_shadow_filter_set_quality(shadow_filter_quality(name))
     if sun != null:
         sun.shadow_enabled = true
         sun.directional_shadow_mode = (
