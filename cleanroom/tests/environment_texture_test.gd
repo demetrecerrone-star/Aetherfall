@@ -410,9 +410,25 @@ func _run_check() -> void:
     if String(town.get_meta("grass_coverage_pass", "")) != "dense_foundation_edges":
         _fail("Dense ground/foundation grass pass not activated")
         return
-    if grass_count < 12500:
-        _fail("Grass density upgrade produced too few lawn tufts: " + str(grass_count))
+    if grass_count < (22000 if native_nature else 12000):
+        _fail("Near-doubled lawn population is missing: " + str(grass_count))
         return
+    if native_nature:
+        if int(town.get_meta("grass_sampling_per_cell", 0)) != 56:
+            _fail("Meadow is not using the 56x56 dense planting samples")
+            return
+        if absf(float(town.get_meta("grass_density_multiplier", 0.0)) - 1.96) > 0.01:
+            _fail("Near-double grass planting target was not recorded")
+            return
+        var planted_species: Array = town.get_meta("grass_species_counts", [])
+        if planted_species.size() != 4 or int(planted_species[0]) + int(planted_species[1]) < 21000:
+            _fail("Additional lawn should come from common/wispy grass, not clover or ferns")
+            return
+        if int(planted_species[2]) > grass_count / 11 or int(planted_species[3]) > grass_count / 70:
+            _fail("Clover or fern accents overwhelm the doubled grass")
+            return
+    # Footing, physical obstacle clearances and the grass-free road margins
+    # remain covered by the existing road and foundation checks.
     # Player clearance is broad, but grass should get almost to the house
     # foundation. Confirm some lawn positions exist inside the player's
     # padded obstruction halo without allowing grass through solid masonry.
