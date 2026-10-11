@@ -50,11 +50,17 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
     var fit_y := desired_size.y / maxf(bounds.size.y, 0.01)
     var fit_z := desired_size.z / maxf(bounds.size.z, 0.01)
     var uniform_scale := minf(fit_x, minf(fit_y, fit_z))
-    model.scale = Vector3.ONE * uniform_scale
+    var fitted_scale := Vector3.ONE * uniform_scale
+    # Larger medieval structures must fill their existing collision footprint.
+    # Preserve exact vertical target and horizontal width/depth so doors and
+    # corners do not appear metres behind invisible primitive blockers.
+    if asset.begins_with("House_") or asset == "Inn" or asset == "Blacksmith":
+        fitted_scale = Vector3(fit_x, fit_y, fit_z)
+    model.scale = fitted_scale
     model.position = Vector3(
-        -(bounds.position.x + bounds.size.x * 0.5) * uniform_scale,
-        -bounds.position.y * uniform_scale,
-        -(bounds.position.z + bounds.size.z * 0.5) * uniform_scale
+        -(bounds.position.x + bounds.size.x * 0.5) * fitted_scale.x,
+        -bounds.position.y * fitted_scale.y,
+        -(bounds.position.z + bounds.size.z * 0.5) * fitted_scale.z
     )
 
     # Preserve original mesh nodes for QA and safe fallback. Physics blockers

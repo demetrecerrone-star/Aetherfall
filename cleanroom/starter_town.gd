@@ -1284,7 +1284,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2W  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2X  |  " + title
     if _detail != null:
         _detail.text = detail
 

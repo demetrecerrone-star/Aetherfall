@@ -2,10 +2,13 @@ name: Aetherfall Starter Town Android APK
 
 on:
   push:
-    branches: [feature/cleanroom-starter-town]
+    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade]
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
+      - "cleanroom/scenery_replacements.gd"
+      - "cleanroom/tests/scenery_asset_test.gd"
+      - "Aetherfall-Scenery-Assets-For-GitHub.zip"
       - "cleanroom/export_presets.cfg"
       - ".github/workflows/starter-town-android.yml"
       - "cleanroom/tests/verify_pack_model.gd"
@@ -27,6 +30,36 @@ jobs:
     steps:
       - name: Checkout cleanroom project
         uses: actions/checkout@v4
+
+      - name: Install optimized Quaternius scenery assets
+        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          archive = Path("Aetherfall-Scenery-Assets-For-GitHub.zip")
+          if not archive.is_file():
+              raise SystemExit("Upload Aetherfall-Scenery-Assets-For-GitHub.zip to the scenery branch root before building.")
+          expected = set("House_1 House_2 House_3 House_4 Inn Blacksmith MarketStand_1 MarketStand_2 Stall_Empty Barrel Crate_Wooden FarmCrate_Apple Anvil Lantern_Wall BirchTree_1 MapleTree_1 Bush Bush_Large Bush_Flowers Grass_Small".split())
+          with ZipFile(archive) as z:
+              bad = z.testzip()
+              if bad:
+                  raise SystemExit("Corrupt scenery archive member: " + bad)
+              entries = set(z.namelist())
+              for name in expected:
+                  if "models/scenery/" + name + ".glb" not in entries:
+                      raise SystemExit("Missing required optimized scenery model: " + name)
+              for member in z.infolist():
+                  p = Path(member.filename)
+                  if p.is_absolute() or ".." in p.parts:
+                      raise SystemExit("Unsafe path in scenery archive: " + member.filename)
+              z.extractall("cleanroom")
+          for name in expected:
+              raw = (Path("cleanroom/models/scenery") / (name + ".glb")).read_bytes()
+              if len(raw) < 1000 or raw[:4] != b"glTF" or int.from_bytes(raw[8:12], "little") != len(raw):
+                  raise SystemExit("Invalid optimized scenery GLB: " + name)
+          print(f"Prepared {len(expected)} optimized CC0 Quaternius scenery GLBs")
+          PY
 
       - name: Verify exact runtime Mixamo GLB
         run: |
@@ -142,7 +175,7 @@ jobs:
           text = path.read_text()
           version = 100000000 + int(os.environ["GITHUB_RUN_NUMBER"])
           text = re.sub(r"version/code=\d+", f"version/code={version}", text, count=1)
-          text = re.sub(r'version/name="[^"]+"', f'version/name="0.2W-test.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
+          text = re.sub(r'version/name="[^"]+"', f'version/name="0.2X-scenery.{os.environ["GITHUB_RUN_NUMBER"]}"', text, count=1)
           path.write_text(text)
           print("Android version code:", version)
           PY
@@ -152,6 +185,14 @@ jobs:
           set -euo pipefail
           godot --headless --path cleanroom --check-only --script res://starter_town.gd
           godot --headless --editor --path cleanroom --quit
+
+      - name: Validate all 20 imported Quaternius models
+        if: github.ref == 'refs/heads/feature/quaternius-scenery-upgrade'
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/scenery_asset_test.gd 2>&1 | tee /tmp/scenery-assets-qa.log
+          grep -F 'AETHERFALL_SCENERY_ASSETS_OK' /tmp/scenery-assets-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_SCENERY_FAIL' /tmp/scenery-assets-qa.log; then exit 1; fi
 
       - name: Runtime smoke test imported animation playback
         run: |
@@ -201,18 +242,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p cleanroom/builds "$RUNNER_TEMP/pack-audit"
-          godot --headless --path cleanroom --export-pack Android "$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-v0.2W.pck"
-          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2W.pck
+          godot --headless --path cleanroom --export-pack Android "$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-v0.2X.pck"
+          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2X.pck
           printf 'config_version=5\n\n[application]\nconfig/name="Aetherfall Pack Audit"\n' > "$RUNNER_TEMP/pack-audit/project.godot"
           cp cleanroom/tests/verify_pack_model.gd "$RUNNER_TEMP/pack-audit/verify_pack_model.gd"
-          export AETHERFALL_PACK_FILE="$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-v0.2W.pck"
+          export AETHERFALL_PACK_FILE="$GITHUB_WORKSPACE/cleanroom/builds/Aetherfall-StarterTown-v0.2X.pck"
           godot --headless --path "$RUNNER_TEMP/pack-audit" --script res://verify_pack_model.gd
 
       - name: Export signed Aetherfall Starter Town APK
         run: |
           mkdir -p cleanroom/builds
-          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-v0.2W.apk)
-          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2W.apk
+          (cd cleanroom && godot --headless --path . --export-debug Android builds/Aetherfall-StarterTown-v0.2X.apk)
+          test -s cleanroom/builds/Aetherfall-StarterTown-v0.2X.apk
 
       - name: Verify APK signing certificate
         env:
@@ -220,7 +261,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          APK="cleanroom/builds/Aetherfall-StarterTown-v0.2W.apk"
+          APK="cleanroom/builds/Aetherfall-StarterTown-v0.2X.apk"
           "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
           ACTUAL=$("$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --print-certs "$APK" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]')
           EXPECTED=$(keytool -exportcert -alias "$KEYSTORE_ALIAS" -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" -storepass "$KEYSTORE_PASSWORD" | sha256sum | awk '{print $1}')
@@ -230,7 +271,7 @@ jobs:
       - name: Upload phone test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-StarterTown-v0.2W-Android
-          path: cleanroom/builds/Aetherfall-StarterTown-v0.2W.apk
+          name: Aetherfall-StarterTown-v0.2X-Android
+          path: cleanroom/builds/Aetherfall-StarterTown-v0.2X.apk
           if-no-files-found: error
           retention-days: 30
