@@ -381,16 +381,30 @@ func _run_check() -> void:
         _fail("Future area path not configured at town gate")
         return
 
-    # Former fountain square now hosts additional market stands, with a clear aisle.
-    if not town.find_children("Fountain*", "Node", true, false).is_empty():
-        _fail("Removed fountain geometry returned")
+    # The user's real medieval fountain now anchors the square. Keep the
+    # surrounding walkway and the four market stands available.
+    var fountain := town.find_child("TownFountain", true, false) as Node3D
+    if fountain == null:
+        _fail("Authentic user-provided fountain did not appear in the plaza")
+        return
+    if not bool(fountain.get_meta("fountain_imported", false)):
+        _fail("Fountain is a placeholder instead of the actual textured GLB")
+        return
+    if fountain.get_node_or_null("ImportedMedievalFountain") == null:
+        _fail("Actual GLB geometry is missing from fountain root")
+        return
+    if fountain.position.distance_to(Vector3(0, 0.066, -4.0)) > 0.03:
+        _fail("Fountain has moved away from its town-square position")
+        return
+    if not bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
+        _fail("Character can walk through the fountain basin")
+        return
+    if bool(town.call("_world_point_blocked", Vector2(0.0, -1.8))) or bool(town.call("_world_point_blocked", Vector2(0.0, -6.1))):
+        _fail("Fountain player blocker obstructs the main plaza circulation loop")
         return
     var stalls := town.find_children("MarketStall_*", "Node3D", true, false)
     if stalls.size() != 4:
-        _fail("Expected four market stands")
-        return
-    if bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
-        _fail("Former fountain position still blocks the market aisle")
+        _fail("Expected all four open-air market stands around the fountain")
         return
     for stall_pos in [Vector2(-5.4, -6.1), Vector2(5.4, -6.1), Vector2(-5.4, 2.45), Vector2(5.4, 2.45)]:
         if not bool(town.call("_world_point_blocked", stall_pos)):
