@@ -5,6 +5,12 @@ on:
     paths:
       - ".github/workflows/mpfb-rigify.yml"
       - "tools/check_mpfb_rigify.py"
+      - "tools/generate_mpfb_rigify_anime.py"
+      - "tests/mpfb_prototype_model_test.gd"
+      - "tools/style_mpfb_anime.py"
+      - "tools/export_mpfb_runtime.py"
+      - "tools/render_mpfb_prototype.py"
+      - "character_lab/**"
   workflow_dispatch:
 
 permissions:
@@ -51,9 +57,196 @@ jobs:
           test -f "$BLENDER_USER_SCRIPTS/addons/rigify/__init__.py"
           "$BLENDER" --online-mode --command extension list
           "$BLENDER" -b --python tools/check_mpfb_rigify.py
+      - name: Generate MPFB anime body and actual Rigify rig
+        env:
+          BLENDER_USER_CONFIG: ${{ runner.temp }}/blender-settings
+          BLENDER_USER_EXTENSIONS: ${{ runner.temp }}/blender-extensions
+          BLENDER_USER_SCRIPTS: ${{ runner.temp }}/blender-user-scripts
+        run: |
+          set -euo pipefail
+          timeout 180s /tmp/aetherfall-blender-4.5/blender -b -t 2 --python tools/generate_mpfb_rigify_anime.py
+          test -s builds/Aetherfall-MPFB-Rigify-Anime-Prototype.blend
+          test -s builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path("builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json").read_text())
+          assert data["vertices"]>10000 and data["deform_bones"]>15, data
+          assert data["outfit_parts"]>=27 and len(data["styles"])==4, data
+          assert data["mobile_deform_bones"]==96, data
+          assert all(96<=style["game_skin_joints"]<=98 for style in data["styles"].values()),data
+          print("MPFB_RIGIFY_MODEL_VALID",data)
+          PY
+      - name: Render actual Blender hairstyle previews for geometry review
+        env:
+          BLENDER_USER_CONFIG: ${{ runner.temp }}/blender-settings
+          BLENDER_USER_EXTENSIONS: ${{ runner.temp }}/blender-extensions
+          BLENDER_USER_SCRIPTS: ${{ runner.temp }}/blender-user-scripts
+        run: |
+          timeout 180s /tmp/aetherfall-blender-4.5/blender -b -t 4 builds/Aetherfall-MPFB-Rigify-Anime-Prototype.blend --python tools/render_mpfb_prototype.py
+          test -s builds/character-preview/Aetherfall-Windswept-Preview.png
+          test -s builds/character-preview/Aetherfall-Long-Preview.png
+          test -s builds/character-preview/Aetherfall-Short-Preview.png
+          test -s builds/character-preview/Aetherfall-Ponytail-Preview.png
+      - name: Set up Godot 4.6.3 for independent GLB import test
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Verify MPFB Rigify prototype GLB imports with skeleton and skin
+        run: |
+          set -euo pipefail
+          mkdir -p builds/mpfb-godot-probe
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb builds/mpfb-godot-probe/prototype.glb
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Long.glb builds/mpfb-godot-probe/long.glb
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Short.glb builds/mpfb-godot-probe/short.glb
+          cp builds/Aetherfall-MPFB-Rigify-Anime-Ponytail.glb builds/mpfb-godot-probe/ponytail.glb
+          cp tests/mpfb_prototype_model_test.gd builds/mpfb-godot-probe/check.gd
+          printf 'config_version=5\n\n[application]\nconfig/name="Aetherfall MPFB Asset Probe"\n' > builds/mpfb-godot-probe/project.godot
+          timeout 90s godot --headless --editor --path builds/mpfb-godot-probe --import --quit 2>&1 | tee builds/mpfb-godot-import.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid)' builds/mpfb-godot-import.log; then
+            exit 1
+          fi
+          timeout 60s godot --headless --path builds/mpfb-godot-probe --script res://check.gd 2>&1 | tee builds/mpfb-godot-test.log
+          grep -q 'MPFB_GODOT_IMPORT_OK' builds/mpfb-godot-test.log
+      - name: Upload anime character prototype
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-MPFB-Rigify-Anime-Prototype
+          path: |
+            builds/Aetherfall-MPFB-Rigify-Anime-Prototype.blend
+            builds/Aetherfall-MPFB-Rigify-Anime-Prototype.glb
+            builds/Aetherfall-MPFB-Rigify-Anime-Prototype.json
+            builds/Aetherfall-MPFB-Rigify-Anime-Long.glb
+            builds/Aetherfall-MPFB-Rigify-Anime-Short.glb
+            builds/Aetherfall-MPFB-Rigify-Anime-Ponytail.glb
+            builds/character-preview/*.png
+          if-no-files-found: error
+          retention-days: 21
       - name: Upload installation verification
         uses: actions/upload-artifact@v4
         with:
           name: Aetherfall-MPFB-Rigify-Verification
           path: builds/aetherfall_addons_verified.json
           if-no-files-found: error
+
+  android-character-test:
+    name: Export isolated MPFB 3D character test APK
+    needs: addon-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout test-only Godot project
+        uses: actions/checkout@v4
+
+      - name: Fetch four validated MPFB hairstyle assets
+        uses: actions/download-artifact@v4
+        with:
+          name: Aetherfall-MPFB-Rigify-Anime-Prototype
+          path: builds/test-source
+
+      - name: Populate isolated character lab without touching game scenes
+        run: |
+          set -euo pipefail
+          mkdir -p character_lab/models
+          cp builds/test-source/Aetherfall-MPFB-Rigify-Anime-Prototype.glb character_lab/models/prototype.glb
+          cp builds/test-source/Aetherfall-MPFB-Rigify-Anime-Long.glb character_lab/models/long.glb
+          cp builds/test-source/Aetherfall-MPFB-Rigify-Anime-Short.glb character_lab/models/short.glb
+          cp builds/test-source/Aetherfall-MPFB-Rigify-Anime-Ponytail.glb character_lab/models/ponytail.glb
+          test -s character_lab/models/prototype.glb
+          test -s character_lab/models/long.glb
+          test -s character_lab/models/short.glb
+          test -s character_lab/models/ponytail.glb
+          test -f character_lab/lab.tscn
+          test -f character_lab/lab.gd
+          test -f character_lab/project.godot
+          test -f character_lab/export_presets.cfg
+          echo "Test APK package is separate: com.demetrecerrone.aetherfall.characterlab"
+          ! grep -q 'com.demetrecerrone.aetherfall"' character_lab/export_presets.cfg
+
+      - name: Set up Java 17 and Godot 4.6.3 Android templates
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Godot with Android export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: true
+
+      - name: Install Android SDK components
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/godot"
+          printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\n' > "$HOME/.config/godot/editor_settings-4.6.tres"
+          printf 'export/android/android_sdk_path = "%s"\n' "$ANDROID_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
+          printf 'export/android/java_sdk_path = "%s"\n' "$JAVA_HOME" >> "$HOME/.config/godot/editor_settings-4.6.tres"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+
+      - name: Configure persistent signer for side-by-side test APK
+        env:
+          KEYSTORE_B64: ${{ secrets.AETHERFALL_KEYSTORE_B64 || secrets.AETHERFALL_KEYSTORE_BASE64 }}
+          KEYSTORE_ALIAS: ${{ secrets.AETHERFALL_KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.AETHERFALL_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo "::error::Missing Aetherfall keystore secret"; exit 1; }
+          test -n "$KEYSTORE_ALIAS" || { echo "::error::Missing keystore alias"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "::error::Missing keystore password"; exit 1; }
+          umask 077
+          KEYSTORE_PATH="$RUNNER_TEMP/aetherfall-character-test.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -alias "$KEYSTORE_ALIAS" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$KEYSTORE_ALIAS" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Import character lab and reject parser or GLB errors
+        run: |
+          set -euo pipefail
+          godot --headless --editor --path character_lab --import --quit 2>&1 | tee builds/character-lab-import.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid|Cannot)' builds/character-lab-import.log; then
+            exit 1
+          fi
+
+      - name: Exercise four hairstyles and gait preview controls
+        run: |
+          set -euo pipefail
+          godot --headless --path character_lab --script res://test_lab.gd 2>&1 | tee builds/character-lab-test.log
+          grep -q 'AETHERFALL_CHARACTER_LAB_OK' builds/character-lab-test.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid|Cannot)' builds/character-lab-test.log; then
+            exit 1
+          fi
+
+      - name: Smoke launch actual isolated test scene
+        run: |
+          set -euo pipefail
+          godot --headless --path character_lab --quit-after 30 2>&1 | tee builds/character-lab-smoke.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|ERROR:.*(Failed|Invalid|Cannot)' builds/character-lab-smoke.log; then
+            exit 1
+          fi
+
+      - name: Export Aetherfall MPFB Android character test
+        run: |
+          set -euo pipefail
+          APK="$PWD/builds/Aetherfall-MPFB-Character-Test.apk"
+          godot --headless --path character_lab --export-debug "Character Test Android" "$APK"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.1/aapt" dump badging "$APK" | tee builds/character-lab-apk-info.log
+          grep -q "package: name='com.demetrecerrone.aetherfall.characterlab'" builds/character-lab-apk-info.log
+          echo "### Side-by-side MPFB character QA APK exported; original app package not modified." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish standalone APK and CI smoke logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-MPFB-3D-Character-TEST-APK
+          path: |
+            builds/Aetherfall-MPFB-Character-Test.apk
+            builds/character-lab-*.log
+          if-no-files-found: error
+          retention-days: 21
