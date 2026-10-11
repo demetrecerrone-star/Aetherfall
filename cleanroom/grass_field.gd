@@ -115,7 +115,7 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                         if type_id == 3:
                             var fern_safe := true
                             for check in [Vector2(0.30, 0), Vector2(-0.30, 0), Vector2(0, 0.30), Vector2(0, -0.30)]:
-                                var check_pos := Vector2(x, z) + check
+                                var check_pos: Vector2 = Vector2(x, z) + (check as Vector2)
                                 if bool(blocked.call(check_pos)) or float(ground_y.call(Vector3(check_pos.x, 0.0, check_pos.y))) > 0.012:
                                     fern_safe = false
                                     break
