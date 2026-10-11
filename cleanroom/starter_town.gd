@@ -1084,7 +1084,7 @@ func _build_stage() -> void:
     # opening so there are no sight-lines to an unbuilt exterior map.
     for side in [-1, 1]:
         var half_x := float(side) * 1.125
-        _box(self, "ClosedWoodGateLeaf", Vector3(2.28, 4.60, 0.42),
+        _box(self, "ClosedWoodGateLeaf_%s" % ("Left" if side < 0 else "Right"), Vector3(2.28, 4.60, 0.42),
             Vector3(half_x, 2.30, 24.62), Color("#62412c"))
         for groove in range(5):
             var gx := half_x - 0.95 + float(groove) * 0.47
