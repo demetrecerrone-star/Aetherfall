@@ -42,10 +42,20 @@ func _run_check() -> void:
         return
     # These are rustic trestle benches, never the old three-slat modern seats.
     var benches := town.find_children("TownBench*", "Node3D", true, false)
-    if benches.size() != 4:
-        _fail("Expected four rustic medieval benches")
+    if benches.size() != 2:
+        _fail("Expected two rustic benches only; entrance-side lawn benches should be removed")
         return
     for bench in benches:
+        if (bench as Node3D).position.z > -8.0:
+            _fail("Gate-side stray bench remains in the town")
+            return
+        if absf((bench as Node3D).scale.y - 0.64) > 0.015:
+            _fail("Bench is still oversized / waist-high")
+            return
+        var seat_top: float = bench.get_meta("seat_top_m", -1.0)
+        if seat_top < 0.47 or seat_top > 0.60:
+            _fail("Bench seat must be realistic knee height; got %f metres" % seat_top)
+            return
         if String(bench.get_meta("bench_style", "")) != "medieval_trestle":
             _fail("Town furniture reverted to the modern bench")
             return
@@ -132,16 +142,49 @@ func _run_check() -> void:
             _fail("Marketplace loop is blocked at " + str(spot))
             return
     for market_stall in stalls:
-        var yaw := absf((market_stall as Node3D).rotation_degrees.y)
-        if absf(yaw - 45.0) > 0.1 and absf(yaw - 135.0) > 0.1:
-            _fail("Marketplace stall does not face inward diagonally")
+        var stand := market_stall as Node3D
+        if String(stand.get_meta("vendor_stall_style", "")) != "backed_awning":
+            _fail("One of the stands reverted to the open-sided market model")
             return
+        if stand.get_node_or_null("Quaternius_MarketStand_1") == null:
+            _fail("All four stalls must use the backed MarketStand_1 model")
+            return
+        if stand.get_node_or_null("Quaternius_MarketStand_2") != null:
+            _fail("The unwanted alternative market stand is still present")
+            return
+        var expected_yaw := 45.0 if stand.position.x < 0.0 else -45.0
+        if stand.position.z > 0.0:
+            expected_yaw = 135.0 if stand.position.x < 0.0 else -135.0
+        if absf(stand.rotation_degrees.y - expected_yaw) > 0.1:
+            _fail("Market stand does not face center of square: " + str(stand.position))
+            return
+    # Gate-side House_4 is a low one-story source model and must never
+    # be stretched to the height of a cathedral-like door again.
+    var scaled_single_story := 0
+    for house in town.find_children("House*", "Node3D", true, false):
+        if String(house.get_meta("scenery_asset", "")) != "House_4":
+            continue
+        scaled_single_story += 1
+        var model_size: Vector3 = house.get_meta("scenery_model_size", Vector3.ZERO)
+        var stretch_ratio: float = house.get_meta("scenery_height_stretch_ratio", 1.0)
+        if model_size.y > 3.9 or stretch_ratio > 0.70:
+            _fail("Single-story building and door have been stretched too tall")
+            return
+    if scaled_single_story < 2:
+        _fail("Expected some short House_4 cottages near the gate")
+        return
 
     # Dense instanced grass, not 14 disconnected tufts, on lawn only.
     var grass_count: int = town.get_meta("grass_instance_count", 0)
     var chunk_count: int = town.get_meta("grass_chunk_count", 0)
-    if grass_count < 3000 or chunk_count < 20 or chunk_count > 64:
-        _fail("Missing dense, chunked mobile grass: %d instances / %d batches" % [grass_count, chunk_count])
+    if grass_count < 9000 or chunk_count < 20 or chunk_count > 64:
+        _fail("Missing thick lawn coverage: %d instances / %d batches" % [grass_count, chunk_count])
+        return
+    if String(town.get_meta("grass_style", "")) != "dense_short_yard_grass":
+        _fail("Grass must be lawn-length, not tall scattered spikes")
+        return
+    if float(town.get_meta("grass_spacing_m", 1.0)) > 0.26:
+        _fail("Grass spacing is too sparse for a believable lawn")
         return
     var chunk := town.find_child("GrassField_*", true, false) as MultiMeshInstance3D
     if chunk == null or chunk.multimesh == null:
@@ -154,7 +197,7 @@ func _run_check() -> void:
         _fail("Obsolete procedural stairs remain in town")
         return
 
-    print("AETHERFALL_ENVIRONMENT_02Z_OK: Four diagonal market stands, central browsing loop, zero stale stairs, and dense batched grass")
+    print("AETHERFALL_ENVIRONMENT_PASS1_OK: Four inward-backed stalls, two properly sized benches, natural gate-side doors, thick mobile lawn")
     town.queue_free()
     quit(0)
 

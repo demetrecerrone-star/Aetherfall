@@ -764,8 +764,11 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     _box(stall, "CrateB", Vector3(0.55, 0.40, 0.55), Vector3(0.62, 0.22, 0.30), Color("#875f40"))
     # Try the real modular market stand while retaining the proven collision.
     # The Quaternius asset has a narrow native X axis, hence the 90-degree turn.
-    var stall_asset := "MarketStand_1" if position.x < 0.0 else "MarketStand_2"
+    # All vendors share the fully backed, striped awning version. The left
+    # market stand was the approved reference in the 0.2Z phone screenshots.
+    var stall_asset := "MarketStand_1"
     SceneryReplacement.place(stall, stall_asset, Vector3(2.60, 2.65, 1.65), PackedStringArray(), 90.0)
+    stall.set_meta("vendor_stall_style", "backed_awning")
     # The canopy is walk-under; solid collision belongs to the COUNTER and
     # four posts. Rotate the footprint with the model so visitors can loop
     # between diagonal stalls without hitting invisible rectangular corners.
@@ -783,6 +786,9 @@ func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
     bench.name = "TownBench_%d_%d" % [roundi(position.x * 100.0), roundi(position.z * 100.0)]
     bench.position = position
     bench.rotation_degrees.y = yaw
+    # Realistic knee-height seating: original seat top was 0.88m and looked
+    # waist-height next to the player, so make the whole timber frame shorter.
+    bench.scale = Vector3(0.90, 0.64, 0.90)
     add_child(bench)
     # Rustic medieval trestle bench. Broad oak planks, carved supports and
     # wrought-iron bolt heads replace the modern metal frame/slatted furniture.
@@ -811,9 +817,11 @@ func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
         _sphere(bench, "IronSeatRivet", 0.044, Vector3(px, 0.865, -0.27), iron, 0.33)
         _sphere(bench, "IronBackRivet", 0.045, Vector3(px, 1.18, 0.22), iron, 0.33)
     bench.set_meta("bench_style", "medieval_trestle")
-    var sx := absf(cos(deg_to_rad(yaw))) * 2.25 + absf(sin(deg_to_rad(yaw))) * 0.92
-    var sz := absf(sin(deg_to_rad(yaw))) * 2.25 + absf(cos(deg_to_rad(yaw))) * 0.92
-    _add_blocker(Vector2(position.x, position.z), Vector2(sx, sz), 0.24)
+    bench.set_meta("seat_top_m", 0.875 * bench.scale.y)
+    # Keep collision as small as the newly scaled bench, not the old shell.
+    var sx := (absf(cos(deg_to_rad(yaw))) * 2.25 + absf(sin(deg_to_rad(yaw))) * 0.92) * bench.scale.x
+    var sz := (absf(sin(deg_to_rad(yaw))) * 2.25 + absf(cos(deg_to_rad(yaw))) * 0.92) * bench.scale.z
+    _add_blocker(Vector2(position.x, position.z), Vector2(sx, sz), 0.20)
 
 
 func _add_barrel(position: Vector3) -> void:
@@ -1171,12 +1179,12 @@ func _build_stage() -> void:
 
     # Market and props. Vendor fronts/backs are reserved: no benches, lamps, or
     # loose storage are placed inside the stall working/customer zones.
-    # Four diagonal corner stalls, facing toward the open browsing circuit.
-    # Each sits between the square and one of the four landmark shops.
-    _add_market_stall(Vector3(-5.4, 0, -6.1), Color("#9d4540"), -135.0)
-    _add_market_stall(Vector3(5.4, 0, -6.1), Color("#416791"), 135.0)
-    _add_market_stall(Vector3(-5.4, 0, 2.45), Color("#638457"), -45.0)
-    _add_market_stall(Vector3(5.4, 0, 2.45), Color("#bf9654"), 45.0)
+    # Four matching backed-awning stalls, rotated 180 degrees from v0.2Z
+    # so the open service fronts face the market circuit's central clearing.
+    _add_market_stall(Vector3(-5.4, 0, -6.1), Color("#9d4540"), 45.0)
+    _add_market_stall(Vector3(5.4, 0, -6.1), Color("#416791"), -45.0)
+    _add_market_stall(Vector3(-5.4, 0, 2.45), Color("#638457"), 135.0)
+    _add_market_stall(Vector3(5.4, 0, 2.45), Color("#bf9654"), -135.0)
 
     # Storage props sit beside buildings with explicit clearance from foundations.
     # Blacksmith barrels are on the west service side; shop barrel is east of the shop.
@@ -1215,11 +1223,10 @@ func _build_stage() -> void:
     ]:
         _add_rock(rock_pos, 0.85)
 
-    # Rest zones stay on the square perimeter and never occupy vendor work space.
+    # Keep only the two plaza benches on paving. The two near the town
+    # entrance sat on lawn/road edges and did not belong in this layout.
     _add_bench(Vector3(-3.9,0,-8.9), 0)
     _add_bench(Vector3(3.9,0,-8.9), 0)
-    _add_bench(Vector3(-3.15,0,5.12), 180)
-    _add_bench(Vector3(3.15,0,5.12), 180)
 
     # Lamps sit on clear road/square edges, outside all building and stall footprints.
     _add_lamp(Vector3(-4.70,0,-10.25))
@@ -1363,7 +1370,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2Z  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN PASS 1  |  " + title
     if _detail != null:
         _detail.text = detail
 

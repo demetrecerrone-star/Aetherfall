@@ -72,6 +72,12 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
     # corners do not appear metres behind invisible primitive blockers.
     if asset.begins_with("House_") or asset == "Inn" or asset == "Blacksmith":
         fitted_scale = Vector3(fit_x, fit_y, fit_z)
+    # The one-storey House_4 is only ~1.07m tall in its source model.
+    # Stretching it to a generic two-storey height enlarged its doors into
+    # giant gate-side arches. Limit Y to the native horizontal scale so
+    # doors remain close to sensible human proportions instead.
+    if asset == "House_4":
+        fitted_scale.y = minf(fit_y, fit_x * 1.08)
     model.scale = fitted_scale
     model.position = Vector3(
         -(bounds.position.x + bounds.size.x * 0.5) * fitted_scale.x,
@@ -87,6 +93,8 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
         bounds.size.z * fitted_scale.z
     ))
     owner.set_meta("scenery_ground_sink", ground_sink)
+    owner.set_meta("scenery_asset", asset)
+    owner.set_meta("scenery_height_stretch_ratio", fitted_scale.y / maxf(fit_y, 0.001))
     if solid_found and (asset.begins_with("House_") or asset == "Inn" or asset == "Blacksmith"):
         var solid_low := Vector2(
             solid_bounds.position.x * fitted_scale.x + model.position.x,
