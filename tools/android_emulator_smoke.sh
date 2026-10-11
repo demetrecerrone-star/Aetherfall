@@ -40,14 +40,13 @@ adb logcat -c
 adb shell am force-stop com.demetrecerrone.aetherfall || true
 adb shell am start -n com.demetrecerrone.aetherfall/com.godot.game.GodotAppLauncher
 sleep 25
-# Some overloaded Android 15 Pixel emulator boots leave a native
-# "Pixel Launcher isn't responding" overlay *over the Godot window*.
-# The foreground activity remains Aetherfall, so checking pid/activity alone
-# cannot catch this; the frozen-frame gate correctly caught it in CI.
-# Close the *launcher* ANR if visible (x=550 y=450 is the dialog Close app
-# action). On normal gameplay these center-screen taps are harmless.
+# Dismiss a native Pixel Launcher ANR only when its OS accessibility dialog
+# is actually present. Blind taps are unsafe now that the title menu is interactive.
 for attempt in 1 2 3; do
-  adb shell input touchscreen tap 550 450
+  adb shell uiautomator dump /sdcard/aetherfall-window.xml >/dev/null 2>&1 || true
+  if adb shell cat /sdcard/aetherfall-window.xml 2>/dev/null | grep -Eiq "Pixel Launcher.*(isn.t responding|not responding)"; then
+    adb shell input touchscreen tap 550 450
+  fi
   sleep 2
 done
 verify_foreground
@@ -59,6 +58,10 @@ function cap() {
   test -s "qa-results/$name.png"
   echo "captured $name" | tee -a qa-results/test-summary.txt
 }
+# Check the new boot title, then tap BEGIN ADVENTURE (1600x900 test window).
+cap 00_title_screen
+adb shell input touchscreen tap 420 265
+sleep 20
 cap 01_first_launch
 
 # Record Aetherfall while holding the left virtual joystick forward.
