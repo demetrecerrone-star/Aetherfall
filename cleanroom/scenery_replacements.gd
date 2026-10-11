@@ -25,7 +25,7 @@ static func place(owner: Node3D, asset: String, desired_size: Vector3, keep_visi
     var found_mesh := false
     var pending: Array[Node] = [model]
     while not pending.is_empty():
-        var part := pending.pop_back()
+        var part: Node = pending.pop_back()
         if part is MeshInstance3D:
             var mesh_part := part as MeshInstance3D
             if mesh_part.mesh != null:
