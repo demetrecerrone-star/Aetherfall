@@ -1212,7 +1212,7 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     # Two compact ledger braces connect the tabletop to the existing posts.
     # No extra legs or floor-standing structure are created.
     for edge_x in [-0.96, 0.96]:
-        _box(stall, "IntegratedPostLedger",
+        _box(stall, "IntegratedPostLedger_Left" if edge_x < 0.0 else "IntegratedPostLedger_Right",
             Vector3(0.12, 0.17, 0.70),
             Vector3(float(edge_x), 0.825, 0.32), timber_edge)
     # Merchandise stands ON this real integral counter, never on the canopy.
