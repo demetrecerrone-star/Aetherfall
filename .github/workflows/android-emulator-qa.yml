@@ -10,6 +10,16 @@ on:
       - "tools/generate_avatar.py"
       - "tools/generate_avatar_v033.py"
       - "scripts/avatar_v03.gd"
+      - "scripts/title_screen.gd"
+      - "scripts/title_backdrop.gd"
+      - "scripts/menu_ambience.gd"
+      - "scripts/loading_screen.gd"
+      - "scripts/main.gd"
+      - "scripts/touch_hud.gd"
+      - "scenes/title_screen.tscn"
+      - "scenes/loading_screen.tscn"
+      - "project.godot"
+      - "tests/title_flow_test.gd"
       - "tests/test_avatar_v033.py"
 
 permissions:
