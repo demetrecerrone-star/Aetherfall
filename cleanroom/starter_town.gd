@@ -34,7 +34,8 @@ const TOWN_MIN_X := -27.0
 const TOWN_MAX_X := 27.0
 const TOWN_MIN_Z := -25.0
 const TOWN_MAX_Z := 25.0
-const PLAYER_WORLD_RADIUS := 0.58
+const PLAYER_WORLD_RADIUS := 0.34
+const CAMERA_WALL_GAP := 0.16
 
 var _actor: Node3D
 var _model: Node3D
@@ -94,6 +95,9 @@ var _character_variant := "male"
 var _idle_option_index := 0
 var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
+var _house_blockers: Array[Dictionary] = []
+var _camera_obstacles: Array[AABB] = []
+var _door_step_surfaces: Array[Dictionary] = []
 var _boundary_flash := 0.0
 
 # Permanent on-device startup diagnostics. Parse errors are blocked by CI before
@@ -414,6 +418,30 @@ func _add_blocker(center: Vector2, size: Vector2, padding: float = PLAYER_WORLD_
 func _add_circle_blocker(center: Vector2, radius: float, padding: float = PLAYER_WORLD_RADIUS) -> void:
     _circle_blockers.append(Vector3(center.x, center.y, radius + padding))
 
+func _add_camera_obstacle(center: Vector3, size: Vector3) -> void:
+    _camera_obstacles.append(AABB(center - size * 0.5, size))
+
+
+func _add_door_step_surface(center: Vector2, size: Vector2, height: float) -> void:
+    _door_step_surfaces.append({"rect": Rect2(center - size * 0.5, size), "height": height})
+
+
+func _camera_safe_goal(target: Vector3, desired: Vector3) -> Vector3:
+    # The camera uses actual building/town-wall shells, not gameplay clearance.
+    var offset := desired - target
+    var distance := offset.length()
+    if distance < 0.001:
+        return desired
+    var nearest := distance
+    for obstacle in _camera_obstacles:
+        var hit: Variant = obstacle.intersects_segment(target, desired)
+        if hit is Vector3:
+            nearest = minf(nearest, target.distance_to(hit as Vector3))
+    if nearest < distance:
+        return target + offset / distance * maxf(0.12, nearest - CAMERA_WALL_GAP)
+    return desired
+
+
 func _window_frame(parent: Node, center: Vector3, width: float, height: float) -> void:
     var frame := Color("#3a2a22")
     _box(parent, "WindowGlass", Vector3(width, height, 0.09), center, Color("#8cc8d8"), Vector3.ZERO, 0.22)
@@ -474,9 +502,15 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _box(house, "BraceL", Vector3(0.13, 1.55, 0.18), Vector3(-width * 0.31, 2.15, front_z + 0.01), beam, Vector3(0, 0, -28))
     _box(house, "BraceR", Vector3(0.13, 1.55, 0.18), Vector3(width * 0.31, 2.15, front_z + 0.01), beam, Vector3(0, 0, 28))
 
-    # Door with stone threshold and a little timber rain hood.
+    # Door with accessible stone steps and a shallow, safe approach.\n    var door_face := depth * 0.515 + 0.08
     _box(house, "Door", Vector3(1.05, 1.95, 0.16), Vector3(0, 1.46, depth * 0.515), door_wood, Vector3.ZERO, 0.72)
     _box(house, "DoorThreshold", Vector3(1.35, 0.12, 0.55), Vector3(0, 0.62, depth * 0.60), stone_light)
+    var step_upper_z := depth * 0.5 + 0.67
+    var step_lower_z := depth * 0.5 + 1.23
+    _box(house, "DoorStepUpper", Vector3(1.62, 0.34, 0.64), Vector3(0, 0.35, step_upper_z), stone_light)
+    _box(house, "DoorStepLower", Vector3(1.90, 0.20, 0.61), Vector3(0, 0.10, step_lower_z), stone)
+    _add_door_step_surface(Vector2(position.x, position.z + step_upper_z), Vector2(1.62, 0.64), 0.52)
+    _add_door_step_surface(Vector2(position.x, position.z + step_lower_z), Vector2(1.90, 0.61), 0.20)
     _box(house, "DoorHood", Vector3(1.65, 0.14, 0.88), Vector3(0, 2.52, depth * 0.60), roof_color, Vector3(-10, 0, 0))
 
     var left_front_window := Vector3(-width * 0.27, 2.10, depth * 0.518)
@@ -512,7 +546,7 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _box(house, "DoorFrameL", Vector3(0.12, 2.08, 0.20), Vector3(-0.60, 1.50, depth * 0.526), beam)
     _box(house, "DoorFrameR", Vector3(0.12, 2.08, 0.20), Vector3(0.60, 1.50, depth * 0.526), beam)
     _box(house, "DoorLintel", Vector3(1.32, 0.13, 0.20), Vector3(0, 2.49, depth * 0.526), beam)
-    _sphere(house, "DoorHandle", 0.07, Vector3(0.32, 1.48, depth * 0.615), Color("#b58a45"), 0.38)
+    _sphere(house, "DoorHandle", 0.06, Vector3(0.32, 1.48, door_face + 0.025), Color("#b58a45"), 0.38)
 
     # Deep eaves, ridge cap, and fascia make the simple roof read as an intentional stylized asset.
     _box(house, "RoofLeft", Vector3(width * 0.64, 0.34, depth + 1.05), Vector3(-width * 0.245, body_size.y + 1.08, 0), roof_color, Vector3(0, 0, 25), 0.82)
@@ -546,7 +580,15 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
         sign.position = Vector3(0, body_size.y + 0.08, depth * 0.65)
         house.add_child(sign)
 
-    _add_blocker(Vector2(position.x, position.z), Vector2(width + 0.80, depth + 0.80), PLAYER_WORLD_RADIUS + 0.10)
+    # Fitted shell collider with a doorway recess: the actor can reach the
+    # upper step but cannot enter through the closed door.
+    _house_blockers.append({
+        "center": Vector2(position.x, position.z),
+        "half": Vector2(width * 0.5 + 0.29 + PLAYER_WORLD_RADIUS + 0.035, depth * 0.5 + 0.29 + PLAYER_WORLD_RADIUS + 0.035),
+        "door_stop_z": door_face + PLAYER_WORLD_RADIUS + 0.035,
+        "door_half_width": 0.64
+    })
+    _add_camera_obstacle(Vector3(position.x, (body_size.y + 1.6) * 0.5, position.z), Vector3(width + 0.22, body_size.y + 1.6, depth + 0.22))
     return house
 
 func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
@@ -575,7 +617,7 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
     _sphere(tree, "LeafD", 0.52 * scale_factor, Vector3(-0.58, 3.18, 0.24) * scale_factor, leaf_mid)
     _sphere(tree, "LeafE", 0.52 * scale_factor, Vector3(0.58, 3.16, 0.18) * scale_factor, leaf_dark)
     _sphere(tree, "LeafF", 0.44 * scale_factor, Vector3(0.02, 2.92, -0.52) * scale_factor, leaf_mid)
-    _add_circle_blocker(Vector2(position.x, position.z), 0.34 * scale_factor, PLAYER_WORLD_RADIUS + 0.10)
+    _add_circle_blocker(Vector2(position.x, position.z), 0.30 * scale_factor, PLAYER_WORLD_RADIUS + 0.035)
 
 func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
     var shrub := Node3D.new()
@@ -643,7 +685,7 @@ func _add_market_stall(position: Vector3, awning: Color) -> void:
         _box(stall, "AwningStripe", Vector3(0.54, 0.12, 1.72), Vector3(sx, 2.52, -0.04), stripe_color, Vector3(-8, 0, 0), 0.84)
     _box(stall, "CrateA", Vector3(0.62, 0.55, 0.62), Vector3(-0.70, 0.30, -0.35), Color("#79543a"))
     _box(stall, "CrateB", Vector3(0.55, 0.40, 0.55), Vector3(0.62, 0.22, 0.30), Color("#875f40"))
-    _add_blocker(Vector2(position.x, position.z), Vector2(2.9, 1.95), PLAYER_WORLD_RADIUS + 0.08)
+    _add_blocker(Vector2(position.x, position.z), Vector2(2.65, 1.72), PLAYER_WORLD_RADIUS + 0.025)
 
 func _add_bench(position: Vector3, yaw: float = 0.0) -> void:
     var bench := Node3D.new()
@@ -687,6 +729,7 @@ func _add_wall_segment(position: Vector3, size: Vector3) -> void:
     var stone := Color("#716f68")
     _box(self, "TownWall", size, position, stone)
     _box(self, "WallCap", Vector3(size.x + 0.14, 0.20, size.z + 0.14), position + Vector3(0, size.y * 0.5 + 0.10, 0), Color("#8b877d"))
+    _add_camera_obstacle(position, Vector3(size.x, size.y + 0.2, size.z))
 
 func _road_base(name: String, center: Vector3, size: Vector2) -> void:
     # One fully textured cobbled plane per region. Small height offsets avoid
@@ -835,6 +878,9 @@ func _configure_fallback_environment(env: Environment) -> void:
 func _build_stage() -> void:
     _world_blockers.clear()
     _circle_blockers.clear()
+    _house_blockers.clear()
+    _camera_obstacles.clear()
+    _door_step_surfaces.clear()
 
     # Concentrate mobile shadow resolution near the player.
     RenderingServer.directional_shadow_atlas_set_size(4096, true)
@@ -933,8 +979,12 @@ func _build_stage() -> void:
     _cylinder(self, "GateTowerR", 2.3, 6.0, Vector3(4.1, 3.0, 24.6), Color("#706e68"))
     _tapered_cylinder(self, "GateRoofL", 2.65, 0.08, 2.2, Vector3(-4.1, 7.05, 24.6), Color("#5d3931"))
     _tapered_cylinder(self, "GateRoofR", 2.65, 0.08, 2.2, Vector3(4.1, 7.05, 24.6), Color("#5d3931"))
-    _add_circle_blocker(Vector2(-4.1,24.6), 2.35, PLAYER_WORLD_RADIUS + 0.10)
-    _add_circle_blocker(Vector2(4.1,24.6), 2.35, PLAYER_WORLD_RADIUS + 0.10)
+    # Preserve original gate clearance.
+    _add_circle_blocker(Vector2(-4.1,24.6), 2.35, 0.68)
+    _add_circle_blocker(Vector2(4.1,24.6), 2.35, 0.68)
+    _add_camera_obstacle(Vector3(-4.1, 3.0, 24.6), Vector3(4.6, 6.0, 4.6))
+    _add_camera_obstacle(Vector3(4.1, 3.0, 24.6), Vector3(4.6, 6.0, 4.6))
+    _add_camera_obstacle(Vector3(0.0, 1.63, 25.0), Vector3(4.5, 3.25, 0.28))
     for x in range(-2, 3):
         _box(self, "GateBar", Vector3(0.18, 3.25, 0.22), Vector3(float(x) * 0.75, 1.63, 25.0), Color("#3e2c24"))
     _box(self, "GateCrossbar", Vector3(4.4, 0.20, 0.24), Vector3(0, 2.15, 25.0), Color("#3e2c24"))
@@ -996,7 +1046,7 @@ func _build_stage() -> void:
     for accent_pos in [Vector3(-2.55,0.13,-5.85), Vector3(2.55,0.13,-5.85)]:
         _cylinder(self, "FountainAccent", 0.34, 0.26, accent_pos, Color("#737873"), 0.92)
 
-    _add_circle_blocker(Vector2(0,-4.0), 2.05, PLAYER_WORLD_RADIUS + 0.08)
+    _add_circle_blocker(Vector2(0,-4.0), 2.32, PLAYER_WORLD_RADIUS + 0.025)
 
     # Market and props. Vendor fronts/backs are reserved: no benches, lamps, or
     # loose storage are placed inside the stall working/customer zones.
@@ -1189,7 +1239,7 @@ func _build_ui() -> void:
 
 func _set_status(title: String, detail: String) -> void:
     if _status != null:
-        _status.text = "AETHERFALL  |  STARTER TOWN 0.2T  |  " + title
+        _status.text = "AETHERFALL  |  STARTER TOWN 0.2U  |  " + title
     if _detail != null:
         _detail.text = detail
 
@@ -1634,6 +1684,11 @@ func _update_ground_contact_shadow() -> void:
 func _ground_surface_y(world_position: Vector3) -> float:
     var x := world_position.x
     var z := world_position.z
+    # Grounding follows each tread's actual top surface.
+    for step in _door_step_surfaces:
+        var footprint: Rect2 = step["rect"]
+        if footprint.has_point(Vector2(x, z)):
+            return float(step["height"])
 
     # Grounding matches the actual visible surfaces, not the removed slabs.
     var on_entry_road := absf(x) <= 3.10 and z >= -20.0 and z <= 24.0
@@ -1700,6 +1755,16 @@ func _ensure_motion(mode: String) -> void:
 func _world_point_blocked(point: Vector2) -> bool:
     for blocker in _world_blockers:
         if blocker.has_point(point):
+            return true
+    for house in _house_blockers:
+        var center: Vector2 = house["center"]
+        var half: Vector2 = house["half"]
+        var local := point - center
+        if absf(local.x) <= half.x and absf(local.y) <= half.y:
+            var door_stop: float = house["door_stop_z"]
+            var door_half: float = house["door_half_width"]
+            if absf(local.x) <= door_half and local.y > door_stop:
+                continue
             return true
     for circle in _circle_blockers:
         var center := Vector2(circle.x, circle.y)
@@ -1815,11 +1880,13 @@ func _update_camera(delta: float) -> void:
     var target := _actor.global_position + Vector3(0.0, 1.03, 0.0)
     # At yaw zero the camera is +Z, behind a model whose forward is -Z.
     var offset := Vector3(sin(_camera_yaw) * horizontal, 0.55 + vertical, cos(_camera_yaw) * horizontal)
-    var goal := target + offset
+    var goal := _camera_safe_goal(target, target + offset)
     if delta >= 1.0:
         _camera.global_position = goal
     else:
-        _camera.global_position = _camera.global_position.lerp(goal, clampf(delta * 8.5, 0.0, 1.0))
+        # Clamp both the target and smoothed position to prevent wall clipping.
+        var smoothed := _camera.global_position.lerp(goal, clampf(delta * 8.5, 0.0, 1.0))
+        _camera.global_position = _camera_safe_goal(target, smoothed)
     _camera.look_at(target, Vector3.UP)
 
 func _input(event: InputEvent) -> void:
