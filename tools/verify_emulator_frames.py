@@ -77,14 +77,14 @@ def visible_ratio(path: Path) -> tuple[float, str, tuple[int, int, int]]:
 
 def main(folder: str) -> int:
     files = sorted(Path(folder).glob("*.png"))
-    if any(not any(p.name.startswith(f"{n:02d}_") for p in files) for n in range(1, 8)):
+    if any(not any(p.name.startswith(f"{n:02d}_") for p in files) for n in range(0, 8)):
         print("QA_RENDER_FAILED: missing one or more of seven gameplay screenshots", file=sys.stderr)
         return 1
     results = {path.name: visible_ratio(path) for path in files}
     ratios = {name: summary[0] for name, summary in results.items()}
     for name, ratio in ratios.items():
         print(f"{name}: visible pixels {ratio:.1%}")
-    for prefix in ("01_", "05_"):
+    for prefix in ("00_", "01_", "05_"):
         name = next(path.name for path in files if path.name.startswith(prefix))
         if ratios[name] < 0.04:
             print(f"QA_RENDER_FAILED: {name} is black or nearly blank", file=sys.stderr)
