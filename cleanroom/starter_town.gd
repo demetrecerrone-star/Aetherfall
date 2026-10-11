@@ -831,7 +831,7 @@ func _add_barrel(position: Vector3) -> void:
 
 func _add_lamp(position: Vector3) -> void:
     var lamp := Node3D.new()
-    lamp.name = "MedievalStreetLamp"
+    lamp.name = "MedievalStreetLamp_%d_%d" % [roundi(position.x * 100.0), roundi(position.z * 100.0)]
     lamp.position = position
     add_child(lamp)
     var timber := Color("#533721")
