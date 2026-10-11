@@ -3,8 +3,10 @@ const NatureReplacement = preload("res://nature_replacements.gd")
 ## Low, soft, curved meadow grass batched into 8m chunks for mobile rendering.
 ## Five-leaf tuft ribbons replace spike-like triangles. Roads stay clear.
 const CELL_SIZE := 8.0
-const TUFT_SPACING := 0.235
-const SAMPLES_PER_CELL := 34
+# 40x40 rather than 34x34 per eight-metre chunk: 38% more
+# possible planting positions before road/obstacle rejection.
+const TUFT_SPACING := 0.20
+const SAMPLES_PER_CELL := 40
 
 static func _blade_mesh() -> ArrayMesh:
     # Five slightly curved, tapered leaf blades per tuft instead of the old
@@ -66,12 +68,11 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
             var colors: Array[Color] = []
             for gx in range(SAMPLES_PER_CELL):
                 for gz in range(SAMPLES_PER_CELL):
-                    # High-coverage, softly jittered lawn; reduce the empty
-                    # gaps from 13% to 2% and halve the grid spacing.
-                    if rng.randf() < 0.02:
+                    # Softer, natural coverage rather than a row-perfect grid.
+                    if rng.randf() < 0.012:
                         continue
-                    var x := float(tx) + (float(gx) + 0.5) * TUFT_SPACING + rng.randf_range(-0.060, 0.060)
-                    var z := float(tz) + (float(gz) + 0.5) * TUFT_SPACING + rng.randf_range(-0.060, 0.060)
+                    var x := float(tx) + (float(gx) + 0.5) * TUFT_SPACING + rng.randf_range(-0.089, 0.089)
+                    var z := float(tz) + (float(gz) + 0.5) * TUFT_SPACING + rng.randf_range(-0.089, 0.089)
                     if absf(x) > 25.7 or absf(z) > 23.5:
                         continue
                     # Only lawn. Never put grass on a road, market paving,
@@ -80,8 +81,8 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
                         continue
                     if bool(blocked.call(Vector2(x, z))):
                         continue
-                    var scale_factor := rng.randf_range(0.92, 1.15)
-                    var blade_height := rng.randf_range(0.85, 1.20)
+                    var scale_factor := rng.randf_range(0.86, 1.19)
+                    var blade_height := rng.randf_range(0.79, 1.18)
                     var angle := rng.randf_range(0.0, TAU)
                     # The imported glTF grass is ~1.31m tall. Scale its
                     # geometry down to maintained village-lawn height ~0.19m.
@@ -120,5 +121,7 @@ static func populate(town: Node3D, blocked: Callable, ground_y: Callable) -> int
     town.set_meta("grass_style", "quaternius_textured_short_grass" if native_enabled else "soft_curved_meadow_grass")
     town.set_meta("grass_nature_model_loaded", native_enabled)
     town.set_meta("grass_spacing_m", TUFT_SPACING)
+    town.set_meta("grass_coverage_pass", "dense_foundation_edges")
+    town.set_meta("grass_source_tile_size_m", CELL_SIZE)
     town.set_meta("grass_blade_nominal_height_m", 0.184)
     return total
