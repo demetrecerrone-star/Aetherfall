@@ -12,6 +12,7 @@ on:
       - "cleanroom/tests/character_switch_test.gd"
       - "cleanroom/tests/environment_texture_test.gd"
       - "cleanroom/tests/collision_camera_test.gd"
+      - "cleanroom/tests/sprint_multitouch_test.gd"
       - "cleanroom/tools/merge_female_animations.py"
       - "cleanroom/tools/fetch_town_textures.py"
   workflow_dispatch:
@@ -184,6 +185,15 @@ jobs:
           godot --headless --path cleanroom --script res://tests/collision_camera_test.gd 2>&1 | tee /tmp/collision-camera-qa.log
           grep -F 'AETHERFALL_COLLISION_CAMERA_02U_OK' /tmp/collision-camera-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_COLLISION_CAMERA_FAIL' /tmp/collision-camera-qa.log; then
+            exit 1
+          fi
+
+      - name: Test multitouch joystick and sprint toggle
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/sprint_multitouch_test.gd 2>&1 | tee /tmp/sprint-touch-qa.log
+          grep -F 'AETHERFALL_SPRINT_TOUCH_OK' /tmp/sprint-touch-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_SPRINT_TOUCH_FAIL' /tmp/sprint-touch-qa.log; then
             exit 1
           fi
 
