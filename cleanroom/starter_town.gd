@@ -1192,39 +1192,47 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     stall.set_meta("support_post_positions", post_positions)
     stall.set_meta("facing_degrees", yaw)
     _add_camera_obstacle(position + Vector3(0, 1.0, 0), Vector3(2.75, 2.0, 2.75))
-    # Pass 4.2c: PHONE SCREENSHOT FIX. The tall back-centered shelf made
-    # goods visually overlap the striped roof, with the actual front counter
-    # looking empty. Place a supported shallow display directly on the
-    # plaza-facing (+local Z) counter edge, much LOWER than the canopy.
-    # +Z is the service direction on ALL four deliberately rotated stalls.
-    var display := Node3D.new()
-    display.name = "FrontCounterMerchandiseRack"
-    stall.add_child(display)
-    var oak := Color("#6b4a31")
-    var trim := Color("#493222")
-    _box(display, "OakDisplayShelf", Vector3(2.02, 0.09, 0.45),
-        Vector3(0, 1.00, 0.59), oak, Vector3.ZERO, 0.95)
-    _box(display, "DisplayFrontLip", Vector3(2.05, 0.065, 0.05),
-        Vector3(0, 1.065, 0.797), trim)
-    _box(display, "DisplayBackLip", Vector3(2.05, 0.055, 0.05),
-        Vector3(0, 1.064, 0.382), trim)
-    for shelf_x in [-0.82, 0.82]:
-        _box(display, "ShelfSupport", Vector3(0.11, 0.33, 0.35),
-            Vector3(float(shelf_x), 0.805, 0.59), trim)
+    # Pass 4.2d: the Quaternius MarketStand_1 has a low built-in shelf
+    # (~0.45 m), but NO waist-height sales counter. Our previous floating
+    # merchandising rack looked like an entirely separate table inside it.
+    # Integrate ONE countertop directly between the existing timber posts,
+    # flush with the plaza-facing edge of the original stall. No new table
+    # root, legs, freestanding shelves or overlapping furniture.
+    var timber := Color("#63452e")
+    var timber_edge := Color("#47301f")
+    # Native timber posts span approximately local x=+-1.03, z=+-0.79.
+    # The new counter reaches the post line and ties to the native structure.
+    _box(stall, "IntegratedMerchantCountertop",
+        Vector3(2.06, 0.15, 0.99),
+        Vector3(0.0, 0.945, 0.29), timber, Vector3.ZERO, 0.94)
+    # Front fascia joins the post line; not a second inner table or rack.
+    _box(stall, "IntegratedCounterFrontFascia",
+        Vector3(2.06, 0.30, 0.085),
+        Vector3(0.0, 0.725, 0.755), timber_edge)
+    # Two compact ledger braces connect the tabletop to the existing posts.
+    # No extra legs or floor-standing structure are created.
+    for edge_x in [-0.96, 0.96]:
+        _box(stall, "IntegratedPostLedger",
+            Vector3(0.12, 0.17, 0.70),
+            Vector3(float(edge_x), 0.825, 0.32), timber_edge)
+    # Merchandise stands ON this real integral counter, never on the canopy.
     var produce_stall := position.x < 0.0
     var first_asset := "FarmCrate_Apple" if produce_stall else "Crate_Wooden"
     var second_asset := "Crate_Wooden" if produce_stall else "FarmCrate_Apple"
     _add_market_counter_goods(stall, "CounterStock_Primary", first_asset,
-        Vector3(-0.66, 1.075, 0.58), Vector3(0.48, 0.40, 0.40))
+        Vector3(-0.65, 1.025, 0.23), Vector3(0.47, 0.35, 0.43))
     _add_market_counter_goods(stall, "CounterStock_Secondary", second_asset,
-        Vector3(0.0, 1.075, 0.58), Vector3(0.48, 0.40, 0.40))
+        Vector3(0.00, 1.025, 0.23), Vector3(0.47, 0.35, 0.43))
     _add_market_counter_goods(stall, "CounterStock_Third", first_asset,
-        Vector3(0.66, 1.075, 0.58), Vector3(0.48, 0.40, 0.40))
-    stall.set_meta("market_wares_style", "plaza_facing_front_counter_display")
+        Vector3(0.65, 1.025, 0.23), Vector3(0.47, 0.35, 0.43))
+    stall.set_meta("market_wares_style", "single_integrated_market_counter")
     stall.set_meta("market_wares_expected", 3)
-    stall.set_meta("market_wares_shelf_height_m", 1.045)
-    stall.set_meta("market_wares_front_z", 0.58)
+    stall.set_meta("market_counter_top_m", 1.02)
+    stall.set_meta("market_wares_shelf_height_m", 1.02)
+    stall.set_meta("market_wares_front_z", 0.755)
     stall.set_meta("market_wares_canopy_clearance", true)
+    stall.set_meta("native_stall_has_counter", false)
+    stall.set_meta("market_counter_frame_integrated", true)
 
 
 func _add_market_counter_goods(stall: Node3D, label: String,
