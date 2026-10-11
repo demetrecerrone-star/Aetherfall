@@ -1215,16 +1215,22 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
         _box(stall, "IntegratedPostLedger_Left" if edge_x < 0.0 else "IntegratedPostLedger_Right",
             Vector3(0.12, 0.17, 0.70),
             Vector3(float(edge_x), 0.825, 0.32), timber_edge)
-    # Merchandise stands ON this real integral counter, never on the canopy.
+    # Merchandise sits directly on the SINGLE integrated desk (top Y=1.02).
+    # Previous crates were 0.35m high and pierced the imported canopy edge,
+    # whose lowest timber/awning geometry begins at about 1.284m. Fit shallow
+    # display crates instead (<=0.215m), with a visible clearance under the
+    # awning. Do not add a raised platform, rack, or second freestanding desk.
+    var desk_surface_y := 1.02
+    var stock_height := 0.215
     var produce_stall := position.x < 0.0
     var first_asset := "FarmCrate_Apple" if produce_stall else "Crate_Wooden"
     var second_asset := "Crate_Wooden" if produce_stall else "FarmCrate_Apple"
     _add_market_counter_goods(stall, "CounterStock_Primary", first_asset,
-        Vector3(-0.65, 1.025, 0.23), Vector3(0.47, 0.35, 0.43))
+        Vector3(-0.65, desk_surface_y, 0.23), Vector3(0.47, stock_height, 0.43))
     _add_market_counter_goods(stall, "CounterStock_Secondary", second_asset,
-        Vector3(0.00, 1.025, 0.23), Vector3(0.47, 0.35, 0.43))
+        Vector3(0.00, desk_surface_y, 0.23), Vector3(0.47, stock_height, 0.43))
     _add_market_counter_goods(stall, "CounterStock_Third", first_asset,
-        Vector3(0.65, 1.025, 0.23), Vector3(0.47, 0.35, 0.43))
+        Vector3(0.65, desk_surface_y, 0.23), Vector3(0.47, stock_height, 0.43))
     stall.set_meta("market_wares_style", "single_integrated_market_counter")
     stall.set_meta("market_wares_expected", 3)
     stall.set_meta("market_counter_top_m", 1.02)

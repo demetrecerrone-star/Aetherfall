@@ -37,3 +37,15 @@ The active development baseline for Aetherfall Starter Town is the APK
 
 The APK is a compiled test artifact, not an editable Godot source project.
 Source edits must be made in the corresponding GitHub branch and re-exported.
+
+## Follow-up: merchandizing height on this baseline
+
+The imported MarketStand_1 canopy begins at approximately Y=1.284m in
+stall-local space. The four existing integral counters top out at Y=1.020m,
+but the old 0.350m-tall stock crates reached Y=1.375m and penetrated the
+roof edge. The market stock has now been fitted to a maximum height of
+0.215m and anchored at exactly Y=1.020m, retaining the existing four
+stall frames, single integrated selling counters and twelve genuine Quaternius
+merchandise props. The market decorations test checks the actual fitted GLB
+height and the desk contact / canopy-clearance invariants. No prototype-branch
+stall code is merged; source modifications remain on this baseline branch.

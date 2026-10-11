@@ -84,11 +84,20 @@ func _check() -> void:
             if expected_asset not in ["Crate_Wooden", "FarmCrate_Apple"] or imported == null:
                 _fail("Not using the genuine existing Quaternius goods: " + name)
                 return
-            if absf(stock.position.y - 1.025) > 0.01 or absf(stock.position.z - 0.23) > 0.015:
-                _fail("Crate is not resting on the single integrated counter")
+            var desk_surface_y := counter.position.y + counter_mesh.size.y * 0.5
+            # Use the actual fitted Quaternius mesh dimensions, not just the
+            # requested box. A resting crate may never float above the desk.
+            var stock_mesh_size: Vector3 = stock.get_meta("scenery_model_size", Vector3.ZERO)
+            if absf(stock.position.y - desk_surface_y) > 0.008 or absf(stock.position.z - 0.23) > 0.015:
+                _fail("Merchandise platform is not flush to the real service desk: " + name)
                 return
-            if stock.position.y + 0.35 >= 1.50:
-                _fail("Crate intersects roof-edge clearance region")
+            if stock_mesh_size.y < 0.08 or stock_mesh_size.y > 0.218:
+                _fail("Merchant stock too tall or too small for the existing desk: " + name)
+                return
+            # The imported stand's nearest canopy mesh starts around Y=1.284,
+            # including its low eaves. Preserve at least 4 cm of free space.
+            if stock.position.y + stock_mesh_size.y > 1.244:
+                _fail("Merchandise protrudes into the Quaternius stall roof: " + name)
                 return
             good_count += 1
     if good_count != 12:
@@ -128,7 +137,7 @@ func _check() -> void:
     if town.find_children("TownFountain", "Node3D", false, false).size() != 1:
         _fail("Original centered fountain missing")
         return
-    print("AETHERFALL_MARKET_DECOR_OK: 12 Quaternius crate wares directly on native-frame-integrated counters, zero extra tables/grass crates, original decor and paths retained")
+    print("AETHERFALL_MARKET_DECOR_OK: 12 lowered shallow goods flush on native-frame-integrated counters, clear of awnings; original fountain, decor and paths retained")
     town.queue_free()
     quit(0)
 
