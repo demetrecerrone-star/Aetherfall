@@ -63,13 +63,17 @@ func _check() -> void:
     if not bool(fountain.get_meta("fountain_imported", false)):
         _fail("Fountain was replaced with temporary geometry")
         return
-    if absf(float(fountain.get_meta("fountain_visual_scale", 0.0)) - 3.2) > 0.01:
+    if absf(float(fountain.get_meta("fountain_visual_scale", 0.0)) - 3.55) > 0.01:
         _fail("Fountain is the wrong scale for a walkable medieval square")
         return
-    if not bool(town.call("_world_point_blocked", Vector2(0.0, -4.0))):
+    if absf(fountain.position.z - (-6.10 + 2.45) * 0.5) > 0.01:
+        _fail("Fountain is not centered between the four stalls")
+        return
+    if not bool(town.call("_world_point_blocked", Vector2(0.0, -1.825))):
         _fail("Character can walk into the fountain stonework")
         return
-    for access in [Vector2(0.0, -1.8), Vector2(0.0, -6.1), Vector2(-2.5, -4.0), Vector2(2.5, -4.0)]:
+    for access in [Vector2(0.0, -4.55), Vector2(0.0, 0.95),
+        Vector2(-2.75, -1.825), Vector2(2.75, -1.825)]:
         if bool(town.call("_world_point_blocked", access)):
             _fail("Plaza circulation is obstructed beside fountain: " + str(access))
             return
@@ -77,9 +81,9 @@ func _check() -> void:
     var camera_barrier := false
     for cylinder in cylinders:
         var center: Vector3 = cylinder["center"]
-        if absf(center.x) < 0.01 and absf(center.z + 4.0) < 0.01:
+        if absf(center.x) < 0.01 and absf(center.z + 1.825) < 0.01:
             camera_barrier = true
-            if absf(float(cylinder["radius"]) - 1.60) > 0.01:
+            if absf(float(cylinder["radius"]) - 1.79) > 0.01:
                 _fail("Fountain camera obstruction is oversized")
                 return
     if not camera_barrier:
