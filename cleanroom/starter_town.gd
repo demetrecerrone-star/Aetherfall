@@ -128,7 +128,6 @@ var _fountain_crystal: MeshInstance3D
 var _fountain_glow: OmniLight3D
 var _fountain_cascades: Array[MeshInstance3D] = []
 var _fountain_drips: Array[MeshInstance3D] = []
-var _fountain_ripples: Array[Dictionary] = []
 
 func _ready() -> void:
     # Keep the same direct-scene startup path as the proven v0.1.3 build.
@@ -336,6 +335,13 @@ func _town_mat(name: String, color: Color, roughness: float, size: Vector3) -> S
     if name.to_lower().begins_with("fountain") and kind == "stone":
         mat.uv1_triplanar = true
         mat.uv1_scale = Vector3(1.1, 1.1, 1.1)
+    # BoxMesh UVs differ by face. A 52m side wall uses the 1.2m X dimension
+    # for the facade U axis and the 52m Z dimension for its vertical V axis,
+    # compressing the stone into horizontal streaks. Uniform triplanar stone
+    # projection keeps mortar joints the same scale on every face and corner.
+    elif kind == "stone" and name.to_lower() in ["townwall", "wallcap"]:
+        mat.uv1_triplanar = true
+        mat.uv1_scale = Vector3(1.05, 1.05, 1.05)
     mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     return mat
 
@@ -347,20 +353,80 @@ func _mat(color: Color, roughness: float = 0.9, metallic: float = 0.0) -> Standa
     material.metallic = metallic
     return material
 
-func _fountain_wave_texture() -> ImageTexture:
-    # Small original animated wave pattern: no external texture downloads.
-    # Impact-centered expanding torus rings below add the larger ripples.
-    var texture_image := Image.create(128, 128, false, Image.FORMAT_RGBA8)
-    for y in range(128):
-        for x in range(128):
-            var u := float(x) / 128.0
-            var v := float(y) / 128.0
-            var bands := sin(u * TAU * 13.0 + sin(v * TAU * 5.0) * 1.5)
-            var shiver := sin(v * TAU * 11.0 + u * TAU * 3.0)
-            var highlight := clampf(0.5 + bands * 0.30 + shiver * 0.12, 0.0, 1.0)
-            texture_image.set_pixel(x, y, Color(0.63 + highlight * 0.30, 0.78 + highlight * 0.20, 0.83 + highlight * 0.17, 1.0))
-    texture_image.generate_mipmaps()
-    return ImageTexture.create_from_image(texture_image)
+func _fountain_pool_mesh() -> ArrayMesh:
+    # Dense circular surface: the ripple shader actually lifts water vertices.
+    # No scrolling stripe decal or elevated fake ripple meshes.
+    var segments := 96
+    var bands := 28
+    var vertices := PackedVector3Array()
+    var normals := PackedVector3Array()
+    var uvs := PackedVector2Array()
+    var indices := PackedInt32Array()
+    for band in range(bands + 1):
+        var radius := 1.20 * float(band) / float(bands)
+        for segment in range(segments + 1):
+            var theta := TAU * float(segment) / float(segments)
+            var x := sin(theta) * radius
+            var z := cos(theta) * radius
+            vertices.append(Vector3(x, 0.0, z))
+            normals.append(Vector3.UP)
+            uvs.append(Vector2(0.5 + x / 2.40, 0.5 + z / 2.40))
+        if band > 0:
+            var prev := (band - 1) * (segments + 1)
+            var row := band * (segments + 1)
+            for segment in range(segments):
+                indices.append_array(PackedInt32Array([
+                    prev + segment, row + segment, prev + segment + 1,
+                    prev + segment + 1, row + segment, row + segment + 1
+                ]))
+    var arrays := []
+    arrays.resize(Mesh.ARRAY_MAX)
+    arrays[Mesh.ARRAY_VERTEX] = vertices
+    arrays[Mesh.ARRAY_NORMAL] = normals
+    arrays[Mesh.ARRAY_TEX_UV] = uvs
+    arrays[Mesh.ARRAY_INDEX] = indices
+    var mesh := ArrayMesh.new()
+    mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+    return mesh
+
+
+func _fountain_pool_material() -> ShaderMaterial:
+    # Eight physical wave sources sit directly beneath the stream landings.
+    # Gentle radial displacement plus highlights makes the water respond to
+    # impacts without the arbitrary moving bands seen on the old texture.
+    var shader := Shader.new()
+    shader.code = """
+shader_type spatial;
+render_mode cull_disabled, depth_draw_opaque;
+
+uniform float flow_time = 0.0;
+varying float crest_light;
+
+void vertex() {
+    float waves = 0.0;
+    for (int i = 0; i < 8; i++) {
+        float angle = 6.28318530718 * float(i) / 8.0;
+        vec2 impact = vec2(sin(angle), cos(angle)) * 0.82;
+        float distance_from_impact = distance(VERTEX.xz, impact);
+        float phase = 38.0 * distance_from_impact - 5.5 * flow_time + 0.24 * float(i);
+        float decay = exp(-7.0 * distance_from_impact);
+        waves += sin(phase) * decay;
+    }
+    VERTEX.y += 0.018 * waves;
+    crest_light = clamp(0.5 + 0.24 * waves, 0.0, 1.0);
+}
+
+void fragment() {
+    ALBEDO = mix(vec3(0.16, 0.43, 0.53), vec3(0.33, 0.64, 0.70), crest_light);
+    ROUGHNESS = 0.17;
+    METALLIC = 0.02;
+    SPECULAR = 0.78;
+}
+"""
+    var material := ShaderMaterial.new()
+    material.shader = shader
+    material.set_shader_parameter("flow_time", 0.0)
+    return material
 
 
 func _fountain_flow_point(angle: float, progress: float, stream: int) -> Vector3:
@@ -377,94 +443,72 @@ func _fountain_flow_point(angle: float, progress: float, stream: int) -> Vector3
 
 
 func _add_fountain_cascade(angle: float, index: int) -> void:
-    # Fine, curved translucent ribbons begin at the spout disk's RIM,
-    # not on the pillar. They spread gently and end inside the basin.
+    # Seven uneven, narrowly separated water filaments at each spout.
+    # Unlike the earlier broad unlit ribbons they have gaps, irregular edges,
+    # changing thickness and physically lit normals: no flat light panels.
     var vertices := PackedVector3Array()
     var normals := PackedVector3Array()
-    var uvs := PackedVector2Array()
+    var colors := PackedColorArray()
     var indices := PackedInt32Array()
-    for segment in range(29):
-        var progress := float(segment) / 28.0
-        var center := _fountain_flow_point(angle, progress, index)
-        var radial := Vector2(center.x, center.z + 4.0)
-        var radius := radial.length()
-        var heading := atan2(radial.x, radial.y)
-        var half_width := 0.125 + 0.027 * sin(progress * 13.0 + float(index))
-        for edge in range(2):
-            var side := -1.0 if edge == 0 else 1.0
-            var theta := heading + side * half_width
-            vertices.append(Vector3(sin(theta) * radius, center.y, -4.0 + cos(theta) * radius))
-            normals.append(Vector3(sin(theta), 0.16, cos(theta)).normalized())
-            uvs.append(Vector2(float(edge), progress * 3.0))
-        if segment > 0:
-            var base := (segment - 1) * 2
-            indices.append_array(PackedInt32Array([base, base + 1, base + 2, base + 1, base + 3, base + 2]))
+    for strand in range(7):
+        var offset := (float(strand) - 3.0) * 0.065
+        var heading := angle + offset
+        var across := Vector3(cos(heading), 0.0, -sin(heading))
+        for segment in range(29):
+            var t := float(segment) / 28.0
+            var center := _fountain_flow_point(heading, t, index)
+            var turbulence := 0.013 * sin(t * 19.0 + float(strand) * 1.7 + float(index)) * sin(t * PI)
+            center.x += sin(heading) * turbulence
+            center.z += cos(heading) * turbulence
+            var width := 0.010 + 0.006 * (0.5 + 0.5 * sin(24.0 * t + float(strand) * 2.1))
+            var density := 0.52 + 0.25 * sin(t * 17.0 + float(strand) * 2.3)
+            for edge in range(2):
+                var sign := -1.0 if edge == 0 else 1.0
+                vertices.append(center + across * (sign * width))
+                normals.append(Vector3(sin(heading), 0.18, cos(heading)).normalized())
+                colors.append(Color(0.95, 1.0, 1.0, density))
+            if segment > 0:
+                var base := strand * 58 + (segment - 1) * 2
+                indices.append_array(PackedInt32Array([
+                    base, base + 1, base + 2,
+                    base + 1, base + 3, base + 2
+                ]))
     var arrays := []
     arrays.resize(Mesh.ARRAY_MAX)
     arrays[Mesh.ARRAY_VERTEX] = vertices
     arrays[Mesh.ARRAY_NORMAL] = normals
-    arrays[Mesh.ARRAY_TEX_UV] = uvs
+    arrays[Mesh.ARRAY_COLOR] = colors
     arrays[Mesh.ARRAY_INDEX] = indices
-    var cascade_mesh := ArrayMesh.new()
-    cascade_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+    var mesh := ArrayMesh.new()
+    mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
     var flow := MeshInstance3D.new()
     flow.name = "FountainCascade%02d" % index
-    flow.mesh = cascade_mesh
-    var flow_mat := _water_mat(Color("#b1eaf2"), 0.36)
-    flow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-    flow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    flow.material_override = flow_mat
+    flow.mesh = mesh
+    var mat := _water_mat(Color("#9dced9"), 0.54)
+    mat.vertex_color_use_as_albedo = true
+    mat.roughness = 0.10
+    mat.metallic = 0.0
+    flow.material_override = mat
     flow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(flow)
     _fountain_cascades.append(flow)
 
 
-func _smooth_fountain_ripple_mesh() -> ArrayMesh:
-    # Flat, anti-aliased annulus with 96 angular samples. The old TorusMesh
-    # (only 3 rings) showed individual triangle wedges on Android.
-    # Vertex alpha fades both sides of the ring, avoiding sharp polygon edges.
-    var segments := 96
-    var band_radii := [0.78, 0.88, 0.95, 1.03, 1.14]
-    var band_alpha := [0.0, 0.28, 0.48, 0.28, 0.0]
-    var vertices := PackedVector3Array()
-    var colors := PackedColorArray()
-    var indices := PackedInt32Array()
-    for segment in range(segments + 1):
-        var theta := TAU * float(segment) / float(segments)
-        for band in range(band_radii.size()):
-            var radius: float = band_radii[band]
-            vertices.append(Vector3(cos(theta) * radius, 0.0, sin(theta) * radius))
-            colors.append(Color(1.0, 1.0, 1.0, float(band_alpha[band])))
-    var count := band_radii.size()
-    for segment in range(segments):
-        for band in range(count - 1):
-            var a := segment * count + band
-            var b := (segment + 1) * count + band
-            indices.append_array(PackedInt32Array([a, b, a + 1, b, b + 1, a + 1]))
-    var arrays := []
-    arrays.resize(Mesh.ARRAY_MAX)
-    arrays[Mesh.ARRAY_VERTEX] = vertices
-    arrays[Mesh.ARRAY_COLOR] = colors
-    arrays[Mesh.ARRAY_INDEX] = indices
-    var ripple_mesh := ArrayMesh.new()
-    ripple_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-    return ripple_mesh
-
-
-func _add_fountain_ripple(where: Vector3, phase: float) -> void:
-    # Ripple center is exactly beneath its corresponding cascade landing spot.
-    var ripple := MeshInstance3D.new()
-    ripple.name = "FountainRipple%02d" % _fountain_ripples.size()
-    ripple.mesh = _smooth_fountain_ripple_mesh()
-    ripple.position = where
-    ripple.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    var mat := _water_mat(Color("#d7f7fa"), 0.60)
-    mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-    mat.vertex_color_use_as_albedo = true
-    ripple.material_override = mat
-    add_child(ripple)
-    _fountain_ripples.append({"visual": ripple, "material": mat, "phase": phase})
+func _add_fountain_droplet(stream: int, bead: int) -> void:
+    # Small elongated drops, not the previous bright spherical beads.
+    # Sparse breakup under gravity adds motion without dotted-string look.
+    var drop := MeshInstance3D.new()
+    drop.name = "FountainDroplet_%d_%d" % [stream, bead]
+    var shape := SphereMesh.new()
+    shape.radius = 0.011
+    shape.height = 0.053
+    shape.radial_segments = 10
+    shape.rings = 5
+    drop.mesh = shape
+    drop.material_override = _water_mat(Color("#b7dce5"), 0.34)
+    drop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(drop)
+    _fountain_drips.append(drop)
 
 
 func _water_mat(color: Color, alpha: float = 0.72) -> StandardMaterial3D:
@@ -1222,12 +1266,13 @@ func _build_stage() -> void:
     _cylinder(self, "FountainBasinOuter", 1.52, 0.34, Vector3(0, 0.78, -4.0), Color("#999e9b"), 0.84)
     _cylinder(self, "FountainBasinInner", 1.30, 0.18, Vector3(0, 0.89, -4.0), Color("#4f6466"), 0.48)
 
-    _fountain_water = _cylinder(self, "FountainWater", 1.21, 0.055, Vector3(0, 0.995, -4.0), Color("#55afc3"), 0.15)
-    var pool_mat := _water_mat(Color("#65afc6"), 0.80)
-    pool_mat.albedo_texture = _fountain_wave_texture()
-    pool_mat.uv1_scale = Vector3(2.2, 2.2, 1.0)
-    pool_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-    _fountain_water.material_override = pool_mat
+    _fountain_water = MeshInstance3D.new()
+    _fountain_water.name = "FountainWater"
+    _fountain_water.mesh = _fountain_pool_mesh()
+    _fountain_water.position = Vector3(0.0, 1.020, -4.0)
+    _fountain_water.material_override = _fountain_pool_material()
+    _fountain_water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(_fountain_water)
 
     _cylinder(self, "FountainColumnBase", 0.42, 0.20, Vector3(0, 1.05, -4.0), Color("#777f7c"), 0.82)
     _cylinder(self, "FountainColumn", 0.24, 1.36, Vector3(0, 1.70, -4.0), Color("#858d89"), 0.82)
@@ -1237,21 +1282,11 @@ func _build_stage() -> void:
     # and lands in the basin instead of tracing the narrow center pillar.
     _fountain_cascades.clear()
     _fountain_drips.clear()
-    _fountain_ripples.clear()
     for stream in range(8):
         var angle := TAU * float(stream) / 8.0
         _add_fountain_cascade(angle, stream)
-        for bead in range(2):
-            var drip := _sphere(self, "FountainDroplet_%d_%d" % [stream, bead], 0.035, Vector3(0, 1.1, -4), Color("#a6ecf2"), 0.1)
-            drip.material_override = _water_mat(Color("#b0f2fa"), 0.59)
-            drip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-            _fountain_drips.append(drip)
-    # Place one smooth circular ripple below EACH of the eight stream impacts.
-    for stream in range(8):
-        var angle := TAU * float(stream) / 8.0
-        var splash_pos := _fountain_flow_point(angle, 1.0, stream)
-        splash_pos.y = 1.035
-        _add_fountain_ripple(splash_pos, float(stream) * 0.127)
+        for bead in range(3):
+            _add_fountain_droplet(stream, bead)
 
     _fountain_crystal = _sphere(self, "FountainCrystal", 0.34, Vector3(0, 2.68, -4.0), Color("#8ee2ec"), 0.10)
     _fountain_crystal.material_override = _crystal_mat(Color("#78d8e7"))
@@ -2117,42 +2152,33 @@ func _update_fountain(delta: float) -> void:
     if _fountain_water == null:
         return
     _fountain_time += delta
-    var pool_ripple := sin(_fountain_time * 2.2)
-    _fountain_water.position.y = 0.995 + pool_ripple * 0.006
-    var pool_mat := _fountain_water.material_override as StandardMaterial3D
+    var pool_mat := _fountain_water.material_override as ShaderMaterial
     if pool_mat != null:
-        pool_mat.uv1_offset = Vector3(_fountain_time * 0.012, _fountain_time * -0.008, 0.0)
+        pool_mat.set_shader_parameter("flow_time", _fountain_time)
     if _fountain_crystal != null:
         _fountain_crystal.position.y = 2.68 + sin(_fountain_time * 1.6) * 0.014
         _fountain_crystal.rotation.y += delta * 0.48
     if _fountain_glow != null:
         _fountain_glow.light_energy = 0.34 + (sin(_fountain_time * 1.8) + 1.0) * 0.045
-    # Ribbons vary subtly in brightness. Falling beads slide down their curves.
+    # Light and opacity vary, so no stream remains a static flat slab.
     for i in range(_fountain_cascades.size()):
         var mat := _fountain_cascades[i].material_override as StandardMaterial3D
         if mat != null:
             var tint := mat.albedo_color
-            tint.a = 0.29 + 0.07 * sin(_fountain_time * 2.4 + float(i) * 0.9)
+            tint.a = 0.47 + 0.08 * sin(_fountain_time * 3.4 + float(i) * 0.8)
             mat.albedo_color = tint
     for i in range(_fountain_drips.size()):
-        var stream := i / 2
-        var bead := i % 2
-        var theta := TAU * float(stream) / 8.0
-        var progress := fposmod(_fountain_time * 0.62 + float(bead) * 0.5 + float(stream) * 0.067, 1.0)
+        var stream := int(i / 3)
+        var bead := i % 3
+        var theta := TAU * float(stream) / 8.0 + (float(bead) - 1.0) * 0.065
+        var t := fposmod(_fountain_time * 0.80 + float(bead) * 0.333 + float(stream) * 0.074, 1.0)
         var drip := _fountain_drips[i]
-        drip.position = _fountain_flow_point(theta, progress, stream)
-        drip.scale = Vector3(0.8, 1.35, 0.8)
-    # Ripples expand from drip impact points and vanish into the wider pool.
-    for entry in _fountain_ripples:
-        var phase: float = entry["phase"]
-        var progress := fposmod(_fountain_time * 0.66 + phase, 1.0)
-        var ripple := entry["visual"] as MeshInstance3D
-        var mat := entry["material"] as StandardMaterial3D
-        var radius := 0.07 + progress * 0.26
-        ripple.scale = Vector3(radius, 1.0, radius)
-        var tint := mat.albedo_color
-        tint.a = 0.68 * pow(1.0 - progress, 1.5)
-        mat.albedo_color = tint
+        drip.position = _fountain_flow_point(theta, t, stream)
+        var drop_mat := drip.material_override as StandardMaterial3D
+        if drop_mat != null:
+            var tint := drop_mat.albedo_color
+            tint.a = 0.16 + 0.19 * sin(t * PI)
+            drop_mat.albedo_color = tint
 
 func _process(delta: float) -> void:
     if not _startup_complete and not _startup_failed:
