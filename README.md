@@ -11,6 +11,13 @@ with the existing character editor opened. The title includes volume and reduced
 background-motion preferences stored locally, credits, and an exit button.
 The gameplay HUD adds a MENU button to return to the title.
 
+The cinematic title and loading backgrounds share a low-overhead Godot CanvasItem
+vista of a fantasy village: layered mountains, stone gate, lit windows, drifting
+clouds, stars and portal effects. An original AudioStreamGenerator ambient score
+continues across the two scenes and fades out when gameplay begins. Intro/outro
+fades respect reduced-motion preferences saved on the device. No licensed texture,
+music pack, or new font dependency is needed.
+
 The loading bar reports real `ResourceLoader` scene-resource progress; the starter
 town still constructs its procedural geometry synchronously during scene entry,
 so this first pass does **not** claim to measure every step of world startup.
@@ -22,7 +29,10 @@ full saved-game system.
 return using MENU, enter through Character Studio, verify settings survive relaunch,
 and exercise loader retry/back behavior when a world resource is intentionally absent.
 The existing Android emulator QA was adjusted to navigate the title before gameplay
-capture. This UI branch is not a signed APK release.
+capture. This UI branch is not a signed APK release. Automated checks include a
+focused Godot title-to-town-to-studio roundtrip, plus Android emulator visual QA
+on changes to the title and loading code. CI results must be checked before
+merging this draft PR.
 
 ## Current milestone — v0.3 Original Rigged Character
 
