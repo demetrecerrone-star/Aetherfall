@@ -31,8 +31,8 @@ func _run() -> void:
 		_fail("title -> load -> starter town timed out")
 		return
 	var game := current_scene
-	var studio := game.get_node_or_null("Customizer/StudioOverlay/RightDockedCreator")
-	var studio_open := studio != null and studio.visible
+	var studio: PanelContainer = game.get_node_or_null("Customizer/StudioOverlay/RightDockedCreator") as PanelContainer
+	var studio_open: bool = studio != null and studio.visible
 	var menu_hud := game.get_node_or_null("HUD")
 	if not studio_open or menu_hud == null:
 		_fail("studio entry or gameplay menu missing")
