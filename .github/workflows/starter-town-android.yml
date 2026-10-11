@@ -11,6 +11,7 @@ on:
       - "cleanroom/hanging_shop_signs.gd"
       - "cleanroom/signs/*.svg"
       - "cleanroom/tests/hanging_signs_test.gd"
+      - "cleanroom/tests/market_decorations_test.gd"
       - "cleanroom/models/fountain/*.glb"
       - "cleanroom/tests/fountain_asset_test.gd"
       - "cleanroom/nature_replacements.gd"
@@ -230,6 +231,14 @@ jobs:
           godot --headless --path cleanroom --script res://tests/performance_optimization_test.gd 2>&1 | tee /tmp/performance-optimisation-qa.log
           grep -F 'AETHERFALL_PERFORMANCE_OPT_OK' /tmp/performance-optimisation-qa.log
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_PERFORMANCE_OPT_FAIL:' /tmp/performance-optimisation-qa.log; then exit 1; fi
+
+      - name: Pass 4.2 authentic marketplace decoration with retained street assets
+        if: github.ref_name == 'feature/quaternius-nature-megakit-import'
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/market_decorations_test.gd 2>&1 | tee /tmp/market-decor-qa.log
+          grep -F 'AETHERFALL_MARKET_DECOR_OK' /tmp/market-decor-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_MARKET_DECOR_FAIL:' /tmp/market-decor-qa.log; then exit 1; fi
 
       - name: Pass 4.1 four unique hanging shop signs and unobstructed entryways
         if: github.ref_name == 'feature/quaternius-nature-megakit-import'
