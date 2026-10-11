@@ -1,4 +1,5 @@
 extends Node3D
+const SceneryReplacement = preload("res://scenery_replacements.gd")
 ## Runtime Tripo/Mixamo QA scene for Aetherfall character pass.
 ## Loads the supplied GLB directly and adds game-ready preview behavior:
 ## gameplay locomotion test: touch movement, camera orbit, auto animation states, grounding.
@@ -614,6 +615,14 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
         "door_half_width": 0.64
     })
     _add_camera_obstacle(Vector3(position.x, (body_size.y + 1.6) * 0.5, position.z), Vector3(width + 0.22, body_size.y + 1.6, depth + 0.22))
+    var facade := "House_%d" % (1 + absi(roundi(position.x * 13.0 + position.z * 7.0)) % 4)
+    if title == "THE INN":
+        facade = "Inn"
+    elif title == "BLACKSMITH":
+        facade = "Blacksmith"
+    # Keep original approach steps and signage visible after facade replacement.
+    SceneryReplacement.place(house, facade, Vector3(width + 0.4, body_size.y + 2.1, depth + 0.4),
+        PackedStringArray(["DoorStepUpper", "DoorStepLower", "DoorThreshold", "ShopSign"]))
     return house
 
 func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
@@ -643,6 +652,8 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
     _sphere(tree, "LeafE", 0.52 * scale_factor, Vector3(0.58, 3.16, 0.18) * scale_factor, leaf_dark)
     _sphere(tree, "LeafF", 0.44 * scale_factor, Vector3(0.02, 2.92, -0.52) * scale_factor, leaf_mid)
     _add_circle_blocker(Vector2(position.x, position.z), 0.30 * scale_factor, PLAYER_WORLD_RADIUS + 0.035)
+    var tree_asset := "BirchTree_1" if absi(roundi(position.x + position.z)) % 2 == 0 else "MapleTree_1"
+    SceneryReplacement.place(tree, tree_asset, Vector3(3.0, 5.1, 3.0) * scale_factor)
 
 func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
     var shrub := Node3D.new()
@@ -660,6 +671,8 @@ func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) 
         _sphere(shrub, "ShrubB", 0.34 * scale_factor, Vector3(0.00, 0.34, -0.08), dark)
         _sphere(shrub, "ShrubC", 0.31 * scale_factor, Vector3(0.31, 0.31, 0.05), light)
         _sphere(shrub, "ShrubD", 0.22 * scale_factor, Vector3(0.12, 0.58, 0.00), mid)
+    var shrub_asset := "Bush" if variant % 3 == 0 else ("Bush_Large" if variant % 3 == 1 else "Bush_Flowers")
+    SceneryReplacement.place(shrub, shrub_asset, Vector3(1.3, 1.15, 1.3) * scale_factor)
 
 func _add_grass_clump(position: Vector3, scale_factor: float = 1.0) -> void:
     var clump := Node3D.new()
@@ -670,6 +683,7 @@ func _add_grass_clump(position: Vector3, scale_factor: float = 1.0) -> void:
     _box(clump, "BladeA", Vector3(0.035, 0.42, 0.05) * scale_factor, Vector3(-0.12, 0.20, 0), green_a, Vector3(0, 0, -13))
     _box(clump, "BladeB", Vector3(0.035, 0.48, 0.05) * scale_factor, Vector3(0.00, 0.23, 0), green_b, Vector3(0, 0, 7))
     _box(clump, "BladeC", Vector3(0.035, 0.38, 0.05) * scale_factor, Vector3(0.12, 0.18, 0), green_a, Vector3(0, 0, 16))
+    SceneryReplacement.place(clump, "Grass_Small", Vector3(0.55, 0.65, 0.55) * scale_factor)
 
 func _add_flower_patch(position: Vector3, flower_color: Color) -> void:
     var patch := Node3D.new()
@@ -711,6 +725,10 @@ func _add_market_stall(position: Vector3, awning: Color) -> void:
         _box(stall, "AwningStripe", Vector3(0.54, 0.12, 1.72), Vector3(sx, 2.52, -0.04), stripe_color, Vector3(-8, 0, 0), 0.84)
     _box(stall, "CrateA", Vector3(0.62, 0.55, 0.62), Vector3(-0.70, 0.30, -0.35), Color("#79543a"))
     _box(stall, "CrateB", Vector3(0.55, 0.40, 0.55), Vector3(0.62, 0.22, 0.30), Color("#875f40"))
+    # Try the real modular market stand while retaining the proven collision.
+    # The Quaternius asset has a narrow native X axis, hence the 90-degree turn.
+    var stall_asset := "MarketStand_1" if position.x < 0.0 else "MarketStand_2"
+    SceneryReplacement.place(stall, stall_asset, Vector3(2.60, 2.65, 1.65), PackedStringArray(), 90.0)
     # Includes the four wooden StallPost supports and the stocked counter.
     _add_blocker(Vector2(position.x, position.z), Vector2(2.65, 1.72), PLAYER_WORLD_RADIUS + 0.025)
 
@@ -751,6 +769,7 @@ func _add_barrel(position: Vector3) -> void:
     _cylinder(barrel, "Barrel", 0.34, 0.82, Vector3(0, 0.41, 0), Color("#765039"))
     _cylinder(barrel, "BandLow", 0.355, 0.07, Vector3(0, 0.18, 0), Color("#333638"), 0.45)
     _cylinder(barrel, "BandHigh", 0.355, 0.07, Vector3(0, 0.64, 0), Color("#333638"), 0.45)
+    SceneryReplacement.place(barrel, "Barrel", Vector3(0.71, 0.92, 0.71))
     # The barrel and its iron bands need a shared footprint. Leave just
     # a couple of centimeters beyond the visible rim plus player radius.
     _add_circle_blocker(Vector2(position.x, position.z), 0.355, PLAYER_WORLD_RADIUS + 0.025)
