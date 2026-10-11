@@ -44,7 +44,7 @@ func _check() -> void:
         return
     # Blacksmith side roof extends over a visible exterior paved walk. A
     # player can stand there while the foundation itself stays impenetrable.
-    var sheltered_point := Vector2(origin.x + model_size.x * 0.47, solid_center.y)
+    var sheltered_point := Vector2(origin.x + model_size.x * 0.495, solid_center.y)
     if bool(town.call("_world_point_blocked", sheltered_point)):
         _fail("Covered side walk is blocked by invisible roof collision")
         return

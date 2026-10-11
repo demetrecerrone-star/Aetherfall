@@ -62,7 +62,7 @@ func _run_check() -> void:
         if material == null or material.albedo_texture == null:
             _fail("The medieval bench has no real wood-grain texture")
             return
-    var lamps := town.find_children("MedievalStreetLamp", "Node3D", true, false)
+    var lamps := town.find_children("MedievalStreetLamp*", "Node3D", true, false)
     if lamps.size() != 4:
         _fail("Expected four medieval street lanterns")
         return
