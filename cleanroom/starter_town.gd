@@ -502,7 +502,8 @@ func _add_house(position: Vector3, body_size: Vector3, wall_color: Color, roof_c
     _box(house, "BraceL", Vector3(0.13, 1.55, 0.18), Vector3(-width * 0.31, 2.15, front_z + 0.01), beam, Vector3(0, 0, -28))
     _box(house, "BraceR", Vector3(0.13, 1.55, 0.18), Vector3(width * 0.31, 2.15, front_z + 0.01), beam, Vector3(0, 0, 28))
 
-    # Door with accessible stone steps and a shallow, safe approach.\n    var door_face := depth * 0.515 + 0.08
+    # Door with accessible stone steps and a shallow, safe approach.
+    var door_face := depth * 0.515 + 0.08
     _box(house, "Door", Vector3(1.05, 1.95, 0.16), Vector3(0, 1.46, depth * 0.515), door_wood, Vector3.ZERO, 0.72)
     _box(house, "DoorThreshold", Vector3(1.35, 0.12, 0.55), Vector3(0, 0.62, depth * 0.60), stone_light)
     var step_upper_z := depth * 0.5 + 0.67
