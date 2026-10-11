@@ -61,3 +61,15 @@ depth so the counter looks structurally part of the stall. All twelve
 shallow goods move back with the desk; no merchandise meshes are omitted.
 The market QA enforces full merchandise support, slim fascia, and in-frame
 counterfront without touching fountain, vegetation, or player controls.
+
+## Pass 4.2f: lower entire merchandise-serving counter by approximately one foot
+
+Following the owner's October 11 phone screenshot, **the counter, its front
+apron, timber support ledgers, and the twelve merchandise crates are now all
+lowered together by 0.305m**. The inset selling surface drops from Y=1.020m
+to Y=0.715m; the low native storage shelf remains beneath it at roughly
+0.44–0.45m. This is a height adjustment of the existing integrated counter,
+not a new platform or changes to market stall canopies, timber uprights,
+fountain, scenery, player, or camera. The marketplace regression now checks
+countertop Y=0.715m, matching crate anchors, apron Y=0.555m and ledger
+Y=0.530m on all four stalls.

@@ -1192,10 +1192,10 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     stall.set_meta("support_post_positions", post_positions)
     stall.set_meta("facing_degrees", yaw)
     _add_camera_obstacle(position + Vector3(0, 1.0, 0), Vector3(2.75, 2.0, 2.75))
-    # Pass 4.2e: visually integrate the selling surface into the actual
+    # Pass 4.2f: lower the complete selling assembly by one physical foot.
     # Quaternius frame. In phone feedback the earlier counter was a large
     # 30cm-deep vertical box hanging over the plaza-facing posts. Keep the
-    # native lower storage shelf, and inset ONE slim, waist-height desktop
+    # native lower storage shelf, and inset ONE slim, lower-height desktop
     # beneath the canopy instead of adding another freestanding table.
     var timber := Color("#503828")
     var timber_edge := Color("#392a20")
@@ -1203,24 +1203,24 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     # A centered 0.90m-deep counter ends at local z=0.51 (inside the posts).
     _box(stall, "IntegratedMerchantCountertop",
         Vector3(1.94, 0.10, 0.90),
-        Vector3(0.0, 0.970, 0.06), timber, Vector3.ZERO, 0.94)
+        Vector3(0.0, 0.665, 0.06), timber, Vector3.ZERO, 0.94)
     # Use a narrow front apron, NOT a second hanging 30cm-tall display block.
     _box(stall, "IntegratedCounterFrontFascia",
         Vector3(1.94, 0.14, 0.075),
-        Vector3(0.0, 0.860, 0.485), timber_edge)
+        Vector3(0.0, 0.555, 0.485), timber_edge)
     # Long, thin horizontal ledgers reach both front and rear native posts,
     # preventing the desk from appearing suspended between them. No extra
     # floor-standing posts or new collision are created.
     for edge_x in [-0.96, 0.96]:
         _box(stall, "IntegratedPostLedger_Left" if edge_x < 0.0 else "IntegratedPostLedger_Right",
             Vector3(0.14, 0.14, 1.52),
-            Vector3(float(edge_x), 0.835, 0.0), timber_edge)
-    # Merchandise sits directly on the SINGLE integrated desk (top Y=1.02).
+            Vector3(float(edge_x), 0.530, 0.0), timber_edge)
+    # Merchandise remains directly on the SINGLE inset desk (top Y=0.715).
     # Previous crates were 0.35m high and pierced the imported canopy edge,
     # whose lowest timber/awning geometry begins at about 1.284m. Fit shallow
     # display crates instead (<=0.215m), with a visible clearance under the
     # awning. Do not add a raised platform, rack, or second freestanding desk.
-    var desk_surface_y := 1.02
+    var desk_surface_y := 0.715
     var stock_height := 0.215
     var produce_stall := position.x < 0.0
     var first_asset := "FarmCrate_Apple" if produce_stall else "Crate_Wooden"
@@ -1233,8 +1233,8 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
         Vector3(0.65, desk_surface_y, 0.04), Vector3(0.47, stock_height, 0.43))
     stall.set_meta("market_wares_style", "single_integrated_market_counter")
     stall.set_meta("market_wares_expected", 3)
-    stall.set_meta("market_counter_top_m", 1.02)
-    stall.set_meta("market_wares_shelf_height_m", 1.02)
+    stall.set_meta("market_counter_top_m", 0.715)
+    stall.set_meta("market_wares_shelf_height_m", 0.715)
     stall.set_meta("market_wares_front_z", 0.51)
     stall.set_meta("market_wares_canopy_clearance", true)
     stall.set_meta("native_stall_has_counter", false)

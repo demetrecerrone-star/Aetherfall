@@ -47,8 +47,14 @@ func _check() -> void:
         if counter_mesh == null or counter_mesh.size.x < 1.90 or counter_mesh.size.x > 2.00:
             _fail("The desk must span the frame without protruding past its side posts")
             return
-        if absf((counter.position.y + counter_mesh.size.y * 0.5) - 1.02) > 0.012:
-            _fail("Merchandise surface is not one integrated waist-height counter")
+        # User's one-foot lowering request: original desk top was Y=1.020.
+        # Shift the whole selling assembly down 0.305 m to Y=0.715.
+        var measured_desk_y := counter.position.y + counter_mesh.size.y * 0.5
+        if absf(measured_desk_y - 0.715) > 0.008:
+            _fail("The service desk has not been lowered by one foot: " + name)
+            return
+        if absf(fascia.position.y - 0.555) > 0.008:
+            _fail("The selling counter's front apron was not lowered together: " + name)
             return
         # The desktop front must be visibly INSIDE the imported front posts
         # (native post line is approximately +0.79m), not sticking into plaza.
@@ -69,6 +75,15 @@ func _check() -> void:
             if ledger_mesh == null or ledger_mesh.size.z < 1.45:
                 _fail("Structural support no longer reaches native stall posts: " + name)
                 return
+            if absf(ledger.position.y - 0.530) > 0.008:
+                _fail("The support braces must move down with the counter: " + name)
+                return
+        if absf(float(stand.get_meta("market_counter_top_m", -1.0)) - 0.715) > 0.008:
+            _fail("Stall counter height metadata must follow the new lowered desk: " + name)
+            return
+        if absf(float(stand.get_meta("market_wares_shelf_height_m", -1.0)) - 0.715) > 0.008:
+            _fail("Merchandise anchor metadata must match the actual desk: " + name)
+            return
         if not bool(stand.get_meta("market_counter_frame_integrated", false)):
             _fail("Counter is not marked structural; old second-table approach may return")
             return
@@ -157,7 +172,7 @@ func _check() -> void:
     if town.find_children("TownFountain", "Node3D", false, false).size() != 1:
         _fail("Original centered fountain missing")
         return
-    print("AETHERFALL_MARKET_DECOR_OK: 4 inset slim market counters with 12 flush goods, no protruding aprons; fountain, nature and paths retained")
+    print("AETHERFALL_MARKET_DECOR_OK: 4 in-frame merchant counters and all 12 goods lowered one foot to Y=0.715m; fountain, nature, paths intact")
     town.queue_free()
     quit(0)
 
