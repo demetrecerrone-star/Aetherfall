@@ -110,6 +110,8 @@ var _oriented_blockers: Array[Dictionary] = []
 var _house_blockers: Array[Dictionary] = []
 var _road_door_anchors: Array[Vector2] = []
 var _road_regions: Array[Rect2] = []
+# Only used to keep grass blades out of foliage meshes; these are NOT player blockers.
+var _foliage_grass_masks: Array[Rect2] = []
 var _camera_obstacles: Array[AABB] = []
 # Towers are round; square camera volumes erroneously envelop players at corners.
 var _camera_cylinders: Array[Dictionary] = []
@@ -773,29 +775,118 @@ func _add_tree(position: Vector3, scale_factor: float = 1.0) -> void:
     var tree_asset := "BirchTree_1" if absi(roundi(position.x + position.z)) % 2 == 0 else "MapleTree_1"
     SceneryReplacement.place(tree, tree_asset, Vector3(3.0, 5.1, 3.0) * scale_factor, PackedStringArray(), 0.0, 0.035)
 
+# Hedges are a familiar detail beside medieval timber-and-stone houses. A
+# few non-interactive flowering shrubs remain, but most are close-cut, boxy
+# foliage in less saturated greens (instead of bright neon-green spheres).
+func _add_trimmed_hedge(root: Node3D, scale_factor: float, variant: int) -> void:
+    root.name = "TownHedge_%02d" % variant
+    var length := 1.80 if variant % 3 == 0 else 1.45
+    var depth := 0.68 if variant % 2 == 0 else 0.80
+    var height := 0.68 if variant % 3 == 1 else 0.77
+    length *= scale_factor
+    depth *= scale_factor
+    height *= scale_factor
+    var dark := Color("#394f3d")
+    var middle := Color("#4c654a")
+    var upper := Color("#596f53")
+    var faded := Color("#6c7c60")
+    # Layers overlap so the hedge looks maintained but not like one rigid cube.
+    _box(root, "HedgeTwigShadow", Vector3(length * 0.82, 0.13 * scale_factor, depth * 0.78),
+        Vector3(0.0, 0.075 * scale_factor, 0.0), Color("#344134"))
+    _box(root, "HedgeBase", Vector3(length * 0.96, height * 0.78, depth * 0.94),
+        Vector3(0.0, height * 0.49, 0.0), dark)
+    _box(root, "HedgeLeafBody", Vector3(length, height * 0.70, depth),
+        Vector3(0.0, height * 0.59, 0.0), middle)
+    _box(root, "HedgeFlatTop", Vector3(length * 0.92, 0.14 * scale_factor, depth * 0.90),
+        Vector3(0.0, height * 0.94, 0.0), upper)
+    for i in range(4):
+        # Small asymmetries and quiet colour variation keep the trimmed edges
+        # looking leafy without adding transparent cards or extra textures.
+        var fraction := (float(i) - 1.5) / 4.0
+        var px := fraction * length * 0.87
+        var shade := faded if (i + variant) % 3 == 0 else upper
+        var patch_length := length * (0.18 if i % 2 == 0 else 0.21)
+        var patch_depth := depth * 0.44
+        _box(root, "HedgeTopLeaves_%d" % i,
+            Vector3(patch_length, 0.075 * scale_factor, patch_depth),
+            Vector3(px, height + 0.014 * scale_factor, depth * (0.16 if i % 2 == 0 else -0.16)), shade)
+        var side_shade := middle if i % 2 == 0 else dark.lightened(0.08)
+        _box(root, "HedgeSideLeaves_%d" % i,
+            Vector3(patch_length, height * 0.17, depth * 0.065),
+            Vector3(px, height * (0.47 if i % 2 == 0 else 0.69),
+                depth * (0.498 if i % 2 == 0 else -0.498)), side_shade)
+    # Keep the foliage flush with the turf. The plant is ornamental and
+    # intentionally walk-through, but grass below it should not poke through.
+    root.set_meta("foliage_style", "low_rectangular_hedge")
+    root.set_meta("hedge_dimensions", Vector3(length, height, depth))
+    _foliage_grass_masks.append(Rect2(
+        Vector2(root.position.x - length * 0.51, root.position.z - depth * 0.55),
+        Vector2(length * 1.02, depth * 1.10)))
+
+
+func _mute_imported_shrub(node: Node) -> void:
+    if node is MeshInstance3D:
+        var part := node as MeshInstance3D
+        if part.mesh != null:
+            for surface in range(part.mesh.get_surface_count()):
+                var current := part.get_active_material(surface)
+                if current is StandardMaterial3D:
+                    var mat := (current as StandardMaterial3D).duplicate() as StandardMaterial3D
+                    var source: Color = mat.albedo_color
+                    # Quaternius foliage has particularly vivid yellow-green
+                    # texture cards; tone them toward quiet moss/olive green.
+                    mat.albedo_color = Color(source.r * 0.64, source.g * 0.74,
+                        source.b * 0.63, source.a)
+                    part.set_surface_override_material(surface, mat)
+    for child in node.get_children():
+        _mute_imported_shrub(child)
+
+
 func _add_shrub(position: Vector3, scale_factor: float = 1.0, variant: int = 0) -> void:
+    # Pull ornamentals just into the lawn if their original position fell on
+    # the revived cobblestones. Keep door approaches and stalls accessible.
+    var near_side := -1.0 if position.z < 0.0 else 1.0
+    var candidates: Array[Vector3] = [
+        position,
+        position + Vector3(0.0, 0.0, near_side * 0.78),
+        position + Vector3(-0.64, 0.0, near_side * 0.85),
+        position + Vector3(0.64, 0.0, near_side * 0.85),
+        position + Vector3(0.0, 0.0, near_side * 1.18),
+    ]
+    var chosen := position
+    for candidate in candidates:
+        if _ground_surface_y(candidate) < 0.011 and not _world_point_blocked(Vector2(candidate.x, candidate.z)):
+            chosen = candidate
+            break
     var shrub := Node3D.new()
-    shrub.position = position
+    shrub.position = chosen
     add_child(shrub)
-    var dark := Color("#365f3d")
-    var mid := Color("#4f7d49")
-    var light := Color("#6c9458")
-    if variant % 2 == 0:
-        _sphere(shrub, "ShrubA", 0.34 * scale_factor, Vector3(-0.24, 0.30, 0.04), dark)
-        _sphere(shrub, "ShrubB", 0.40 * scale_factor, Vector3(0.18, 0.38, -0.02), mid)
-        _sphere(shrub, "ShrubC", 0.26 * scale_factor, Vector3(0.02, 0.62, 0.03), light)
+    if variant % 4 != 2:
+        _add_trimmed_hedge(shrub, scale_factor, variant)
     else:
-        _sphere(shrub, "ShrubA", 0.30 * scale_factor, Vector3(-0.30, 0.28, 0.06), mid)
-        _sphere(shrub, "ShrubB", 0.34 * scale_factor, Vector3(0.00, 0.34, -0.08), dark)
-        _sphere(shrub, "ShrubC", 0.31 * scale_factor, Vector3(0.31, 0.31, 0.05), light)
-        _sphere(shrub, "ShrubD", 0.22 * scale_factor, Vector3(0.12, 0.58, 0.00), mid)
-    var shrub_asset := "Bush" if variant % 3 == 0 else ("Bush_Large" if variant % 3 == 1 else "Bush_Flowers")
-    # Alpha-cutout foliage has a sparse lower silhouette above its mesh bounds.
-    # Embed the mesh a little deeper so the actual leaves meet the lawn.
-    var leaf_ground_sink := 0.30 * scale_factor
-    SceneryReplacement.place(shrub, shrub_asset, Vector3(1.3, 1.15, 1.3) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
+        shrub.name = "TownFlowerBush_%02d" % variant
+        # Keep some naturally grown, muted flowering bushes for variety.
+        var leaf_ground_sink := 0.31 * scale_factor
+        var installed := SceneryReplacement.place(shrub, "Bush_Flowers",
+            Vector3(1.12, 1.02, 1.12) * scale_factor, PackedStringArray(), 0.0, leaf_ground_sink)
+        if installed:
+            _mute_imported_shrub(shrub)
+        else:
+            _add_trimmed_hedge(shrub, scale_factor, variant)
+        _foliage_grass_masks.append(Rect2(
+            Vector2(chosen.x - 0.53 * scale_factor, chosen.z - 0.53 * scale_factor),
+            Vector2.ONE * (1.06 * scale_factor)))
+        shrub.set_meta("leaf_ground_sink_m", leaf_ground_sink)
     shrub.set_meta("grounded", true)
-    shrub.set_meta("leaf_ground_sink_m", leaf_ground_sink)
+
+
+func _grass_point_blocked(point: Vector2) -> bool:
+    if _world_point_blocked(point):
+        return true
+    for area in _foliage_grass_masks:
+        if area.has_point(point):
+            return true
+    return false
 
 func _add_grass_clump(position: Vector3, scale_factor: float = 1.0) -> void:
     var clump := Node3D.new()
@@ -1036,6 +1127,7 @@ func _build_stage() -> void:
     _house_blockers.clear()
     _road_door_anchors.clear()
     _road_regions.clear()
+    _foliage_grass_masks.clear()
     _camera_obstacles.clear()
     _camera_cylinders.clear()
     _door_step_surfaces.clear()
@@ -1270,7 +1362,7 @@ func _build_stage() -> void:
     _add_lamp(Vector3(8.1,0,2.1))
 
     # Coverage is split into small instanced chunks for mobile frustum culling.
-    GrassField.populate(self, Callable(self, "_world_point_blocked"), Callable(self, "_ground_surface_y"))
+    GrassField.populate(self, Callable(self, "_grass_point_blocked"), Callable(self, "_ground_surface_y"))
 
 func _round_style(color: Color, radius: int) -> StyleBoxFlat:
     var style := StyleBoxFlat.new()
