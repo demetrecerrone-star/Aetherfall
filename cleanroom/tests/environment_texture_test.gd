@@ -74,6 +74,13 @@ func _run_check() -> void:
     if int(town.get_meta("road_network_segments", 0)) < 30:
         _fail("Not all town doorways have cobbled path branches")
         return
+    var lanes: Array = town.get("_road_regions")
+    if lanes.size() < 3:
+        _fail("Primary and secondary village roads are missing")
+        return
+    if absf((lanes[0] as Rect2).size.x - 5.90) > 0.01 or absf((lanes[1] as Rect2).size.y - 4.25) > 0.01:
+        _fail("Main gate road must stay wide; secondary road should narrow only moderately")
+        return
     var route_points: Array = town.get("_road_door_anchors")
     if route_points.size() != 10:
         _fail("The road network did not connect all ten house and shop doorways")
@@ -159,6 +166,40 @@ func _run_check() -> void:
     if bush_material.cull_mode != BaseMaterial3D.CULL_DISABLED:
         _fail("Foliage leaf cards are still one-sided")
         return
+
+    var hedges := town.find_children("TownHedge_*", "Node3D", true, false)
+    if hedges.size() < 5:
+        _fail("Too few muted rectangular hedges were placed")
+        return
+    for hedge in hedges:
+        var dimensions: Vector3 = (hedge as Node3D).get_meta("hedge_dimensions", Vector3.ZERO)
+        if dimensions.y < 0.90 or dimensions.y > 1.20 or dimensions.x < 1.60:
+            _fail("Trimmed hedge must be broad and about hip-high")
+            return
+        if (hedge as Node3D).get_node_or_null("HedgeLeafBody") == null:
+            _fail("Trimmed hedge lost its rectangular foliage mesh")
+            return
+    var pines := town.find_children("PineTree_*", "Node3D", true, false)
+    if pines.size() < 3:
+        _fail("Not enough taller pine trees were added to the valley")
+        return
+    var tallest := 0.0
+    for pine in pines:
+        tallest = maxf(tallest, float((pine as Node3D).get_meta("tree_height_m", 0.0)))
+        if (pine as Node3D).find_children("PineEvergreenLayer_*", "MeshInstance3D", true, false).size() != 5:
+            _fail("Pine tree canopy lacks its solid five-tier needle layers")
+            return
+    if tallest < 6.6:
+        _fail("None of the pines is taller than the deciduous trees")
+        return
+    var deciduous := town.find_children("BroadleafTree_*", "Node3D", true, false)
+    if deciduous.size() < 5:
+        _fail("Deciduous maple/birch variety was lost")
+        return
+    for tree in deciduous:
+        if not bool((tree as Node3D).get_meta("tree_leaf_cutout_fixed", false)):
+            _fail("Imported tree leaves still have see-through blended materials")
+            return
 
     # Pass 3: the old flat rectangular stone box is gone.
     if town.find_child("TownWall", true, false) != null:
@@ -264,8 +305,23 @@ func _run_check() -> void:
     if grass_count < 9000 or chunk_count < 20 or chunk_count > 64:
         _fail("Missing thick lawn coverage: %d instances / %d batches" % [grass_count, chunk_count])
         return
-    if String(town.get_meta("grass_style", "")) != "dense_short_yard_grass":
-        _fail("Grass must be lawn-length, not tall scattered spikes")
+    if String(town.get_meta("grass_style", "")) != "soft_curved_meadow_grass":
+        _fail("Meadow grass must use the new curved tapered tuft mesh")
+        return
+    var grass_batches := town.find_children("GrassField_*", "MultiMeshInstance3D", true, false)
+    if grass_batches.is_empty():
+        _fail("No instanced grass batches were generated")
+        return
+    var grass_multimesh := (grass_batches[0] as MultiMeshInstance3D).multimesh
+    if grass_multimesh == null or grass_multimesh.mesh == null:
+        _fail("Instanced grass lost its blade mesh")
+        return
+    var tuft := grass_multimesh.mesh as ArrayMesh
+    if tuft == null or tuft.get_faces().size() < 30:
+        _fail("New grass tuft is still the old four straight triangles")
+        return
+    if tuft.get_faces().size() > 75:
+        _fail("New grass tuft is too complex for 10k mobile instances")
         return
     if float(town.get_meta("grass_spacing_m", 1.0)) > 0.26:
         _fail("Grass spacing is too sparse for a believable lawn")
