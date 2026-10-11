@@ -1,0 +1,48 @@
+{
+  "purpose": "Pinned upstream Godot tools for future isolated Aetherfall evaluation; not integrated or enabled",
+  "captured_on": "2026-10-11",
+  "pins": [
+    {
+      "name": "godot-statecharts",
+      "url": "https://github.com/derkork/godot-statecharts",
+      "commit": "76d226a3efac66a72aea825382b320c94808f409",
+      "mode": "git-submodule",
+      "review_status": "license and advertised Godot target checked; no Android/runtime integration test yet"
+    },
+    {
+      "name": "gloot",
+      "url": "https://github.com/peter-kish/gloot",
+      "commit": "6b09b87ac07a8536779ef1ab0fafc7e99830f948",
+      "mode": "git-submodule",
+      "review_status": "license and advertised Godot target checked; no Android/runtime integration test yet"
+    },
+    {
+      "name": "questify",
+      "url": "https://github.com/TheWalruzz/godot-questify",
+      "commit": "a102ab1bd4f0ee4280d5370d9aab2b49f8843325",
+      "mode": "git-submodule",
+      "review_status": "license and advertised Godot target checked; no Android/runtime integration test yet"
+    },
+    {
+      "name": "themey",
+      "url": "https://github.com/wadlo/Themey",
+      "commit": "678c5574b3a9274437c0c1e0ac15395056b5fc5f",
+      "mode": "git-submodule",
+      "review_status": "license and advertised Godot target checked; no Android/runtime integration test yet"
+    },
+    {
+      "name": "phantom-camera",
+      "url": "https://github.com/ramokz/phantom-camera",
+      "commit": "21d3762492e2dc51b448f55438b89b3c19349f96",
+      "mode": "git-submodule",
+      "review_status": "license and advertised Godot target checked; no Android/runtime integration test yet"
+    },
+    {
+      "name": "3d-character-creator-reference",
+      "url": "https://github.com/Flynsarmy/gd-character-creation",
+      "commit": "cef22521e690472e7642222b521a5db6af6ea2c8",
+      "mode": "git-submodule",
+      "review_status": "license and advertised Godot target checked; no Android/runtime integration test yet"
+    }
+  ]
+}

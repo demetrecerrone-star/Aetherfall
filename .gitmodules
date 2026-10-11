@@ -1,0 +1,23 @@
+[submodule "godot-kits/vendor/godot-statecharts"]
+	path = godot-kits/vendor/godot-statecharts
+	url = https://github.com/derkork/godot-statecharts.git
+
+[submodule "godot-kits/vendor/gloot"]
+	path = godot-kits/vendor/gloot
+	url = https://github.com/peter-kish/gloot.git
+
+[submodule "godot-kits/vendor/questify"]
+	path = godot-kits/vendor/questify
+	url = https://github.com/TheWalruzz/godot-questify.git
+
+[submodule "godot-kits/vendor/themey"]
+	path = godot-kits/vendor/themey
+	url = https://github.com/wadlo/Themey.git
+
+[submodule "godot-kits/vendor/phantom-camera"]
+	path = godot-kits/vendor/phantom-camera
+	url = https://github.com/ramokz/phantom-camera.git
+
+[submodule "godot-kits/vendor/3d-character-creator-reference"]
+	path = godot-kits/vendor/3d-character-creator-reference
+	url = https://github.com/Flynsarmy/gd-character-creation.git
