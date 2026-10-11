@@ -1192,36 +1192,39 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     stall.set_meta("support_post_positions", post_positions)
     stall.set_meta("facing_degrees", yaw)
     _add_camera_obstacle(position + Vector3(0, 1.0, 0), Vector3(2.75, 2.0, 2.75))
-    # Pass 4.2b fixes the near-empty stalls seen on the real Android screen.
-    # The original y=1.18 stock was almost swallowed by the imported counter.
-    # A narrow raised oak merchandising rack makes the crates visible above
-    # the counter, WITHOUT blocking the browsing ring or changing stall physics.
+    # Pass 4.2c: PHONE SCREENSHOT FIX. The tall back-centered shelf made
+    # goods visually overlap the striped roof, with the actual front counter
+    # looking empty. Place a supported shallow display directly on the
+    # plaza-facing (+local Z) counter edge, much LOWER than the canopy.
+    # +Z is the service direction on ALL four deliberately rotated stalls.
     var display := Node3D.new()
-    display.name = "RaisedMerchandiseRack"
+    display.name = "FrontCounterMerchandiseRack"
     stall.add_child(display)
     var oak := Color("#6b4a31")
     var trim := Color("#493222")
-    _box(display, "OakDisplayShelf", Vector3(2.23, 0.095, 0.86),
-        Vector3(0, 1.395, 0.15), oak, Vector3.ZERO, 0.95)
-    _box(display, "DisplayFrontLip", Vector3(2.25, 0.10, 0.070),
-        Vector3(0, 1.46, 0.555), trim)
-    _box(display, "DisplayBackLip", Vector3(2.25, 0.075, 0.070),
-        Vector3(0, 1.45, -0.255), trim)
-    for shelf_x in [-0.88, 0.88]:
-        _box(display, "ShelfSupport", Vector3(0.12, 0.33, 0.54),
-            Vector3(float(shelf_x), 1.18, 0.13), trim)
+    _box(display, "OakDisplayShelf", Vector3(2.02, 0.09, 0.45),
+        Vector3(0, 1.00, 0.59), oak, Vector3.ZERO, 0.95)
+    _box(display, "DisplayFrontLip", Vector3(2.05, 0.065, 0.05),
+        Vector3(0, 1.065, 0.797), trim)
+    _box(display, "DisplayBackLip", Vector3(2.05, 0.055, 0.05),
+        Vector3(0, 1.064, 0.382), trim)
+    for shelf_x in [-0.82, 0.82]:
+        _box(display, "ShelfSupport", Vector3(0.11, 0.33, 0.35),
+            Vector3(float(shelf_x), 0.805, 0.59), trim)
     var produce_stall := position.x < 0.0
     var first_asset := "FarmCrate_Apple" if produce_stall else "Crate_Wooden"
     var second_asset := "Crate_Wooden" if produce_stall else "FarmCrate_Apple"
     _add_market_counter_goods(stall, "CounterStock_Primary", first_asset,
-        Vector3(-0.72, 1.455, 0.09), Vector3(0.62, 0.55, 0.62))
+        Vector3(-0.66, 1.075, 0.58), Vector3(0.48, 0.40, 0.40))
     _add_market_counter_goods(stall, "CounterStock_Secondary", second_asset,
-        Vector3(0, 1.455, 0.10), Vector3(0.60, 0.52, 0.60))
+        Vector3(0.0, 1.075, 0.58), Vector3(0.48, 0.40, 0.40))
     _add_market_counter_goods(stall, "CounterStock_Third", first_asset,
-        Vector3(0.72, 1.455, 0.09), Vector3(0.62, 0.55, 0.62))
-    stall.set_meta("market_wares_style", "curated_raised_oak_merchandise_rack")
+        Vector3(0.66, 1.075, 0.58), Vector3(0.48, 0.40, 0.40))
+    stall.set_meta("market_wares_style", "plaza_facing_front_counter_display")
     stall.set_meta("market_wares_expected", 3)
-    stall.set_meta("market_wares_shelf_height_m", 1.4425)
+    stall.set_meta("market_wares_shelf_height_m", 1.045)
+    stall.set_meta("market_wares_front_z", 0.58)
+    stall.set_meta("market_wares_canopy_clearance", true)
 
 
 func _add_market_counter_goods(stall: Node3D, label: String,
