@@ -127,6 +127,7 @@ var _fountain_water: MeshInstance3D
 var _fountain_crystal: MeshInstance3D
 var _fountain_glow: OmniLight3D
 var _fountain_cascades: Array[MeshInstance3D] = []
+var _fountain_curtain_mat: ShaderMaterial
 var _fountain_drips: Array[MeshInstance3D] = []
 
 func _ready() -> void:
@@ -442,53 +443,89 @@ func _fountain_flow_point(angle: float, progress: float, stream: int) -> Vector3
     return Vector3(sin(heading) * radius, y, -4.0 + cos(heading) * radius)
 
 
+func _fountain_curtain_material() -> ShaderMaterial:
+    # A translucent animated water skin, not opaque hair strands or light panels.
+    # Broad low-contrast streaks travel downward; the edges vanish naturally.
+    var shader := Shader.new()
+    shader.code = """
+shader_type spatial;
+render_mode blend_mix, depth_draw_never, cull_disabled, diffuse_burley, specular_schlick_ggx;
+
+uniform float flow_time = 0.0;
+
+void fragment() {
+    float soft_edges = smoothstep(0.0, 0.18, UV.x) *
+        (1.0 - smoothstep(0.82, 1.0, UV.x));
+    float channel = sin(UV.x * 16.0 + sin(UV.y * 13.0 - flow_time * 3.7) * 0.65);
+    float falling = sin(UV.y * 46.0 - flow_time * 9.0 +
+        1.6 * sin(UV.x * 9.0 + flow_time * 0.75));
+    float breakup = sin(UV.y * 29.0 - flow_time * 6.6 + UV.x * 13.0);
+    float flecks = smoothstep(0.68, 0.95, 0.50 +
+        0.25 * falling + 0.25 * breakup);
+    float shimmer = clamp(0.48 + 0.22 * channel + 0.18 * flecks, 0.0, 1.0);
+    ALBEDO = mix(vec3(0.19, 0.48, 0.55), vec3(0.54, 0.78, 0.83), shimmer);
+    ALPHA = (0.37 + 0.07 * channel + 0.11 * flecks) *
+        soft_edges * COLOR.a;
+    ROUGHNESS = 0.11;
+    SPECULAR = 0.76;
+    METALLIC = 0.0;
+}
+"""
+    var material := ShaderMaterial.new()
+    material.shader = shader
+    material.set_shader_parameter("flow_time", 0.0)
+    return material
+
+
 func _add_fountain_cascade(angle: float, index: int) -> void:
-    # Seven uneven, narrowly separated water filaments at each spout.
-    # Unlike the earlier broad unlit ribbons they have gaps, irregular edges,
-    # changing thickness and physically lit normals: no flat light panels.
+    # One lightly folded, continuous falling sheet per outlet. Seven vertices
+    # across its width create a soft contour, not seven separated hair strands.
+    var rows := 33
+    var columns := 7
     var vertices := PackedVector3Array()
     var normals := PackedVector3Array()
     var colors := PackedColorArray()
+    var uvs := PackedVector2Array()
     var indices := PackedInt32Array()
-    for strand in range(7):
-        var offset := (float(strand) - 3.0) * 0.065
-        var heading := angle + offset
-        var across := Vector3(cos(heading), 0.0, -sin(heading))
-        for segment in range(29):
-            var t := float(segment) / 28.0
-            var center := _fountain_flow_point(heading, t, index)
-            var turbulence := 0.013 * sin(t * 19.0 + float(strand) * 1.7 + float(index)) * sin(t * PI)
-            center.x += sin(heading) * turbulence
-            center.z += cos(heading) * turbulence
-            var width := 0.010 + 0.006 * (0.5 + 0.5 * sin(24.0 * t + float(strand) * 2.1))
-            var density := 0.52 + 0.25 * sin(t * 17.0 + float(strand) * 2.3)
-            for edge in range(2):
-                var sign := -1.0 if edge == 0 else 1.0
-                vertices.append(center + across * (sign * width))
-                normals.append(Vector3(sin(heading), 0.18, cos(heading)).normalized())
-                colors.append(Color(0.95, 1.0, 1.0, density))
-            if segment > 0:
-                var base := strand * 58 + (segment - 1) * 2
+    var across := Vector3(cos(angle), 0.0, -sin(angle))
+    var outwards := Vector3(sin(angle), 0.0, cos(angle))
+    for segment in range(rows):
+        var t := float(segment) / float(rows - 1)
+        var center := _fountain_flow_point(angle, t, index)
+        var width := lerpf(0.116, 0.095, t)
+        var flutter := sin(t * 16.0 + float(index) * 1.1) * sin(t * PI) * 0.007
+        for column in range(columns):
+            var u := float(column) / float(columns - 1)
+            var side := u * 2.0 - 1.0
+            var fold := 0.016 * sin(u * TAU + t * 9.0 + float(index) * 0.73) * sin(t * PI)
+            var point := center + across * side * width + outwards * (fold + flutter)
+            vertices.append(point)
+            normals.append((outwards + Vector3.UP * 0.25 + across * (side * 0.24)).normalized())
+            colors.append(Color(1.0, 1.0, 1.0, lerpf(0.96, 0.80, t)))
+            uvs.append(Vector2(u, t))
+        if segment > 0:
+            var previous := (segment - 1) * columns
+            var current := segment * columns
+            for column in range(columns - 1):
                 indices.append_array(PackedInt32Array([
-                    base, base + 1, base + 2,
-                    base + 1, base + 3, base + 2
+                    previous + column, previous + column + 1, current + column,
+                    previous + column + 1, current + column + 1, current + column
                 ]))
     var arrays := []
     arrays.resize(Mesh.ARRAY_MAX)
     arrays[Mesh.ARRAY_VERTEX] = vertices
     arrays[Mesh.ARRAY_NORMAL] = normals
     arrays[Mesh.ARRAY_COLOR] = colors
+    arrays[Mesh.ARRAY_TEX_UV] = uvs
     arrays[Mesh.ARRAY_INDEX] = indices
     var mesh := ArrayMesh.new()
     mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
     var flow := MeshInstance3D.new()
     flow.name = "FountainCascade%02d" % index
     flow.mesh = mesh
-    var mat := _water_mat(Color("#9dced9"), 0.54)
-    mat.vertex_color_use_as_albedo = true
-    mat.roughness = 0.10
-    mat.metallic = 0.0
-    flow.material_override = mat
+    if _fountain_curtain_mat == null:
+        _fountain_curtain_mat = _fountain_curtain_material()
+    flow.material_override = _fountain_curtain_mat
     flow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(flow)
     _fountain_cascades.append(flow)
@@ -500,8 +537,8 @@ func _add_fountain_droplet(stream: int, bead: int) -> void:
     var drop := MeshInstance3D.new()
     drop.name = "FountainDroplet_%d_%d" % [stream, bead]
     var shape := SphereMesh.new()
-    shape.radius = 0.011
-    shape.height = 0.053
+    shape.radius = 0.008
+    shape.height = 0.030
     shape.radial_segments = 10
     shape.rings = 5
     drop.mesh = shape
@@ -1278,7 +1315,7 @@ func _build_stage() -> void:
     _cylinder(self, "FountainColumn", 0.24, 1.36, Vector3(0, 1.70, -4.0), Color("#858d89"), 0.82)
     _cylinder(self, "FountainSpoutRing", 0.38, 0.18, Vector3(0, 2.28, -4.0), Color("#707875"), 0.74)
 
-    # Water now spills from the top disk rim, curves through open air,
+    # Textured water curtains spill from the top disk rim through open air,
     # and lands in the basin instead of tracing the narrow center pillar.
     _fountain_cascades.clear()
     _fountain_drips.clear()
@@ -2160,18 +2197,14 @@ func _update_fountain(delta: float) -> void:
         _fountain_crystal.rotation.y += delta * 0.48
     if _fountain_glow != null:
         _fountain_glow.light_energy = 0.34 + (sin(_fountain_time * 1.8) + 1.0) * 0.045
-    # Light and opacity vary, so no stream remains a static flat slab.
-    for i in range(_fountain_cascades.size()):
-        var mat := _fountain_cascades[i].material_override as StandardMaterial3D
-        if mat != null:
-            var tint := mat.albedo_color
-            tint.a = 0.47 + 0.08 * sin(_fountain_time * 3.4 + float(i) * 0.8)
-            mat.albedo_color = tint
+    # All eight curtains share one animated material and a single time update.
+    if _fountain_curtain_mat != null:
+        _fountain_curtain_mat.set_shader_parameter("flow_time", _fountain_time)
     for i in range(_fountain_drips.size()):
         var stream := int(i / 3)
         var bead := i % 3
         var theta := TAU * float(stream) / 8.0 + (float(bead) - 1.0) * 0.065
-        var t := fposmod(_fountain_time * 0.80 + float(bead) * 0.333 + float(stream) * 0.074, 1.0)
+        var t := 0.70 + 0.28 * fposmod(_fountain_time * 1.10 + float(bead) * 0.333 + float(stream) * 0.074, 1.0)
         var drip := _fountain_drips[i]
         drip.position = _fountain_flow_point(theta, t, stream)
         var drop_mat := drip.material_override as StandardMaterial3D

@@ -87,8 +87,8 @@ func _run_check() -> void:
         _fail("Wall texture scaling is not uniform on all facade faces")
         return
 
-    # Water now uses several narrow, physically lit strands rather than one
-    # emissive flat panel. Drops are smaller and stretched by gravity.
+    # The outlet must render animated, transparent water curtains, not
+    # individual hair strands or unlit glass/light panels.
     if town.find_child("FountainJet", true, false) != null:
         _fail("Old fountain water rods are still present")
         return
@@ -96,23 +96,31 @@ func _run_check() -> void:
     var droplets := town.find_children("FountainDroplet*", "MeshInstance3D", true, false)
     var fake_rings := town.find_children("FountainRipple*", "MeshInstance3D", true, false)
     if sheets.size() != 8 or droplets.size() != 24 or fake_rings.size() != 0:
-        _fail("Expected eight strand groups, 24 small falling droplets and no flat ripple decals")
+        _fail("Expected eight falling water curtains, 24 fine splash droplets and no fake ripples")
         return
     for flow in sheets:
         var visual := flow as MeshInstance3D
-        var stream_mat := visual.material_override as StandardMaterial3D
+        var stream_mat := visual.material_override as ShaderMaterial
         var flow_vertices: PackedVector3Array = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
         var flow_colors: PackedColorArray = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
-        if flow_vertices.size() < 400 or flow_colors.size() != flow_vertices.size():
-            _fail("Fountain returned to broad panels instead of separate shaded filaments")
+        var flow_uvs: PackedVector2Array = visual.mesh.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV]
+        if flow_vertices.size() != 231 or flow_colors.size() != 231 or flow_uvs.size() != 231:
+            _fail("Fountain does not use a continuous seven-column water curtain")
             return
-        if stream_mat == null or not stream_mat.vertex_color_use_as_albedo or stream_mat.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
-            _fail("Flowing water is not softly shaded and varied along each filament")
+        if stream_mat == null or stream_mat.shader == null:
+            _fail("Water curtains are missing their animated translucent shader")
+            return
+        var curtain_shader := stream_mat.shader.code
+        if not curtain_shader.contains("flow_time") or not curtain_shader.contains("ALPHA") or not curtain_shader.contains("soft_edges"):
+            _fail("Fountain shader has no downward-moving water texture or soft edges")
+            return
+        if flow_uvs[0].x != 0.0 or flow_uvs[6].x != 1.0 or absf(flow_uvs[224].y - 1.0) > 0.001:
+            _fail("Fountain curtains lack continuous UV mapping")
             return
     var small_drop := droplets[0] as MeshInstance3D
     var drop_mesh := small_drop.mesh as SphereMesh
-    if drop_mesh == null or drop_mesh.radius > 0.016 or drop_mesh.height < 0.045:
-        _fail("Fountain droplets are still oversized round beads")
+    if drop_mesh == null or drop_mesh.radius > 0.012 or drop_mesh.height > 0.035:
+        _fail("Fountain droplets are still oversized decorative beads")
         return
 
     # Real impact ripples displace a densely tessellated circular water surface.
@@ -135,7 +143,11 @@ func _run_check() -> void:
         _fail("Water surface ripples are not driven by droplet impact positions")
         return
     var initial_time := float(water_mat.get_shader_parameter("flow_time"))
+    var curtain_mat := (sheets[0] as MeshInstance3D).material_override as ShaderMaterial
     town.call("_update_fountain", 0.30)
+    if float(curtain_mat.get_shader_parameter("flow_time")) < 0.29:
+        _fail("Fountain waterfall animation is not advancing")
+        return
     var next_time := float(water_mat.get_shader_parameter("flow_time"))
     if next_time < initial_time + 0.29:
         _fail("Physical fountain waves are not moving")
@@ -154,8 +166,8 @@ func _run_check() -> void:
         _fail("Fountain runoff does not land inside the basin away from the column")
         return
     var first_vertices: PackedVector3Array = (sheets[0] as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-    if first_vertices[0].y < 2.36 or first_vertices[56].y > 1.05:
-        _fail("Fountain stream filaments no longer span disk to basin")
+    if first_vertices[0].y < 2.36 or first_vertices[224].y > 1.05:
+        _fail("Fountain water curtains no longer span disk to basin")
         return
 
     print("AETHERFALL_ENVIRONMENT_02T_OK: Seam-free textured lawn, unified cobbles, triplanar fountain, tiled roofs, textured stall posts and three ground heights")
