@@ -81,6 +81,21 @@ func _check() -> void:
     if int(town.get_meta("gate_ashlar_block_count", 0)) != 468:
         _fail("Not all staggered cut-stone courses were laid across two towers")
         return
+    if String(town.get_meta("gate_ashlar_tone", "")) != "deep_fortress_grey":
+        _fail("The tower stones were not darkened to the approved fortress grey")
+        return
+    if not bool(town.get_meta("gate_roof_wood_matches_leaves", false)):
+        _fail("Tower roof timbers do not match the gate")
+        return
+    var tower_roofs := town.find_children("TimberGateRoof*", "MeshInstance3D", true, false)
+    if tower_roofs.size() != 2:
+        _fail("Both gate sentry towers must have timber roofs")
+        return
+    for roof in tower_roofs:
+        var roof_mat := (roof as MeshInstance3D).material_override as StandardMaterial3D
+        if roof_mat == null or roof_mat.albedo_color != Color("#92704e") or roof_mat.albedo_texture == null:
+            _fail("Tower roofs are not the same textured oak tint as the main gate")
+            return
     var dressed_material := dressed.mesh.surface_get_material(0) as StandardMaterial3D
     if dressed_material == null or not dressed_material.vertex_color_use_as_albedo:
         _fail("Gate stone lacks individual chiseled block shading")
