@@ -7,6 +7,9 @@ config/name="Aetherfall"
 run/main_scene="res://scenes/title_screen.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
+[autoload]
+AetherfallAmbience="*res://scripts/menu_ambience.gd"
+
 [display]
 window/size/viewport_width=1280
 window/size/viewport_height=720
