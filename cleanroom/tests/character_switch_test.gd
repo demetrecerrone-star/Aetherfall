@@ -52,6 +52,15 @@ func _assert_character(town: Node, expected: String, expected_idle: String) -> b
     if String(town.get("_character_variant")) != expected:
         _fail("Character selection state incorrect: " + expected)
         return false
+    var actor := town.get_node_or_null("TripoActor") as Node3D
+    if actor == null or absf(actor.scale.x - 1.62) > 0.01 or absf(actor.scale.y - 1.62) > 0.01:
+        _fail("Both adventurers must use the new slightly smaller world scale: " + expected)
+        return false
+    var sole_y: float = town.call("_sole_floor_y")
+    var floor_y: float = town.call("_ground_surface_y", actor.global_position)
+    if absf(sole_y - floor_y) > 0.10:
+        _fail("Rescaling caused boot grounding regression: %s sole=%f ground=%f" % [expected, sole_y, floor_y])
+        return false
     var rig := town.get("_skeleton") as Skeleton3D
     if rig == null or rig.get_bone_count() != 65:
         _fail("Active character has no valid 65-joint skeleton: " + expected)
