@@ -2,9 +2,12 @@
 config_version=5
 
 [application]
-config/name="Aetherfall Starter Town"
-run/main_scene="res://starter_town.tscn"
+config/name="Aetherfall"
+run/main_scene="res://title_screen.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
+
+[autoload]
+AetherfallAmbience="*res://menu_ambience.gd"
 
 [display]
 window/size/viewport_width=1280
