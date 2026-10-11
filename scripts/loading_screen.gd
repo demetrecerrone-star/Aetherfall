@@ -5,6 +5,7 @@ const TITLE_PATH := "res://scenes/title_screen.tscn"
 const BACKDROP_SCRIPT = preload("res://scripts/title_backdrop.gd")
 
 var _entered_ms := 0
+var _reduced_motion := false
 var _veil: ColorRect
 var _transitioning := false
 var _loading_done := false
@@ -15,13 +16,16 @@ var _bar: ProgressBar
 var _buttons: HBoxContainer
 
 func _ready() -> void:
+	var config := ConfigFile.new()
+	if config.load("user://aetherfall_frontend.cfg") == OK:
+		_reduced_motion = bool(config.get_value("accessibility", "reduced_motion", false))
 	_entered_ms = Time.get_ticks_msec()
 	_install_backdrop()
 	_build_ui()
 	_install_veil()
 	AetherfallAmbience.play_menu()
 	var fade := create_tween()
-	fade.tween_property(_veil, "modulate:a", 0.0, .45)
+	fade.tween_property(_veil, "modulate:a", 0.0, .06 if _reduced_motion else .45)
 	var request := ResourceLoader.load_threaded_request(WORLD_PATH, "PackedScene")
 	if request != OK:
 		_fail("Unable to start the world loader (error %d)." % request)
@@ -53,6 +57,7 @@ func _install_backdrop() -> void:
 	vista.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	vista.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vista.set("dimmed", true)
+	vista.set("reduced_motion", _reduced_motion)
 	add_child(vista)
 
 func _install_veil() -> void:
@@ -140,7 +145,7 @@ func _enter_world() -> void:
 	_veil.mouse_filter = Control.MOUSE_FILTER_STOP
 	AetherfallAmbience.fade_out()
 	var fade := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	fade.tween_property(_veil, "modulate:a", 1.0, .45)
+	fade.tween_property(_veil, "modulate:a", 1.0, .06 if _reduced_motion else .45)
 	await fade.finished
 	if not is_inside_tree():
 		return
