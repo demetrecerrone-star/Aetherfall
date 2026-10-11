@@ -36,13 +36,16 @@ func _run_check() -> void:
     if town.find_child("RoadStone", true, false) != null or town.find_child("SquareStone", true, false) != null:
         _fail("Old oversized road slabs are still visible")
         return
+    if town.find_child("GrassPatch", true, false) != null:
+        _fail("Raised circular grass patches returned and will leave visible edges")
+        return
     var entry := float(town.call("_ground_surface_y", Vector3(0, 0, 18)))
     var cross := float(town.call("_ground_surface_y", Vector3(12, 0, 1)))
     var square := float(town.call("_ground_surface_y", Vector3(0, 0, -4)))
     if absf(entry - 0.055) > 0.001 or absf(cross - 0.067) > 0.001 or absf(square - 0.079) > 0.001:
         _fail("Foot grounding no longer matches paved surfaces: %f %f %f" % [entry, cross, square])
         return
-    print("AETHERFALL_ENVIRONMENT_02T_OK: Unified cobbles, green grass, triplanar fountain, tiled roofs, textured stall posts and three ground heights")
+    print("AETHERFALL_ENVIRONMENT_02T_OK: Seam-free textured lawn, unified cobbles, triplanar fountain, tiled roofs, textured stall posts and three ground heights")
     town.queue_free()
     quit(0)
 

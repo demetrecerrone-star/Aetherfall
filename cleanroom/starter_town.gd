@@ -946,16 +946,12 @@ func _build_stage() -> void:
     fill.shadow_enabled = false
     add_child(fill)
 
-    # Greener, softly varied lawn; the cobblestone itself is already in the road texture.
+    # The leafy-grass texture already has natural variation. 0.2T/0.2U
+    # drew raised cylinder discs over it; even 1.8 cm high they produced
+    # hard circular seams and dark edges on mobile. Keep one seamless lawn
+    # mesh instead of geometry overlays. Future color variation should be
+    # blended inside the material, never another exposed circular mesh.
     _box(self, "TownGround", Vector3(58.0, 0.16, 55.0), Vector3(0, -0.08, 0), Color("#70965b"), Vector3.ZERO, 1.0)
-    var patch_positions := [
-        Vector3(-22,0,-18), Vector3(20,0,-19), Vector3(-23,0,10), Vector3(22,0,12),
-        Vector3(-15,0,21), Vector3(16,0,21), Vector3(-18,0,-3), Vector3(19,0,2)
-    ]
-    for patch_i in range(patch_positions.size()):
-        var patch: Vector3 = patch_positions[patch_i]
-        var patch_color := Color("#628b51") if patch_i % 2 == 0 else Color("#81a568")
-        _cylinder(self, "GrassPatch", 2.4, 0.018, patch + Vector3(0,0.010,0), patch_color)
 
     # Unified tiling instead of 150+ giant textured slabs sitting on cobbles.
     _road_shoulders()
