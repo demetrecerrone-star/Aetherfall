@@ -1402,7 +1402,7 @@ func _build_stage() -> void:
                 Vector3(tower_x, float(band_y), 24.6), Color("#606963"))
             course.material_override = _mat(Color("#606963"), 0.98)
         var wood_texture := _town_textures.get("wood", null) as Texture2D
-        var roof := _tapered_cylinder(self, "TimberGateRoof", 2.65, 0.10, 2.05,
+        var roof := _tapered_cylinder(self, "TimberGateRoof_%s" % ("Left" if side < 0 else "Right"), 2.65, 0.10, 2.05,
             Vector3(tower_x, 6.82, 24.6), Color("#92704e"))
         roof.material_override = MountainValley._log_material(wood_texture, Color("#92704e"))
         for edge in [-1, 1]:
