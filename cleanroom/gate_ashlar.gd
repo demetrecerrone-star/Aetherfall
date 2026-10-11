@@ -29,8 +29,8 @@ static func build(town: Node3D) -> void:
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     var shades := [
-        Color("#999b98"), Color("#b0ada5"), Color("#a29f98"),
-        Color("#888e8d"), Color("#a7a9a2"), Color("#969b98")
+        Color("#656e6a"), Color("#737b75"), Color("#69716d"),
+        Color("#59625e"), Color("#717873"), Color("#606a65")
     ]
     var angle_step := TAU / float(BLOCKS_PER_COURSE)
     var course_height := TOWER_HEIGHT / float(COURSE_COUNT)
@@ -101,3 +101,4 @@ static func build(town: Node3D) -> void:
     town.add_child(render)
     town.set_meta("gate_ashlar_block_count", block_count)
     town.set_meta("gate_tower_material", "staggered_chiseled_ashlar")
+    town.set_meta("gate_ashlar_tone", "deep_fortress_grey")
