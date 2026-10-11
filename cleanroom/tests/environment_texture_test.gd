@@ -38,6 +38,77 @@ func _run_check() -> void:
     if post_material == null or post_material.albedo_texture == null:
         _fail("Stall posts have no wood texture")
         return
+    # Mobile Performance/Balanced/Quality graphics profiles. The stored
+    # MultiMesh instance_count and approved movement/camera world stay intact;
+    # only 3D buffer resolution, shadow quality and distant foliage rendering
+    # are adjusted. Nearby grass always retains full native density.
+    var graphics_button := town.find_child("GraphicsQualityButton", true, false) as Button
+    if graphics_button == null:
+        _fail("Missing touch-accessible graphics quality setting")
+        return
+    if int(town.get_meta("graphics_cached_meadow_batches", 0)) < 30:
+        _fail("Graphics quality system did not cache all grass batches")
+        return
+    var doubled_count: int = town.get_meta("grass_instance_count", 0)
+    var full_total: int = town.get_meta("graphics_meadow_total", -1)
+    if full_total != doubled_count:
+        _fail("Adaptive meadow should preserve every original grass instance")
+        return
+    town.call("_set_graphics_preset", "QUALITY", false)
+    if absf(float(town.get_viewport().scaling_3d_scale) - 1.0) > 0.005:
+        _fail("Quality mode must render at full 3D resolution")
+        return
+    if int(town.get_meta("graphics_meadow_drawn", 0)) != doubled_count:
+        _fail("Quality mode should draw the whole doubled meadow")
+        return
+    town.call("_set_graphics_preset", "PERFORMANCE", false)
+    if absf(float(town.get_viewport().scaling_3d_scale) - 0.72) > 0.005:
+        _fail("Performance mode does not reduce 3D resolution while preserving HUD")
+        return
+    var performance_drawn: int = town.get_meta("graphics_meadow_drawn", 0)
+    if performance_drawn <= 0 or performance_drawn >= doubled_count:
+        _fail("Performance mode must simplify only the draw count of distant grass")
+        return
+    var graphics_batches: Array = town.get("_graphics_lod_batches")
+    var found_full_near := false
+    var found_reduced_far := false
+    var actor := town.get_node_or_null("TripoActor") as Node3D
+    if actor == null:
+        _fail("Graphics test lost the player actor")
+        return
+    for data in graphics_batches:
+        var batch := data["node"] as MultiMeshInstance3D
+        var centre: Vector3 = data["center"]
+        var distance := Vector2(actor.global_position.x - centre.x,
+            actor.global_position.z - centre.z).length()
+        var count: int = data["full_count"]
+        if batch.multimesh.instance_count != count:
+            _fail("Graphics presets must not delete any plant instances")
+            return
+        if distance < 12.0 and count > 0 and batch.multimesh.visible_instance_count == count:
+            found_full_near = true
+        if distance > 22.0 and count > 0 and batch.multimesh.visible_instance_count < count:
+            found_reduced_far = true
+    if not found_full_near or not found_reduced_far:
+        _fail("Grass LOD must keep full nearby density and thin only the distant beds")
+        return
+    town.call("_set_graphics_preset", "BALANCED", false)
+    if absf(float(town.get_viewport().scaling_3d_scale) - 0.87) > 0.005:
+        _fail("Balanced mode must keep moderate 3D resolution")
+        return
+    if town.get("_graphics_preset") != "BALANCED":
+        _fail("Graphics quality can no longer be changed in-game")
+        return
+    var graphics_touch := InputEventScreenTouch.new()
+    graphics_touch.index = 4
+    graphics_touch.position = graphics_button.get_global_rect().get_center()
+    graphics_touch.pressed = true
+    town.call("_input", graphics_touch)
+    if town.get("_graphics_preset") != "PERFORMANCE" or int(town.get("_camera_touch")) == 4:
+        _fail("Graphics button touch must cycle settings without grabbing the camera")
+        return
+    town.call("_set_graphics_preset", "BALANCED", false)
+
     if town.find_child("EntryRoad", true, false) != null or town.find_child("CrossRoad", true, false) != null or town.find_child("MarketSquare", true, false) != null:
         _fail("Three old overlapping paving slabs were not retired")
         return
