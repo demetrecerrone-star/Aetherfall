@@ -18,7 +18,7 @@ func _run() -> void:
         town.call("_set_motion", clip)
         var player := town.get("_animation") as AnimationPlayer
         var current := String(player.current_animation).to_lower()
-        var expected := "standing_relax" if clip == "IDLE" else clip.to_lower()
+        var expected: String = "standing_relax" if clip == "IDLE" else clip.to_lower()
         if not current.ends_with(expected):
             _fail("Male animation "+clip+" got "+current)
             return
@@ -31,7 +31,7 @@ func _run() -> void:
         town.call("_set_motion", clip)
         var player := town.get("_animation") as AnimationPlayer
         var current := String(player.current_animation).to_lower()
-        var expected := "idle" if clip == "IDLE" else clip.to_lower()
+        var expected: String = "idle" if clip == "IDLE" else clip.to_lower()
         if not current.ends_with(expected):
             _fail("Female animation "+clip+" got "+current)
             return
