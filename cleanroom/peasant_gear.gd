@@ -40,7 +40,9 @@ static func equip_default(character: Node3D, rig: Skeleton3D, variant: String) -
         cloth.skeleton = body.skeleton
         cloth.mesh = garment_mesh
         cloth.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-        cloth.material_override = _fabric_material(part, variant)
+        var material := _fabric_material(part, variant)
+        for surface in range(cloth.mesh.get_surface_count()):
+            cloth.set_surface_override_material(surface, material)
         generated += 1
     character.set_meta("equipped_outfit", "peasant_clothes")
     character.set_meta("starting_equipment", STARTER_ITEMS.duplicate(true))
@@ -124,7 +126,9 @@ static func _spawn_tripo_shell(source: MeshInstance3D, part: String, variant: St
     cloth.skeleton = source.skeleton
     cloth.mesh = shell_mesh
     cloth.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-    cloth.material_override = _fabric_material(part, variant)
+    var material := _fabric_material(part, variant)
+    for surface in range(cloth.mesh.get_surface_count()):
+        cloth.set_surface_override_material(surface, material)
     return 1
 
 
