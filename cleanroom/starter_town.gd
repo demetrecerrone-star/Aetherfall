@@ -2178,9 +2178,10 @@ func _load_runtime_glb() -> void:
             _fail("Missing authored pose %s in: %s" % [idle_option, str(_animation.get_animation_list())])
             return
 
-    # The Tripo GLB already includes fitted, skinned peasant gear. Do not
-    # overlay additional procedural clothing or create duplicate tunics.
-    var starter_gear := _equip_imported_tripo_peasant()
+    # The bundled Tripo draft includes legacy peasant meshes that visibly
+    # float at sleeves/hands in motion. Hide those and build the starter outfit
+    # from this character's own skinned body surfaces so deformation is exact.
+    var starter_gear := PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant)
     if not bool(starter_gear.get("ok", false)):
         _fail("Could not equip starting peasant clothes: " + String(starter_gear.get("reason", "unknown")))
         return
@@ -2236,37 +2237,13 @@ func _load_runtime_glb() -> void:
     if _pose_button != null:
         _pose_button.disabled = true
         _pose_button.text = "POSE: IDLE"
-    _set_status("READY", "Tripo test: male/female • fitted peasant gear • idle/walk/run")
+    _set_status("READY", "Tripo test: male/female • body-skinned peasant gear • idle/walk/run")
     _diag_stage("AF-READY-900", "Starter Town, selected character, rig, animations and controls initialized successfully.")
 
 func _equip_imported_tripo_peasant() -> Dictionary:
-    var gear_count := 0
-    var concealed := 0
-    var keep_body := ["AF_HeadAndHair", "AF_LeftHand", "AF_RightHand"]
-    for child in _model.find_children("*", "MeshInstance3D", true, false):
-        var mesh := child as MeshInstance3D
-        var name := String(mesh.name)
-        if name.begins_with("AF_Gear_"):
-            if mesh.skin == null or mesh.mesh == null:
-                return {"ok": false, "reason": "Tripo gear is not skinned: " + name}
-            gear_count += 1
-        elif name.begins_with("AF_") and not keep_body.has(name):
-            # Torso, forearms, legs and feet are concealed by fitted garments.
-            # Head/hair and both hands stay exposed for future customization.
-            mesh.visible = false
-            concealed += 1
-    if gear_count < 12 or concealed < 10:
-        return {"ok": false, "reason": "Incomplete Tripo peasant model; gear=%d hidden=%d" % [gear_count, concealed]}
-    _model.set_meta("equipped_outfit", "tripo_peasant")
-    _model.set_meta("starting_equipment", {
-        "chest":"worn_linen_tunic", "legs":"patched_wool_trousers",
-        "feet":"scuffed_leather_boots", "waist":"plain_leather_belt"
-    })
-    _model.set_meta("tutorial_armor_unlocked", false)
-    _model.set_meta("peasant_skinned_parts", gear_count)
-    _model.set_meta("concealed_body_parts", concealed)
-    return {"ok": true, "parts": gear_count}
-
+    # Compatibility wrapper for older QA callers. Runtime clothing now derives
+    # from the character's own skinned body geometry and exact 65-bone weights.
+    return PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant)
 
 func _universal_interact() -> void:
     if not _loaded or _paused or _animation == null or _universal_action_in_progress:
