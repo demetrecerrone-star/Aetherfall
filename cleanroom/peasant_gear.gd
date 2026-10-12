@@ -142,6 +142,6 @@ static func _make_garment(body_mesh: Mesh, part: String, bind_names: Array[Strin
         var output := a.duplicate(true)
         output[Mesh.ARRAY_VERTEX] = expanded
         output[Mesh.ARRAY_INDEX] = garment_indices
-        var flags := body_mesh.surface_get_format(surface) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+        var flags: int = int(body_mesh.surface_get_format(surface)) & int(Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
         result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, output, [], {}, flags)
     return result
