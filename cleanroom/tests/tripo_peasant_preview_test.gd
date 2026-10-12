@@ -1,8 +1,8 @@
 extends SceneTree
 ## Opt-in Godot validation: requires BOTH Tripo .bin files installed locally.
 ## godot --headless --path cleanroom --script res://tests/tripo_peasant_preview_test.gd
-const MALE := "res://models/tripo/male_peasant_runtime.bin"
-const FEMALE := "res://models/tripo/female_peasant_runtime.bin"
+const MALE := "res://models/tripo/male_runtime.bin"
+const FEMALE := "res://models/tripo/female_runtime.bin"
 
 func _initialize() -> void:
     call_deferred("_run")
