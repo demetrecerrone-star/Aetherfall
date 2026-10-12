@@ -39,6 +39,7 @@ on:
       - ".github/workflows/starter-town-android.yml"
       - "cleanroom/tests/verify_pack_model.gd"
       - "cleanroom/tests/character_switch_test.gd"
+      - "cleanroom/tests/tripo_peasant_preview_test.gd"
       - "cleanroom/tests/environment_texture_test.gd"
       - "cleanroom/tests/collision_camera_test.gd"
       - "cleanroom/tests/sprint_multitouch_test.gd"
@@ -360,6 +361,14 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|AETHERFALL_CHARACTER_QA_FAIL|TRIPO_RUNTIME_FAIL:|AETHERFALL_DIAGNOSTIC' /tmp/character-switch-qa.log; then
             exit 1
           fi
+
+      - name: Verify Tripo clothing shares the animated body skin
+        if: github.ref_name == 'feature/tripo-peasant-android-preview'
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/tripo_peasant_preview_test.gd 2>&1 | tee /tmp/tripo-peasant-gear-qa.log
+          grep -F 'AETHERFALL_TRIPO_PREVIEW_OK' /tmp/tripo-peasant-gear-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_TRIPO_PREVIEW_FAILED|TRIPO_RUNTIME_FAIL:' /tmp/tripo-peasant-gear-qa.log; then exit 1; fi
 
       - name: Check polished ground, market square, and material surfaces
         run: |
