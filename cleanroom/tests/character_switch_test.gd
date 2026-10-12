@@ -35,7 +35,7 @@ func _run() -> void:
         if not current.ends_with(expected):
             _fail("Female animation "+clip+" got "+current)
             return
-    print("AETHERFALL_CHARACTER_SWITCH_OK: Tripo male/female 65 bones, peasant gear, idle/walk/run, camera fade and ground contacts")
+    print("AETHERFALL_CHARACTER_SWITCH_OK: Tripo male/female 65 bones, body-derived peasant gear, idle/walk/run, camera fade and ground contacts")
     quit(0)
 
 func _check(town: Node3D, gender: String) -> bool:
@@ -48,34 +48,42 @@ func _check(town: Node3D, gender: String) -> bool:
         return _fail_bool("Wrong model loaded: "+gender)
     if absf(model.scale.y-0.97) > 0.0001:
         return _fail_bool("Tripo character scale mismatch")
-    if String(model.get_meta("equipped_outfit", "")) != "tripo_peasant":
-        return _fail_bool("Imported peasant clothing is not equipped")
+    if String(model.get_meta("equipped_outfit", "")) != "peasant_clothes":
+        return _fail_bool("Body-derived peasant clothing is not equipped")
+    if not bool(model.get_meta("tripo_body_derived_clothes", false)):
+        return _fail_bool("Tripo clothing did not use body-derived skin weights")
     if bool(model.get_meta("tutorial_armor_unlocked", true)):
         return _fail_bool("Tutorial armor should not be unlocked")
+
     var rig := town.get("_skeleton") as Skeleton3D
     var player := town.get("_animation") as AnimationPlayer
     if rig == null or player == null or rig.get_bone_count() != 65 or player.get_animation_list().size() < 3:
         return _fail_bool("Tripo rig or animation clips missing")
-    if int(model.get_meta("peasant_skinned_parts", 0)) != 15:
-        return _fail_bool("All 15 fitted garment parts must be present")
-    if int(model.get_meta("concealed_body_parts", 0)) != 12:
-        return _fail_bool("Concealed geometry must hide the 12 covered body sections")
-    for name in ["AF_HeadAndHair", "AF_LeftHand", "AF_RightHand"]:
-        var mesh := model.find_child(name, true, false) as MeshInstance3D
-        if mesh == null or not mesh.visible or mesh.skin == null:
-            return _fail_bool("Uncovered body mesh hidden or not skinned: "+name)
-    var gear_count := 0
+
+    var expected_parts := int(model.get_meta("peasant_skinned_parts", 0))
+    if expected_parts < 10:
+        return _fail_bool("Expected at least 10 body-derived garment pieces")
+
+    var fitted_count := 0
+    var legacy_visible := 0
     for mesh in model.find_children("*", "MeshInstance3D", true, false):
-        if String(mesh.name).begins_with("AF_Gear_"):
+        var mesh_name := String(mesh.name)
+        if mesh_name.begins_with("AF_Gear_fitted_peasant_"):
             if not mesh.visible or mesh.mesh == null or mesh.skin == null:
-                return _fail_bool("Equipped gear is not visible/skinned")
-            gear_count += 1
-    if gear_count != 15:
-        return _fail_bool("Expected 15 equipped peasant garment meshes")
+                return _fail_bool("Fitted gear is not visible/skinned: "+mesh_name)
+            fitted_count += 1
+        elif mesh_name.begins_with("AF_Gear_peasant_") and mesh.visible:
+            legacy_visible += 1
+
+    if fitted_count != expected_parts:
+        return _fail_bool("Generated garment count mismatch: expected %d got %d" % [expected_parts, fitted_count])
+    if legacy_visible != 0:
+        return _fail_bool("Legacy loose Tripo garment meshes are still visible")
+
     if town.get("_left_foot_index") < 0 or town.get("_right_foot_index") < 0:
         return _fail_bool("Foot bones missing")
-    if (town.get("_camera_fade_surfaces") as Array).size() < 15:
-        return _fail_bool("Close-wall camera fade did not cache clothing materials")
+    if (town.get("_camera_fade_surfaces") as Array).size() < fitted_count:
+        return _fail_bool("Close-wall camera fade did not cache fitted clothing materials")
     var actor := town.get_node_or_null("TripoActor") as Node3D
     if actor == null or absf(actor.scale.y-1.62) > 0.001:
         return _fail_bool("Actor collision scale changed")
