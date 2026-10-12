@@ -36,20 +36,29 @@ func _run() -> void:
             _fail("Expected exactly three original Tripo clips: " + gender)
             return
         var gear_meshes: Array[MeshInstance3D] = []
+        var legacy_visible := 0
         var nodes: Array[Node] = [model]
         while not nodes.is_empty():
             var item: Node = nodes.pop_back()
             if item is MeshInstance3D:
                 var mesh := item as MeshInstance3D
-                if mesh.name.begins_with("AF_Gear_peasant_"):
+                if mesh.name.begins_with("AF_Gear_fitted_peasant_"):
                     gear_meshes.append(mesh)
                     if mesh.skin == null or not mesh.visible:
-                        _fail("Unskinned or hidden garment: " + mesh.name)
+                        _fail("Generated garment lost skin or visibility: " + mesh.name)
                         return
+                elif mesh.name.begins_with("AF_Gear_peasant_") and mesh.visible:
+                    legacy_visible += 1
             for child in item.get_children():
                 nodes.append(child)
-        if gear_meshes.size() < 12:
-            _fail("Missing fitted garment pieces for " + gender)
+        if gear_meshes.size() < 10:
+            _fail("Missing body-derived fitted garment pieces for " + gender)
+            return
+        if legacy_visible != 0:
+            _fail("Legacy loose Tripo garments are still visible for " + gender)
+            return
+        if not bool(model.get_meta("tripo_body_derived_clothes", false)):
+            _fail("Tripo clothing path did not use body-derived skin weights: " + gender)
             return
         for mode in ["IDLE","WALK","RUN"]:
             town.call("_set_motion",mode)
@@ -65,13 +74,13 @@ func _run() -> void:
             _fail("Clothing did not join the camera fade: " + gender)
             return
         town.call("_apply_camera_fade", 1.0)
-        print("AETHERFALL_TRIPO_MODEL_OK: %s, 65 bones, 3 clips, %d fitted garment meshes, fade restored" % [gender,gear_meshes.size()])
+        print("AETHERFALL_TRIPO_MODEL_OK: %s, 65 bones, 3 clips, %d body-derived skinned garment meshes, legacy loose gear hidden, fade restored" % [gender,gear_meshes.size()])
         if gender == "male":
             town.call("_switch_character")
             for frame in range(18):
                 await process_frame
     town.queue_free()
-    print("AETHERFALL_TRIPO_PREVIEW_OK: both sexes, garment skin, idle/walk/run, clothing camera fade")
+    print("AETHERFALL_TRIPO_PREVIEW_OK: both sexes, body-derived garment skin, legacy loose gear hidden, idle/walk/run, clothing camera fade")
     quit(0)
 
 func _fail(message: String) -> void:
