@@ -28,6 +28,8 @@ const NEXT_ZONE_NAME := "Valley Outskirts"
 # the unrecognized .bin extension is included as a non-resource by export filters.
 const MALE_MODEL_PATH := "res://models/adventurer_runtime.bin"
 const FEMALE_MODEL_PATH := "res://models/adventurer_female_runtime.bin"
+# Original Avatar Creator v0.6.5: complete user-approved modular male model.
+const CREATOR_V065_MALE_MODEL_PATH := "res://models/creator_v065/male_playable.bin"
 const IDLE_OPTIONS := ["standing_relax", "idle", "look_around"]
 const MOTION_BLEND_TIME := 0.24
 const WALK_SPEED := 0.92
@@ -125,6 +127,13 @@ var _sun_light: DirectionalLight3D
 var _pose_button: Button
 var _character_button: Button
 var _character_variant := "male"
+var _creator_v065_active := false
+var _creator_v065_avatar: Node3D
+var _creator_v065_panel: PanelContainer
+var _creator_v065_open := false
+var _creator_v065_camera_yaw := 0.0
+var _creator_v065_camera_distance := 4.0
+var _creator_v065_labels: Dictionary = {}
 var _idle_option_index := 0
 var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
@@ -1991,11 +2000,14 @@ func _fail(message: String) -> void:
     _set_status("LOAD ERROR", message + "\nThe app stays open so the error can be photographed.")
 
 func _active_model_path() -> String:
+    if _character_variant == "male" and FileAccess.file_exists(CREATOR_V065_MALE_MODEL_PATH):
+        return CREATOR_V065_MALE_MODEL_PATH
     return FEMALE_MODEL_PATH if _character_variant == "female" else MALE_MODEL_PATH
 
 
 func _load_runtime_glb() -> void:
     var model_path := _active_model_path()
+    _creator_v065_active = model_path == CREATOR_V065_MALE_MODEL_PATH
     _diag_stage("AF-MODEL-301", "Checking embedded " + _character_variant + " character model.")
     if not FileAccess.file_exists(model_path):
         _fail("Embedded model file is missing: " + model_path)
@@ -2028,12 +2040,37 @@ func _load_runtime_glb() -> void:
         return
 
     _diag_stage("AF-MODEL-305", "Character scene generated. Attaching model.")
-    _model.name = "TripoAdventurer_" + _character_variant
+    _model.name = "Creator065_" + _character_variant if _creator_v065_active else "TripoAdventurer_" + _character_variant
     _actor.add_child(_model)
     # Tripo visual forward is opposite the controller's actor forward.
     # Rotate only the generated model, not gameplay/world motion.
     _model.rotation.y = PI
     _polish_actor_materials(_model)
+    if _creator_v065_active:
+        var creator_script := load("res://creator_v065/playable_avatar.gd") as Script
+        if creator_script == null:
+            _fail("Original 0.6.5 creator appearance script missing")
+            return
+        _creator_v065_avatar = creator_script.new() as Node3D
+        if _creator_v065_avatar == null:
+            _fail("Original 0.6.5 appearance controller cannot instantiate")
+            return
+        _creator_v065_avatar.name = "Creator065Appearance"
+        _actor.add_child(_creator_v065_avatar)
+        _creator_v065_avatar.set("loaded_root", _model)
+        _creator_v065_avatar.call("_collect", _model)
+        _creator_v065_avatar.call("_refresh_equipment")
+        _creator_v065_avatar.call("_prepare_appearance_materials")
+        var profile_path := "user://aetherfall_hero_profile_v1.json"
+        if FileAccess.file_exists(profile_path):
+            var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(profile_path))
+            if parsed is Dictionary:
+                var profile: Dictionary = parsed as Dictionary
+                if profile.has("appearance") and profile["appearance"] is Dictionary:
+                    profile = profile["appearance"] as Dictionary
+                _creator_v065_avatar.call("import_profile", profile)
+        _creator_v065_avatar.call("_apply_appearance")
+        _creator_v065_avatar.set("is_ready", true)
     _camera_fade_surfaces.clear()
     _camera_fade_alpha = 1.0
     _cache_camera_fade_surfaces(_model)
@@ -2202,6 +2239,16 @@ func _find_bone_suffix(suffix: String) -> int:
     if _skeleton == null:
         return -1
     var needle := suffix.to_lower()
+    if _creator_v065_active:
+        var aliases := {
+            "hips": "pelvis", "spine": "spine_01", "spine1": "spine_02",
+            "head": "head", "leftfoot": "foot_l", "rightfoot": "foot_r",
+            "lefttoebase": "ball_l", "righttoebase": "ball_r",
+            "leftarm": "upperarm_l", "rightarm": "upperarm_r",
+            "leftforearm": "lowerarm_l", "rightforearm": "lowerarm_r",
+            "lefthand": "hand_l", "righthand": "hand_r"
+        }
+        needle = str(aliases.get(needle, needle))
     for i in range(_skeleton.get_bone_count()):
         if String(_skeleton.get_bone_name(i)).to_lower().ends_with(needle):
             return i
@@ -2265,6 +2312,8 @@ func _refresh_character_buttons() -> void:
 func _switch_character() -> void:
     if not _loaded or _paused or _actor == null:
         return
+    if _creator_v065_open:
+        _toggle_v065_creator()
     # Preserve world position/heading but recalibrate Y from new boot soles.
     _loaded = false
     if _animation != null:
@@ -2275,6 +2324,11 @@ func _switch_character() -> void:
         _model = null
     _camera_fade_surfaces.clear()
     _camera_fade_alpha = 1.0
+    if _creator_v065_avatar != null:
+        _actor.remove_child(_creator_v065_avatar)
+        _creator_v065_avatar.queue_free()
+        _creator_v065_avatar = null
+    _creator_v065_active = false
     _skeleton = null
     _animation = null
     _neutral_pose.clear()
@@ -2428,8 +2482,10 @@ func _sole_floor_y() -> float:
     if _skeleton == null:
         return 0.0
     var scale_y := absf(_actor.scale.y)
-    var foot_offset := FOOT_TO_SOLE_SOURCE_Y * scale_y
-    var toe_offset := TOE_TO_SOLE_SOURCE_Y * scale_y
+    if _creator_v065_active and _model != null:
+        scale_y *= absf(_model.scale.y)
+    var foot_offset := (0.045 if _creator_v065_active else FOOT_TO_SOLE_SOURCE_Y) * scale_y
+    var toe_offset := (0.018 if _creator_v065_active else TOE_TO_SOLE_SOURCE_Y) * scale_y
     # Use both ankle/foot and toe origins. During a stride either the heel or
     # the toe may be the lowest planted part of the boot.
     var left_sole := minf(_bone_world_y(_left_foot_index) - foot_offset,
@@ -2581,7 +2637,7 @@ func _resolve_world_position(previous: Vector3) -> void:
         _move_speed = minf(_move_speed, WALK_WORLD_SPEED * 0.72)
 
 func _update_gameplay_movement(delta: float) -> void:
-    if _actor == null or not _loaded or _paused:
+    if _actor == null or not _loaded or _paused or _creator_v065_open:
         return
     var input_vec := _desired_input()
     var strength := clampf(input_vec.length(), 0.0, 1.0)
@@ -2689,6 +2745,8 @@ func _update_camera(delta: float) -> void:
         _apply_camera_fade(move_toward(_camera_fade_alpha, visible_alpha, delta * CAMERA_FADE_RETURN_SPEED))
 
 func _input(event: InputEvent) -> void:
+    if _creator_v065_open:
+        return # Original creator GUI receives touch, not joystick/camera orbit.
     if event is InputEventScreenTouch:
         # Ignore synthetic touch events generated by desktop mouse input.
         # Native Android touch indexes remain distinct for each finger.
