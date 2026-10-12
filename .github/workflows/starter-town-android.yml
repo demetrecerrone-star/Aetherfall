@@ -200,7 +200,7 @@ jobs:
           python3 -m pip install --user --disable-pip-version-check "Pillow==11.3.0"
           python3 cleanroom/tools/fetch_town_textures.py
           test "$(find cleanroom/textures -maxdepth 1 -name '*.bin' | wc -l)" -eq 7
-          grep -F 'include_filter="models/*.bin,models/creator_v065/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
+          grep -F 'include_filter="models/universal/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
 
       - name: Fetch optional licensed Poly Haven sky
         run: |
