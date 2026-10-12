@@ -1,0 +1,27 @@
+# Aetherfall Universal Character Rebuild — Experimental Branch
+
+## Purpose
+Replace the incompatible hand/arm posing on the recovered v0.6.5 modular character with a matched Quaternius Universal Base foundation. This branch starts from the **signed Build #141 source**, retaining all Starter Town, marketplace, fountain, scenery, controls, and Android signing. **Do not change the release branch** until the replacement is visually verified on a phone.
+
+## Verified source archive inventory
+- **Universal Base Characters (Standard, CC0):** distinct full-body male and female Godot glTF models, each a 65-joint skinned skeleton; hairstyles, brows and beard meshes.
+- **Universal Animation Library 1 (Standard, CC0):** 43 glTF/GLB clips.
+- **Universal Animation Library 2 (Standard, CC0):** 43 more clips, including attacks, blocks, climbing and resource gathering.
+- All four inspected skeletons (male base, female base, UAL1 mannequin, UAL2 mannequin) have **identical sets of 65 joint names**. Rest poses and body proportions differ slightly, so add local-rest-pose correction and preserve the target's bone lengths.
+- Use the non-root-motion GLB variants for current virtual-joystick movement; reserve _RM versions for deliberate root-motion melee actions.
+
+## Prepared outside the APK
+The user-uploaded archives were combined into two self-contained textured 65-bone GLBs, one male and one female, each with 25 imported animations. Source builder is `build_universal_characters.py`, distributed alongside the two prototype models in the conversation artifact **Aetherfall-Universal-Character-Foundation-Prototypes.zip**.
+
+Source inputs: `Universal Base Characters[Standard] (2).zip`, `Universal Animation Library[Standard] (1).zip`, `Universal Animation Library 2[Standard].zip`.
+The generator retargets each source bone's relative local quaternion onto the target's own rest pose; it discards mismatched bone translation tracks except additive pelvis motion, to protect fingers and limb length. It embeds original textures within each result.
+
+## Next steps and gates
+1. Import both proof-of-concept GLBs into a temporary Godot 4.6.3 character preview scene and validate import, textures, bone count, animation names, hands and foot planting at idle/walk/sprint.
+2. Replace only playable character visuals in the experimental Starter Town; keep scene controller, camera, collision, town content and HUD intact.
+3. Reconnect character appearance/hairstyles, outfit attachments, inventory and weapon action slots, then test on Android. Do not call the replacement finished based only on animation channel count.
+4. Route melee/defense animations through a state machine; use existing idle/movement behavior while action clips play.
+5. Only after an approved phone screenshot and signed APK should this branch replace the previous character implementation.
+
+## Other available asset packs
+Quaternius Medieval Weapons, Village, Fantasy Props, Nature, Crops, Dungeon and NPC/Monster packs have been uploaded. Review individual licenses before publishing raw assets in a public repository. In particular, the uploaded Bestiary pack has **Quaternius Asset License 1.0**, not CC0; it allows distributing a game but forbids redistributing the extracted pack as assets.

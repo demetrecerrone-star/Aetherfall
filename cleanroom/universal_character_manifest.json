@@ -1,0 +1,38 @@
+{
+  "revision": 1,
+  "status": "prototype_only",
+  "licensed_as": "CC0 1.0 — Quaternius",
+  "rig_joints": 65,
+  "asset_paths": {
+    "male": "res://models/universal/Aetherfall_Universal_Male.glb",
+    "female": "res://models/universal/Aetherfall_Universal_Female.glb"
+  },
+  "clip_count_per_model": 25,
+  "actions": {
+    "idle": "Idle_Loop",
+    "walk": "Walk_Loop",
+    "jog": "Jog_Fwd_Loop",
+    "sprint": "Sprint_Loop",
+    "crouch_idle": "Crouch_Idle_Loop",
+    "jump_start": "Jump_Start",
+    "jump_loop": "Jump_Loop",
+    "jump_land": "Jump_Land",
+    "sword_idle": "Sword_Idle",
+    "sword_attack": "Sword_Attack",
+    "interact": "Interact",
+    "roll": "Roll",
+    "swim": "Swim_Fwd_Loop",
+    "fold_arms": "Idle_FoldArms_Loop",
+    "sword_block": "Sword_Block",
+    "sword_light": "Sword_Regular_A",
+    "sword_combo": "Sword_Regular_Combo",
+    "sword_heavy": "Sword_Heavy_Combo",
+    "sword_dash": "Sword_Dash",
+    "melee_hook": "Melee_Hook",
+    "harvest": "Farm_Harvest",
+    "woodcut": "TreeChopping_Loop",
+    "open_chest": "Chest_Open",
+    "throw": "OverhandThrow",
+    "climb": "ClimbUp_1m"
+  }
+}
