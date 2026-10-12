@@ -1,66 +1,32 @@
-name: Import recovered Aetherfall v0.6.5 character source
+name: Verify recovered v0.6.5 Avatar Creator assets
 on:
-  push:
-    branches: [feature/avatar-creator-v065-town-integration]
-    paths:
-      - ".github/workflows/import-avatar-v065.yml"
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  recover-creator:
+  verify-creator-assets:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - name: Recover original model assets from supplied APK
-        env:
-          SOURCE_APK_URL: 'https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-3f64-81f7-b7a7-3b62d911594c/raw?se=2026-10-12T00%3A08%3A48Z&sp=r&sv=2026-02-06&sr=b&scid=b593fa2a-954f-565f-ada0-8cd0015d2159&skoid=db055408-822b-485f-92f8-bfeb3ea92408&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-11T19%3A19%3A34Z&ske=2026-10-12T19%3A19%3A34Z&sks=b&skv=2026-02-06&sig=9SJKTkFZU%2B/74DisYU9o02bbiQ8L95Njdx4nRkAlEJk%3D'
+      - name: Check original v0.6.5 creator source
         run: |
-          set -euo pipefail
-          mkdir -p cleanroom/models/creator_v065 cleanroom/creator_v065
-          curl -fLsS --retry 2 --connect-timeout 12 "$SOURCE_APK_URL" -o /tmp/aetherfall-v065.apk
           python3 - <<'PY'
-          import struct,zlib
           from pathlib import Path
-          raw=Path("/tmp/aetherfall-v065.apk").read_bytes()
-          assert raw[:4] == b"PK\\x03\\x04".decode("unicode_escape").encode("latin1"), "Not an APK header"
-          required={
-            "assets/assets/male_modular.bin":Path("cleanroom/models/creator_v065/male_modular.bin"),
-            "assets/assets/male_refined.bin":Path("cleanroom/models/creator_v065/male_refined.bin"),
-            "assets/scripts/studio_avatar.gd":Path("cleanroom/creator_v065/studio_avatar.gd"),
-            "assets/scripts/studio.gd":Path("cleanroom/creator_v065/studio.gd"),
-            "assets/lab.tscn":Path("cleanroom/creator_v065/lab.tscn")
-          }
-          found=set()
-          at=0
-          while at+30 < len(raw):
-            if raw[at:at+4]!=b"PK\\x03\\x04".decode("unicode_escape").encode("latin1"):
-              break
-            (_sig,_ver,flags,method,_tm,_date,_crc,csize,usize,nlen,xlen)=struct.unpack_from("<IHHHHHIIIHH",raw,at)
-            name=raw[at+30:at+30+nlen].decode("utf-8","replace")
-            start=at+30+nlen+xlen
-            if name in required:
-              assert start+csize<=len(raw), "Incomplete requested entry "+name
-              data=raw[start:start+csize]
-              data=zlib.decompress(data,-15) if method==8 else data
-              assert len(data)==usize, "Corrupted source entry "+name
-              target=required[name]
-              target.write_bytes(data)
-              found.add(name)
-              print("Recovered",name,"bytes",len(data))
-            at=start+csize
-          assert found==set(required), "Missing entries: "+str(set(required)-found)
-          for path in (Path("cleanroom/models/creator_v065/male_modular.bin"),Path("cleanroom/models/creator_v065/male_refined.bin")):
-            data=path.read_bytes()
-            assert data[:4]==bytes([103,108,84,70]) and int.from_bytes(data[8:12],"little")==len(data)
-          print("AETHERFALL_CREATOR_V065_RECOVERED: original scripts and two complete male models")
+          import json, struct
+          required = [
+            Path("cleanroom/models/creator_v065/male_modular.bin"),
+            Path("cleanroom/models/creator_v065/male_refined.bin"),
+            Path("cleanroom/creator_v065/studio.gd"),
+            Path("cleanroom/creator_v065/studio_avatar.gd")
+          ]
+          for path in required:
+            assert path.is_file(), str(path)
+            print(path, path.stat().st_size)
+          for path in required[:2]:
+            b=path.read_bytes()
+            assert b[:4]==b"glTF" and struct.unpack_from("<I",b,8)[0]==len(b)
+            n=struct.unpack_from("<I",b,12)[0]
+            data=json.loads(b[20:20+n].decode("utf-8"))
+            assert any(len(s["joints"])==65 for s in data.get("skins",[]))
+          print("AETHERFALL_V065_ASSETS_OK: original creator male models recovered and valid")
           PY
-      - name: Commit recovered character assets on isolated branch
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add cleanroom/models/creator_v065 cleanroom/creator_v065
-          git commit -m "assets(creator): recover v0.6.5 male rigs and original creator scripts"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
