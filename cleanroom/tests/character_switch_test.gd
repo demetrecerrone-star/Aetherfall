@@ -70,8 +70,8 @@ func _check(town: Node3D, gender: String) -> bool:
     if model == null or model.name != "Universal_"+gender:
         _fail("Old character appeared instead of Universal "+gender)
         return false
-    # Same 7.26% reduction for both sexes; never resize actor controller or HUD.
-    if absf(model.scale.y - 0.575) > 0.0001:
+    # Another 10% visual shrink from Build #147 for both sexes; actor/HUD unchanged.
+    if absf(model.scale.y - 0.5175) > 0.0001:
         _fail("New Universal "+gender+" height was not applied")
         return false
     var actor := town.get_node_or_null("TripoActor") as Node3D
