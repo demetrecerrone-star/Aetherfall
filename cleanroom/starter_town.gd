@@ -41,6 +41,10 @@ const MOTION_BLEND_TIME := 0.24
 const WALK_SPEED := 0.92
 const RUN_SPEED := 1.06
 const ACTOR_SCALE := 1.62
+# The two Universal Base bodies share one visual scale to match the market and doors.
+# 0.575 is 7.26% smaller than Build #144 (0.62). The floor solver already
+# uses _model.scale so boot planting recalibrates automatically for either sex.
+const UNIVERSAL_MODEL_SCALE := 0.575
 # Shared male/female scale: ~4.7% smaller without altering rig or foot-sole math.
 # Mixamo joint origins sit above the visible boot sole in this specific model.
 # Source-model measurements: Foot ~= 0.067 m above sole, ToeBase ~= 0.017 m.
@@ -2057,8 +2061,8 @@ func _load_runtime_glb() -> void:
     _diag_stage("AF-MODEL-305", "Character scene generated. Attaching model.")
     _model.name = "Universal_" + _character_variant
     _actor.add_child(_model)
-    # Base models are ~1.8m tall: actor scale 1.62 * .62 ~= real 1.0.
-    _model.scale = Vector3.ONE * 0.62
+    # ~7% smaller body silhouettes; retain actor/world collision, camera and speed.
+    _model.scale = Vector3.ONE * UNIVERSAL_MODEL_SCALE
     _model.rotation.y = PI
     _polish_actor_materials(_model)
     _camera_fade_surfaces.clear()

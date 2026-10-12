@@ -70,6 +70,20 @@ func _check(town: Node3D, gender: String) -> bool:
     if model == null or model.name != "Universal_"+gender:
         _fail("Old character appeared instead of Universal "+gender)
         return false
+    # Same 7.26% reduction for both sexes; never resize actor controller or HUD.
+    if absf(model.scale.y - 0.575) > 0.0001:
+        _fail("New Universal "+gender+" height was not applied")
+        return false
+    var actor := town.get_node_or_null("TripoActor") as Node3D
+    if actor == null or absf(actor.scale.y - 1.62) > 0.001:
+        _fail("Visual resize unexpectedly changed the gameplay actor collider: "+gender)
+        return false
+    # The boot-floor solver must recalibrate when the body scale changes.
+    var road_height: float = town.call("_ground_surface_y", actor.global_position)
+    var lowest_sole: float = town.call("_sole_floor_y")
+    if absf(lowest_sole - road_height) > 0.14:
+        _fail("Universal "+gender+" foot contact changed after resize: "+str(lowest_sole - road_height))
+        return false
     var rig := town.get("_skeleton") as Skeleton3D
     var player := town.get("_animation") as AnimationPlayer
     if rig == null or player == null or rig.get_bone_count() != 65:

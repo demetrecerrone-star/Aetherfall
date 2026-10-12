@@ -40,3 +40,14 @@ Universal character customization will be reimplemented after mobile QA.
 The isolated release-quality branch feature/avatar-creator-v065-town-integration
 retains Build #141 unchanged. The experimental signed APK passes required
 both-sex skeleton/25-animation/Android pack checks before phone testing.
+
+## Build #145 — player-height adjustment after phone screenshots
+User approved the overall Universal Base male/female animation appearance in
+Build #144, including the slightly playful running style, but requested that
+the characters be somewhat shorter relative to the town. Lower both models'
+visual scale uniformly from 0.620 to **0.575** (7.26% smaller), without changing
+the controller's global scale, movement speed, road collision, camera orbit,
+sprint toggle or original 25 animation clips. The existing world-space boot
+contact solver reads `_model.scale.y` and recalibrates on each import and
+male/female switch. Character QA now requires the same 0.575 scale and near-
+road grounded feet on both sexes. No change to fountain/market/nature/scenery.
