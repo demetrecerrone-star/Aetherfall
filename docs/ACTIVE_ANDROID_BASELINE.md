@@ -101,3 +101,18 @@ materials, original weights, and bone bind transforms remain untouched.
 is available. The existing female fallback is not altered.
 New CI assertions prohibit regression to sparse 11-track animations; original
 standing relaxation is >10 seconds with visibly articulated arms and knees.
+
+## Hands correction: restore creator fingers while preserving real idle
+Owner screenshot of animation Build #140 revealed exaggerated branch-like
+fingers and raised arms. The 65-bone Mixamo retargeter had incorrectly applied
+40 individual animation tracks to the already-preposed v0.6.5 creator hand
+meshes. This pass disables animation tracks for the **40 finger joints**, so
+Godot uses the source creator's existing correct finger-rest transforms.
+The remaining 24 body and limb bones retain the authored full-length
+standing relax/idle, and knee-bending locomotion. Upper arm, clavicle, elbow
+and wrist deltas are bounded against the creator's rest pose to prevent bind-
+pose mismatch from pulling arms into a high T-pose. Workflow binary glTF QA
+now rejects finger tracks and verifies both arms and knees remain animated,
+while checking the mesh, material, skin, and node data are bit-identical.
+The exported model must be visually checked on an Android phone before we
+consider this a final hand-rig fix.

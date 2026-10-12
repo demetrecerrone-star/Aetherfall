@@ -140,8 +140,8 @@ jobs:
             cleanroom/models/creator_v065/male_playable.bin
           test "$(stat -c%s cleanroom/models/creator_v065/male_playable.bin)" -gt 11000000
           grep -F 'const CREATOR_V065_MALE_MODEL_PATH := "res://models/creator_v065/male_playable.bin"' cleanroom/starter_town.gd
-          # Confirm the rendered character has imported full-body tracks and
-          # substantial original idle/walk/run, NOT generated 11-bone sine poses.
+          # Confirm authentic timing/locomotion WITHOUT the 40 incompatible
+          # Mixamo finger tracks that caused stretched branch-like hands.
           python3 - <<'PY'
           import json, struct
           from pathlib import Path
@@ -156,11 +156,15 @@ jobs:
           clips={x["name"]:x for x in animated["animations"]}
           assert len(clips)==8
           for clip in ("standing_relax","idle","walk","run"):
-              assert len(clips[clip]["channels"])>=60,clip
+              channels=clips[clip]["channels"]
+              assert 22<=len(channels)<=24, (clip,len(channels))
+              names=[animated["nodes"][c["target"]["node"]]["name"] for c in channels]
+              assert not any(n.startswith(("index_","middle_","ring_","pinky_","thumb_")) for n in names),clip
+              assert {"thigh_l","thigh_r","calf_l","calf_r","upperarm_l","upperarm_r","hand_l","hand_r"} <= set(names),clip
           idle=clips["standing_relax"]
           ai=idle["samplers"][0]["input"]
           assert animated["accessors"][ai]["max"][0]>10.0, "Expected authored long-form relaxed idle"
-          print("AETHERFALL_ANIM_AUTHORED_OK: intact v0.6.5 meshes, 64-bone retarget and 17s+ idle")
+          print("AETHERFALL_ANIM_AUTHORED_OK: original v0.6.5 meshes, 24 safe body joints, 40 static hand/finger joints, long-form authored idle")
           PY
 
       - name: Fetch and validate seven CC0 Poly Haven diffuse maps

@@ -24,8 +24,9 @@ func _test_characters() -> void:
     if creator == null:
         _fail("Original v0.6.5 modular appearance controller is not loaded")
         return
-    # The replacement must have genuine full-body authored animations.
-    # The previous placeholder generated only 11 bone tracks and stiff arms.
+    # The replacement must retain real authored animation timing and moving
+    # knees, but not import the incompatible finger-joint motion that created
+    # branch-shaped hands on the previous screenshot.
     var player := town.get("_animation") as AnimationPlayer
     if player == null:
         _fail("Playable v0.6.5 male missing animation player")

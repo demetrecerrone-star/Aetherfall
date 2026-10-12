@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Retarget the existing seven authored Mixamo/Aetherfall clips to the v0.6.5
 modular character. Preserve original mesh, skin, materials, equipment and bind
-pose. Sample 64 semantic bones, including shoulders, knees, toes and fingers.
+pose. Animate torso, legs and gently bounded shoulders/arms; preserve all 40
+original finger joints in their verified creator rest pose to prevent hand spikes.
 """
 import argparse, json, math, struct
 from bisect import bisect_right
@@ -68,6 +69,33 @@ def bone_names():
                 if i==4:segment+="_leaf"
                 m[side+"Hand"+finger+str(i)]=finger.lower()+"_"+segment+"_"+short
     return m
+# The v0.6.5 creator-preview vertices (including hands and gear) were posed
+# before export. Applying Mixamo's independent finger/hand poses stretches the
+# existing hand mesh into long branch-shaped spikes. Never animate finger
+# chains until a matched unbaked rig and calibrated weights are available.
+FINGER_PREFIXES=("index_","middle_","ring_","pinky_","thumb_")
+IDENTITY=(0.,0.,0.,1.)
+
+def soften_arm_delta(q,name,clip):
+    """Keep authentic body motion without pushing preposed arms into T-pose."""
+    if not name.startswith(("clavicle_","upperarm_","lowerarm_","hand_")):
+        return q
+    relaxation = clip in ("standing_relax","idle","look_around","sit")
+    if name.startswith("clavicle_"):
+        angle_limit = .12 if relaxation else .22
+    elif name.startswith("upperarm_"):
+        angle_limit = .26 if relaxation else .48
+    elif name.startswith("lowerarm_"):
+        angle_limit = .28 if relaxation else .52
+    else:
+        angle_limit = .09 if relaxation else .16
+    # Use a calibrated maximal local departure from the creator's own rest.
+    # This caps mismatched bind-pose offsets while keeping the clip's timing.
+    theta=2*math.acos(min(1.,abs(norm(q)[3])))
+    if theta < 1e-6:
+        return q
+    return slerp(IDENTITY,q,min(1.,angle_limit/theta))
+
 def sample(track,t):
     if track is None:return None
     ts,qs,mode=track
@@ -85,8 +113,13 @@ def build(original,authored,output):
     dn={x.get("name"):i for i,x in enumerate(dst["nodes"])}
     sn={x.get("name"):i for i,x in enumerate(src["nodes"])}
     matches=[(sn["mixamorig:"+old],dn[new],new) for old,new in bone_names().items()
-             if "mixamorig:"+old in sn and new in dn]
-    assert len(matches)>=60,"Too few correct semantic bone matches"
+             if "mixamorig:"+old in sn and new in dn
+             and not new.startswith(FINGER_PREFIXES)]
+    # 24 central + limb joints are safe to retarget; the forty skinned finger
+    # segments MUST remain in the v0.6.5 character creator's own rest pose.
+    assert len(matches)>=22 and len(matches)<=24, "Unexpected 65-joint skeleton mapping"
+    assert all(not name.startswith(FINGER_PREFIXES) for _,_,name in matches)
+
     sr=global_rest(src);dr=global_rest(dst)
     align=mul(dr[dn["pelvis"]],inv(sr[sn["mixamorig:Hips"]]))
     ialign=inv(align)
@@ -133,6 +166,7 @@ def build(original,authored,output):
                 world=mul(mul(sg,local),inv(sg))
                 delta=mul(mul(align,world),ialign)
                 target_delta=mul(mul(inv(tg),delta),tg)
+                target_delta=soften_arm_delta(target_delta,name,clip)
                 q=norm(mul(rest_dst,target_delta))
                 if rotations and sum(x*y for x,y in zip(q,rotations[-1]))<0:
                     q=tuple(-v for v in q)
@@ -144,7 +178,8 @@ def build(original,authored,output):
             sm=len(anim["samplers"])
             anim["samplers"].append({"input":ta,"output":out,"interpolation":"LINEAR"})
             anim["channels"].append({"sampler":sm,"target":{"node":di,"path":"rotation"}})
-        assert len(anim["channels"])>=60,clip
+        assert 22 <= len(anim["channels"]) <= 24,clip
+        assert not any(dst["nodes"][c["target"]["node"]].get("name","").startswith(FINGER_PREFIXES) for c in anim["channels"])
         if clip in ("walk","run"):
             assert motion.get("calf_l",0)>20 and motion.get("calf_r",0)>20, "Legs must actually bend"
         if clip=="idle":
@@ -177,7 +212,7 @@ def build(original,authored,output):
     assert struct.unpack_from("<I",data,8)[0]==len(data)
     output.parent.mkdir(parents=True,exist_ok=True)
     output.write_bytes(data)
-    print("AETHERFALL_MIXAMO_RETARGET_OK:",len(matches),"mapped joints; 7 authored clips")
+    print("AETHERFALL_MIXAMO_RETARGET_OK:",len(matches),"safe body and limb joints; fingers preserved; 7 authored clips")
     print(json.dumps(report,sort_keys=True))
 
 if __name__=="__main__":
