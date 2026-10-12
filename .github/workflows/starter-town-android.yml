@@ -6,6 +6,7 @@ on:
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
+      - "cleanroom/peasant_gear.gd"
       - "cleanroom/tests/market_camera_visibility_test.gd"
       - "cleanroom/models/universal/*.bin"
       - "cleanroom/universal_character_manifest.json"
@@ -275,6 +276,7 @@ jobs:
         run: |
           set -euo pipefail
           godot --headless --path cleanroom --check-only --script res://starter_town.gd
+          godot --headless --path cleanroom --check-only --script res://peasant_gear.gd
           godot --headless --editor --path cleanroom --quit
 
       - name: Validate all 20 imported Quaternius models
