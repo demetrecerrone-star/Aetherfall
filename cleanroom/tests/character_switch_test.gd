@@ -17,10 +17,38 @@ func _test_characters() -> void:
 
     if not _assert_character(town, "male", "standing_relax"):
         return
+    if not bool(town.get("_creator_v065_active")):
+        _fail("Recovered v0.6.5 male must replace the starter-town original male")
+        return
+    var creator := town.get("_creator_v065_avatar") as Node3D
+    if creator == null:
+        _fail("Original v0.6.5 modular appearance controller is not loaded")
+        return
+    var creator_meshes: Array = creator.get("meshes")
+    if creator_meshes.size() < 10:
+        _fail("Original v0.6.5 equipment meshes are missing")
+        return
+    var costume: Dictionary = creator.call("export_profile")
+    if str(costume.get("gender", "")) != "male":
+        _fail("Loaded creator profile is not the recovered male avatar")
+        return
+    town.call("_toggle_v065_creator")
+    if not bool(town.get("_creator_v065_open")):
+        _fail("LOOKS button did not open the creator")
+        return
+    town.call("_creator_v065_action", "hair")
+    town.call("_creator_v065_action", "outfit")
+    town.call("_toggle_v065_creator")
+    if bool(town.get("_creator_v065_open")):
+        _fail("Creator remained open after returning to town")
+        return
     town.call("_switch_character")
     for i in range(4):
         await process_frame
     if not _assert_character(town, "female", "idle"):
+        return
+    if bool(town.get("_creator_v065_active")):
+        _fail("Incomplete v0.6.5 female must not be silently substituted")
         return
     # No joystick is held in headless QA, so do not wait frames between these
     # checks: the normal controller would correctly return the actor to idle.
@@ -40,7 +68,7 @@ func _test_characters() -> void:
         await process_frame
     if not _assert_character(town, "male", "standing_relax"):
         return
-    print("AETHERFALL_CHARACTER_SWITCH_OK: male -> female -> male; authored idle and shared walk/run passed")
+    print("AETHERFALL_CHARACTER_SWITCH_OK: original creator v0.6.5 male with equipment/LOOKS; female fallback retained; walk/run passed")
     town.queue_free()
     quit(0)
 

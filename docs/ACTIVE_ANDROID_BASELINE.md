@@ -73,3 +73,17 @@ not a new platform or changes to market stall canopies, timber uprights,
 fountain, scenery, player, or camera. The marketplace regression now checks
 countertop Y=0.715m, matching crate anchors, apron Y=0.555m and ledger
 Y=0.530m on all four stalls.
+
+## Character Creator v0.6.5 integration branch
+The protected Starter Town baseline is retained on branch
+`feature/quaternius-nature-megakit-import`. An isolated integration branch,
+`feature/avatar-creator-v065-town-integration`, contains the two complete
+original v0.6.5 male GLBs, original source creator scripts and test utilities.
+The 65-bone modular player is equipped with provisional idle/walk/run animation
+tracks appended without modifying skins/materials. The in-town LOOKS dock
+controls the actual recovered creator's skin/hair/eye, beard, height, hood,
+Ranger/Peasant outfit and equipment slots, with the original hero profile
+JSON schema persisted. The previous complete female character remains the
+fallback while awaiting complete v0.6.5 female model source; no fake female
+replacement is created. This integration must pass Android source, runtime,
+equipment UI, and exported resource-pack tests before being considered ready.
