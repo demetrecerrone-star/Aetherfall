@@ -70,9 +70,17 @@ func _check(town: Node3D, gender: String) -> bool:
     if model == null or model.name != "Universal_"+gender:
         _fail("Old character appeared instead of Universal "+gender)
         return false
-    # Another 10% visual shrink from Build #147 for both sexes; actor/HUD unchanged.
-    if absf(model.scale.y - 0.5175) > 0.0001:
+    # Build #150: 10% smaller than Build #149 for both sexes; actor/HUD unchanged.
+    if absf(model.scale.y - 0.46575) > 0.0001:
         _fail("New Universal "+gender+" height was not applied")
+        return false
+    # Sprint is faster in world space, while walk speed remains unchanged.
+    var movement_constants: Dictionary = town.get_script().get_script_constant_map()
+    if absf(float(movement_constants.get("RUN_WORLD_SPEED", -1.0)) - 5.00) > 0.001:
+        _fail("Sprint world speed should be 5.00 m/s for " + gender)
+        return false
+    if absf(float(movement_constants.get("WALK_WORLD_SPEED", -1.0)) - 1.75) > 0.001:
+        _fail("Walking speed must remain 1.75 m/s for " + gender)
         return false
     var actor := town.get_node_or_null("TripoActor") as Node3D
     if actor == null or absf(actor.scale.y - 1.62) > 0.001:

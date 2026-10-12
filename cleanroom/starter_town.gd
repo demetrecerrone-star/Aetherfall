@@ -42,17 +42,19 @@ const WALK_SPEED := 0.92
 const RUN_SPEED := 1.06
 const ACTOR_SCALE := 1.62
 # The two Universal Base bodies share one visual scale to match the market and doors.
-# Build #148: reduce both Universal models by another 10% from Build #147
-# (0.575 -> 0.5175). The ground-contact solver reads _model.scale, so feet
-# recalibrate automatically; keep the actor collider, camera and speeds intact.
-const UNIVERSAL_MODEL_SCALE := 0.5175
+# Build #150: both Universal characters are another 10% shorter than Build #149.
+# 0.5175 * 0.90 = 0.46575. Preserve actor collision and camera; the sole-floor
+# solver reads model.scale so both boots stay calibrated to the ground.
+const UNIVERSAL_MODEL_SCALE := 0.46575
 # Mixamo joint origins sit above the visible boot sole in this specific model.
 # Source-model measurements: Foot ~= 0.067 m above sole, ToeBase ~= 0.017 m.
 const FOOT_TO_SOLE_SOURCE_Y := 0.067
 const TOE_TO_SOLE_SOURCE_Y := 0.017
 const SOLE_CLEARANCE_WORLD := 0.010
 const WALK_WORLD_SPEED := 1.75
-const RUN_WORLD_SPEED := 4.15
+# Increase sprint travel speed by ~20% to match the authored Jog_Fwd_Loop
+# leg cadence; retain the same animation, walk speed, camera and input controls.
+const RUN_WORLD_SPEED := 5.00
 const MOVE_ACCEL := 7.5
 const MOVE_DECEL := 10.5
 const TURN_RATE := 9.0
