@@ -31,6 +31,16 @@ const NEXT_ZONE_NAME := "Valley Outskirts"
 # Both have a matched 65-bone Quaternius skeleton and 25 action clips.
 const MALE_MODEL_PATH := "res://models/universal/male_runtime.bin"
 const FEMALE_MODEL_PATH := "res://models/universal/female_runtime.bin"
+# Isolated Tripo test. These raw .bin files are deliberately NOT committed yet:
+# add both fitted character GLBs through the provided integration pack.
+# With either missing, the last-tested Quaternius playable characters load.
+const TRIPO_MALE_PATH := "res://models/tripo/male_peasant_runtime.bin"
+const TRIPO_FEMALE_PATH := "res://models/tripo/female_peasant_runtime.bin"
+const TRIPO_MODEL_SCALE := 0.97 # 1.0m source height * 1.62 actor -> 1.57m world
+const TRIPO_HIDDEN_BODY := [
+    "AF_Torso", "AF_Pelvis", "AF_LeftThigh", "AF_RightThigh",
+    "AF_LeftCalf", "AF_RightCalf", "AF_LeftFoot", "AF_RightFoot"
+]
 const UNIVERSAL_CLIPS := {
     "standing_relax": "Idle_Loop", "idle": "Idle_Loop",
     "look_around": "Idle_FoldArms_Loop", "walk": "Walk_Loop",
@@ -144,6 +154,7 @@ var _pose_button: Button
 var _character_button: Button
 var _character_variant := "male"
 var _universal_active := false
+var _tripo_active := false
 var _universal_action_in_progress := false
 var _market_canopy_fades: Array[Dictionary] = []
 var _idle_option_index := 0
@@ -2101,12 +2112,16 @@ func _fail(message: String) -> void:
     _set_status("LOAD ERROR", message + "\nThe app stays open so the error can be photographed.")
 
 func _active_model_path() -> String:
+    if _tripo_active:
+        return TRIPO_FEMALE_PATH if _character_variant == "female" else TRIPO_MALE_PATH
     return FEMALE_MODEL_PATH if _character_variant == "female" else MALE_MODEL_PATH
 
 
 func _load_runtime_glb() -> void:
+    # Both files must be installed together to keep gender switching stable.
+    _tripo_active = FileAccess.file_exists(TRIPO_MALE_PATH) and FileAccess.file_exists(TRIPO_FEMALE_PATH)
     var model_path := _active_model_path()
-    _universal_active = true
+    _universal_active = not _tripo_active
     _diag_stage("AF-MODEL-301", "Checking embedded " + _character_variant + " character model.")
     if not FileAccess.file_exists(model_path):
         _fail("Embedded model file is missing: " + model_path)
@@ -2139,10 +2154,10 @@ func _load_runtime_glb() -> void:
         return
 
     _diag_stage("AF-MODEL-305", "Character scene generated. Attaching model.")
-    _model.name = "Universal_" + _character_variant
+    _model.name = ("Tripo_" if _tripo_active else "Universal_") + _character_variant
     _actor.add_child(_model)
-    # Both Universal bodies resized; actor collision, camera and speed remain unchanged.
-    _model.scale = Vector3.ONE * UNIVERSAL_MODEL_SCALE
+    # The new 1-metre-high Tripo source characters need their own visual scale.
+    _model.scale = Vector3.ONE * (TRIPO_MODEL_SCALE if _tripo_active else UNIVERSAL_MODEL_SCALE)
     _model.rotation.y = PI
     _polish_actor_materials(_model)
     _camera_fade_surfaces.clear()
@@ -2174,8 +2189,9 @@ func _load_runtime_glb() -> void:
             _fail("Missing authored pose %s in: %s" % [idle_option, str(_animation.get_animation_list())])
             return
 
-    # Start in humble fitted peasant clothes; armor is earned in the tutorial.
-    var starter_gear := PeasantGear.equip_default(_model, _skeleton, _character_variant)
+    # Tripo files have their own authored garment meshes; do not generate a
+    # second peasant outfit on top of them. The Universal rollback is unchanged.
+    var starter_gear := _configure_tripo_preview(_model) if _tripo_active else PeasantGear.equip_default(_model, _skeleton, _character_variant)
     if not bool(starter_gear.get("ok", false)):
         _fail("Could not equip starting peasant clothes: " + String(starter_gear.get("reason", "unknown")))
         return
@@ -2222,7 +2238,7 @@ func _load_runtime_glb() -> void:
     _loaded = true
     _set_motion("IDLE")
     _refresh_character_buttons()
-    _set_status("READY", "Universal Base male/female • Full 65-bone animation library ready")
+    _set_status("READY", "Tripo peasant preview • 65-bone rig • idle/walk/run" if _tripo_active else "Universal Base male/female • Full 65-bone animation library ready")
     _diag_stage("AF-READY-900", "Starter Town, selected character, rig, animations and controls initialized successfully.")
 
 func _universal_interact() -> void:
@@ -2334,6 +2350,36 @@ func _find_animation_player(node: Node) -> AnimationPlayer:
             return found
     return null
 
+func _configure_tripo_preview(character: Node3D) -> Dictionary:
+    # All 15 source body regions remain intact in GLB; only concealed parts
+    # are hidden. This avoids opaque body surfaces poking through the trousers.
+    # The character head, arms, forearms and hands remain until Blender seam QA.
+    var queue: Array[Node] = [character]
+    var garment_count := 0
+    var all_skinned := true
+    while not queue.is_empty():
+        var node: Node = queue.pop_back()
+        if node is MeshInstance3D:
+            var visual := node as MeshInstance3D
+            if String(visual.name) in TRIPO_HIDDEN_BODY:
+                visual.visible = false
+            elif String(visual.name).begins_with("AF_Gear_peasant_"):
+                garment_count += 1
+                if visual.skin == null or visual.mesh == null:
+                    all_skinned = false
+        for child in node.get_children():
+            queue.append(child)
+    if garment_count < 12 or not all_skinned:
+        return {"ok": false, "reason": "Tripo outfit needs 12+ skinned garment meshes, got %d" % garment_count}
+    character.set_meta("equipped_outfit", "peasant_clothes")
+    character.set_meta("starting_equipment", PeasantGear.STARTER_ITEMS.duplicate(true))
+    character.set_meta("equipment_slots", PeasantGear.EQUIPMENT_SLOTS.duplicate())
+    character.set_meta("tutorial_armor_unlocked", false)
+    character.set_meta("peasant_skinned_parts", garment_count)
+    character.set_meta("tripo_preview", true)
+    return {"ok": true, "parts": garment_count}
+
+
 func _find_bone_suffix(suffix: String) -> int:
     if _skeleton == null:
         return -1
@@ -2370,6 +2416,16 @@ func _clip_for(mode: String) -> String:
     if _animation == null:
         return ""
     var needle := str(UNIVERSAL_CLIPS.get(mode.to_lower(), mode)).to_lower()
+    if _tripo_active:
+        # Tripo's original male idle is standing_relax; female idle is idle.
+        # It has only 3 authored clips. Never invent missing actions.
+        var input_name := mode.to_lower()
+        if input_name in ["standing_relax", "idle", "look_around", "idle_loop", "idle_foldarms_loop"]:
+            needle = "idle" if _character_variant == "female" else "standing_relax"
+        elif input_name in ["walk", "walk_loop"]:
+            needle = "walk"
+        elif input_name in ["run", "jog_fwd_loop", "sprint_loop"]:
+            needle = "run"
     for entry in _animation.get_animation_list():
         var raw := String(entry)
         var label := raw.to_lower()
@@ -2423,6 +2479,7 @@ func _switch_character() -> void:
     _camera_fade_surfaces.clear()
     _camera_fade_alpha = 1.0
     _universal_active = false
+    _tripo_active = false
     _skeleton = null
     _animation = null
     _neutral_pose.clear()
@@ -2435,7 +2492,7 @@ func _switch_character() -> void:
     _character_variant = "female" if _character_variant == "male" else "male"
     _idle_option_index = 0
     _refresh_character_buttons()
-    _set_status("LOADING", "Loading Universal Base " + _character_variant)
+    _set_status("LOADING", "Loading selected " + _character_variant + " model")
     _load_runtime_glb()
 
 
@@ -2575,10 +2632,11 @@ func _sole_floor_y() -> float:
     if _skeleton == null:
         return 0.0
     var scale_y := absf(_actor.scale.y)
-    if _universal_active and _model != null:
+    if _model != null:
         scale_y *= absf(_model.scale.y)
-    var foot_offset := (0.055 if _universal_active else FOOT_TO_SOLE_SOURCE_Y) * scale_y
-    var toe_offset := (0.014 if _universal_active else TOE_TO_SOLE_SOURCE_Y) * scale_y
+    # Both source rigs have a 0.055m ankle and 0.014m toe-to-sole gap.
+    var foot_offset := (0.055 if _universal_active or _tripo_active else FOOT_TO_SOLE_SOURCE_Y) * scale_y
+    var toe_offset := (0.014 if _universal_active or _tripo_active else TOE_TO_SOLE_SOURCE_Y) * scale_y
     # Use both ankle/foot and toe origins. During a stride either the heel or
     # the toe may be the lowest planted part of the boot.
     var left_sole := minf(_bone_world_y(_left_foot_index) - foot_offset,
