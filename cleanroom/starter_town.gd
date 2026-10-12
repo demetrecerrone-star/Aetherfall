@@ -2189,9 +2189,10 @@ func _load_runtime_glb() -> void:
             _fail("Missing authored pose %s in: %s" % [idle_option, str(_animation.get_animation_list())])
             return
 
-    # Tripo files have their own authored garment meshes; do not generate a
-    # second peasant outfit on top of them. The Universal rollback is unchanged.
-    var starter_gear := _configure_tripo_preview(_model) if _tripo_active else PeasantGear.equip_default(_model, _skeleton, _character_variant)
+    # The original fitted Tripo preview garments were visibly loose at sleeves,
+    # hands and seams. Hide those draft meshes and rebuild starter clothing from
+    # each character's own skinned body surfaces so cloth shares the exact rig.
+    var starter_gear := PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant) if _tripo_active else PeasantGear.equip_default(_model, _skeleton, _character_variant)
     if not bool(starter_gear.get("ok", false)):
         _fail("Could not equip starting peasant clothes: " + String(starter_gear.get("reason", "unknown")))
         return
@@ -2351,34 +2352,9 @@ func _find_animation_player(node: Node) -> AnimationPlayer:
     return null
 
 func _configure_tripo_preview(character: Node3D) -> Dictionary:
-    # All 15 source body regions remain intact in GLB; only concealed parts
-    # are hidden. This avoids opaque body surfaces poking through the trousers.
-    # The character head, arms, forearms and hands remain until Blender seam QA.
-    var queue: Array[Node] = [character]
-    var garment_count := 0
-    var all_skinned := true
-    while not queue.is_empty():
-        var node: Node = queue.pop_back()
-        if node is MeshInstance3D:
-            var visual := node as MeshInstance3D
-            if String(visual.name) in TRIPO_HIDDEN_BODY:
-                visual.visible = false
-            elif String(visual.name).begins_with("AF_Gear_peasant_"):
-                garment_count += 1
-                if visual.skin == null or visual.mesh == null:
-                    all_skinned = false
-        for child in node.get_children():
-            queue.append(child)
-    if garment_count < 12 or not all_skinned:
-        return {"ok": false, "reason": "Tripo outfit needs 12+ skinned garment meshes, got %d" % garment_count}
-    character.set_meta("equipped_outfit", "peasant_clothes")
-    character.set_meta("starting_equipment", PeasantGear.STARTER_ITEMS.duplicate(true))
-    character.set_meta("equipment_slots", PeasantGear.EQUIPMENT_SLOTS.duplicate())
-    character.set_meta("tutorial_armor_unlocked", false)
-    character.set_meta("peasant_skinned_parts", garment_count)
-    character.set_meta("tripo_preview", true)
-    return {"ok": true, "parts": garment_count}
-
+    # Compatibility wrapper retained for older tests/scripts. All current Tripo
+    # clothing is generated from the model's own skinned body geometry.
+    return PeasantGear.equip_tripo_default(character, _skeleton, _character_variant)
 
 func _find_bone_suffix(suffix: String) -> int:
     if _skeleton == null:
