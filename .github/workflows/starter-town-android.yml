@@ -117,7 +117,7 @@ jobs:
           ! grep -q 'res://models/creator_v065' cleanroom/starter_town.gd
 
       - name: Verify exact runtime Mixamo GLB
-        if: !contains(fromJSON('["feature/universal-characters-rebuild","feature/tripo-peasant-playable-test"]'), github.ref_name)
+        if: ${{ !contains(fromJSON('["feature/universal-characters-rebuild","feature/tripo-peasant-playable-test"]'), github.ref_name) }}
         run: |
           python3 - <<'PY'
           import json, struct
@@ -143,7 +143,7 @@ jobs:
           PY
 
       - name: Prepare export-safe raw character bytes
-        if: !contains(fromJSON('["feature/universal-characters-rebuild","feature/tripo-peasant-playable-test"]'), github.ref_name)
+        if: ${{ !contains(fromJSON('["feature/universal-characters-rebuild","feature/tripo-peasant-playable-test"]'), github.ref_name) }}
         run: |
           set -euo pipefail
           SOURCE="cleanroom/models/anime+adventurer+3d+model (1).glb"
