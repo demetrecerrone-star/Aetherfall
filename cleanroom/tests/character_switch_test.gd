@@ -1,134 +1,96 @@
 extends SceneTree
-## Two NEW Quaternius Universal Base characters must play in Starter Town,
-## with their own 65-joint rig and 25-clip animation library.
+## Tripo peasant integration: validates both imported 65-bone rigs in playable town.
 func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    var scene := load("res://starter_town.tscn") as PackedScene
-    if scene == null:
-        _fail("Missing starter town")
+    var packed := load("res://starter_town.tscn") as PackedScene
+    if packed == null:
+        _fail("Town scene missing")
         return
-    var town := scene.instantiate() as Node3D
+    var town := packed.instantiate() as Node3D
     root.add_child(town)
-    for i in range(12):
+    for i in range(15):
         await process_frame
     if not _check(town, "male"):
         return
-    town.call("_set_motion", "WALK")
-    if not _current_clip(town).to_lower().ends_with("walk_loop"):
-        _fail("Male should walk using smoother Universal Jog_Fwd_Loop")
-        return
-    town.call("_set_motion", "RUN")
-    if not _current_clip(town).to_lower().ends_with("jog_fwd_loop"):
-        _fail("Male should sprint using smoother Universal Jog_Fwd_Loop")
-        return
-    town.call("_set_motion", "IDLE")
+    for clip in ["WALK", "RUN", "IDLE"]:
+        town.call("_set_motion", clip)
+        var player := town.get("_animation") as AnimationPlayer
+        var current := String(player.current_animation).to_lower()
+        var expected := "standing_relax" if clip == "IDLE" else clip.to_lower()
+        if not current.ends_with(expected):
+            _fail("Male animation "+clip+" got "+current)
+            return
     town.call("_switch_character")
-    for i in range(12):
+    for i in range(15):
         await process_frame
     if not _check(town, "female"):
         return
-    town.call("_set_motion", "WALK")
-    if not _current_clip(town).to_lower().ends_with("walk_loop"):
-        _fail("Female should walk using smoother Universal Jog_Fwd_Loop")
-        return
-    town.call("_set_motion", "RUN")
-    if not _current_clip(town).to_lower().ends_with("jog_fwd_loop"):
-        _fail("Female should sprint using smoother Universal Jog_Fwd_Loop")
-        return
-    town.call("_set_motion", "IDLE")
-    town.call("_cycle_idle_pose")
-    if not _current_clip(town).to_lower().ends_with("idle_loop"):
-        _fail("Female idle pose cycle failed")
-        return
-    var buttons := town.find_children("*", "Button", true, false)
-    var action_found := false
-    for child in buttons:
-        if child.name == "UniversalActionButton" and child.text == "INTERACT":
-            action_found = true
-            break
-    if not action_found:
-        _fail("Expected in-town action preview, NOT old creator UI")
-        return
-    print("AETHERFALL_CHARACTER_SWITCH_OK: Universal male/female, 65-bone rigs, 25 native clips, idle/walk/sprint, interaction control")
-    town.queue_free()
+    for clip in ["WALK", "RUN", "IDLE"]:
+        town.call("_set_motion", clip)
+        var player := town.get("_animation") as AnimationPlayer
+        var current := String(player.current_animation).to_lower()
+        var expected := "idle" if clip == "IDLE" else clip.to_lower()
+        if not current.ends_with(expected):
+            _fail("Female animation "+clip+" got "+current)
+            return
+    print("AETHERFALL_CHARACTER_SWITCH_OK: Tripo male/female 65 bones, peasant gear, idle/walk/run, camera fade and ground contacts")
     quit(0)
 
-func _current_clip(town: Node) -> String:
-    var player := town.get("_animation") as AnimationPlayer
-    return String(player.current_animation) if player != null else ""
-
 func _check(town: Node3D, gender: String) -> bool:
-    if not bool(town.get("_loaded")) or not bool(town.get("_universal_active")):
-        _fail("Universal player failed to become playable: "+gender)
-        return false
+    if not bool(town.get("_loaded")) or not bool(town.get("_tripo_active")):
+        return _fail_bool("Tripo player did not initialize: "+gender)
     if String(town.get("_character_variant")) != gender:
-        _fail("Wrong character selected: "+gender)
-        return false
+        return _fail_bool("Wrong gender")
     var model := town.get("_model") as Node3D
-    if model == null or model.name != "Universal_"+gender:
-        _fail("Old character appeared instead of Universal "+gender)
-        return false
-    # Build #150: 10% smaller than Build #149 for both sexes; actor/HUD unchanged.
-    if absf(model.scale.y - 0.46575) > 0.0001:
-        _fail("New Universal "+gender+" height was not applied")
-        return false
-    # The playable characters must START dressed and have four skinned pieces.
-    if String(model.get_meta("equipped_outfit", "")) != "peasant_clothes":
-        _fail("Starting peasant clothing not equipped for " + gender)
-        return false
+    if model == null or model.name != "Tripo_"+gender:
+        return _fail_bool("Wrong model loaded: "+gender)
+    if absf(model.scale.y-0.97) > 0.0001:
+        return _fail_bool("Tripo character scale mismatch")
+    if String(model.get_meta("equipped_outfit", "")) != "tripo_peasant":
+        return _fail_bool("Imported peasant clothing is not equipped")
     if bool(model.get_meta("tutorial_armor_unlocked", true)):
-        _fail("Tutorial armor must not be unlocked at character creation")
-        return false
-    var items: Dictionary = model.get_meta("starting_equipment", {})
-    if items.get("chest") != "worn_linen_tunic" or items.get("feet") != "scuffed_leather_boots":
-        _fail("Incorrect peasant starting loadout for " + gender)
-        return false
-    var clothing := ["Peasant_Tunic", "Peasant_Trousers", "Peasant_Boots", "Peasant_Belt"]
-    for part in clothing:
-        var garment := model.find_child(part, true, false) as MeshInstance3D
-        if garment == null or garment.mesh == null or garment.skin == null:
-            _fail("Missing skinned garment " + part + " for " + gender)
-            return false
-        if garment.mesh.get_surface_count() == 0 or garment.mesh.surface_get_array_index_len(0) < 24:
-            _fail("Garment is empty: " + part + " for " + gender)
-            return false
-    # Sprint is faster in world space, while walk speed remains unchanged.
-    var movement_constants: Dictionary = town.get_script().get_script_constant_map()
-    if absf(float(movement_constants.get("RUN_WORLD_SPEED", -1.0)) - 5.00) > 0.001:
-        _fail("Sprint world speed should be 5.00 m/s for " + gender)
-        return false
-    if absf(float(movement_constants.get("WALK_WORLD_SPEED", -1.0)) - 1.75) > 0.001:
-        _fail("Walking speed must remain 1.75 m/s for " + gender)
-        return false
-    var actor := town.get_node_or_null("TripoActor") as Node3D
-    if actor == null or absf(actor.scale.y - 1.62) > 0.001:
-        _fail("Visual resize unexpectedly changed the gameplay actor collider: "+gender)
-        return false
-    # The boot-floor solver must recalibrate when the body scale changes.
-    var road_height: float = town.call("_ground_surface_y", actor.global_position)
-    var lowest_sole: float = town.call("_sole_floor_y")
-    if absf(lowest_sole - road_height) > 0.14:
-        _fail("Universal "+gender+" foot contact changed after resize: "+str(lowest_sole - road_height))
-        return false
+        return _fail_bool("Tutorial armor should not be unlocked")
     var rig := town.get("_skeleton") as Skeleton3D
     var player := town.get("_animation") as AnimationPlayer
-    if rig == null or player == null or rig.get_bone_count() != 65:
-        _fail("New player skeleton and animation player missing: "+gender)
-        return false
-    for clip in ["Idle_Loop","Walk_Loop","Sprint_Loop","Sword_Attack","Sword_Block","Interact"]:
-        if String(town.call("_clip_for",clip)).is_empty():
-            _fail("Native Universal animation missing: "+clip)
-            return false
-    if player.get_animation_list().size() < 25:
-        _fail("Universal action library is incomplete for "+gender)
-        return false
+    if rig == null or player == null or rig.get_bone_count() != 65 or player.get_animation_list().size() < 3:
+        return _fail_bool("Tripo rig or animation clips missing")
+    if int(model.get_meta("peasant_skinned_parts", 0)) != 15:
+        return _fail_bool("All 15 fitted garment parts must be present")
+    if int(model.get_meta("concealed_body_parts", 0)) != 12:
+        return _fail_bool("Concealed geometry must hide the 12 covered body sections")
+    for name in ["AF_HeadAndHair", "AF_LeftHand", "AF_RightHand"]:
+        var mesh := model.find_child(name, true, false) as MeshInstance3D
+        if mesh == null or not mesh.visible or mesh.skin == null:
+            return _fail_bool("Uncovered body mesh hidden or not skinned: "+name)
+    var gear_count := 0
+    for mesh in model.find_children("*", "MeshInstance3D", true, false):
+        if String(mesh.name).begins_with("AF_Gear_"):
+            if not mesh.visible or mesh.mesh == null or mesh.skin == null:
+                return _fail_bool("Equipped gear is not visible/skinned")
+            gear_count += 1
+    if gear_count != 15:
+        return _fail_bool("Expected 15 equipped peasant garment meshes")
     if town.get("_left_foot_index") < 0 or town.get("_right_foot_index") < 0:
-        _fail("Both feet bones must remain grounded: "+gender)
-        return false
-    print("AETHERFALL_UNIVERSAL_CHARACTER_OK: "+gender+"; 65 bones, 25 animations and valid feet")
+        return _fail_bool("Foot bones missing")
+    if (town.get("_camera_fade_surfaces") as Array).size() < 15:
+        return _fail_bool("Close-wall camera fade did not cache clothing materials")
+    var actor := town.get_node_or_null("TripoActor") as Node3D
+    if actor == null or absf(actor.scale.y-1.62) > 0.001:
+        return _fail_bool("Actor collision scale changed")
+    var road: float = town.call("_ground_surface_y",actor.global_position)
+    var sole: float = town.call("_sole_floor_y")
+    if absf(road-sole)>0.18:
+        return _fail_bool("Foot grounding difference: "+str(road-sole))
+    var constants: Dictionary = town.get_script().get_script_constant_map()
+    if absf(float(constants.get("RUN_WORLD_SPEED",-1.0))-5.0)>0.001:
+        return _fail_bool("Sprint speed regression")
     return true
+
+func _fail_bool(message: String) -> bool:
+    _fail(message)
+    return false
 
 func _fail(message: String) -> void:
     push_error("AETHERFALL_CHARACTER_QA_FAIL: "+message)

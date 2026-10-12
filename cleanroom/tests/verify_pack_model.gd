@@ -1,8 +1,8 @@
 extends SceneTree
 ## Test only the EXPORTED Android resource pack, never the source tree.
 
-const MODEL_FILES := ["res://models/universal/male_runtime.bin", "res://models/universal/female_runtime.bin"]
-const REQUIRED := ["idle_loop", "walk_loop", "sprint_loop", "sword_attack", "sword_block", "interact"]
+const MODEL_FILES := ["res://models/tripo/male_runtime.bin", "res://models/tripo/female_runtime.bin"]
+const REQUIRED := ["walk", "run"]
 
 
 func _initialize() -> void:
@@ -55,7 +55,7 @@ func _initialize() -> void:
         return
     fountain_scene.free()
     print("AETHERFALL_FOUNTAIN_PACK_OK: authentic optimized fountain included in Android")
-    print("AETHERFALL_DUAL_PACK_OK: two new Universal characters, 25 clips, seven materials and fountain validated")
+    print("AETHERFALL_DUAL_PACK_OK: two new Tripo peasant characters, three locomotion clips each, seven materials and fountain validated")
     quit(0)
 
 
@@ -79,7 +79,7 @@ func _validate_model(model_file: String) -> bool:
         return false
     var player := _find_animation_player(scene)
     var skeleton := _find_skeleton(scene)
-    if skeleton == null or skeleton.get_bone_count() != 65 or player == null or player.get_animation_list().size() < 25:
+    if skeleton == null or skeleton.get_bone_count() != 65 or player == null or player.get_animation_list().size() < 3:
         _fail("Missing 65-joint rig or animation player in " + model_file)
         scene.free()
         return false
@@ -96,7 +96,21 @@ func _validate_model(model_file: String) -> bool:
             _fail("Missing %s in %s; clips=%s" % [required, model_file, str(names)])
             scene.free()
             return false
-    print("AETHERFALL_PACK_MODEL_OK: %s bytes=%d bones=65 clips=%s" % [model_file, bytes.size(), str(names)])
+    var idle_key := "idle" if model_file.contains("female") else "standing_relax"
+    if not names.has(idle_key):
+        _fail("Missing character idle clip: "+idle_key)
+        scene.free()
+        return false
+    var meshes := scene.find_children("*", "MeshInstance3D", true, false)
+    var gear_count := 0
+    for mesh_node in meshes:
+        if String(mesh_node.name).begins_with("AF_Gear_") and mesh_node.skin != null:
+            gear_count += 1
+    if gear_count != 15:
+        _fail("Peasant gear absent from Android model: "+model_file)
+        scene.free()
+        return false
+    print("AETHERFALL_PACK_MODEL_OK: %s bytes=%d bones=65 clips=%s fitted_gear=15" % [model_file, bytes.size(), str(names)])
     scene.free()
     return true
 

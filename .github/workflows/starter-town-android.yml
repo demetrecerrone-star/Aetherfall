@@ -2,13 +2,15 @@ name: Aetherfall Starter Town Android APK
 
 on:
   push:
-    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade, feature/starter-town-pass3-valley, feature/quaternius-nature-megakit-import, feature/avatar-creator-v065-town-integration, feature/universal-characters-rebuild]
+    branches: [feature/cleanroom-starter-town, feature/quaternius-scenery-upgrade, feature/starter-town-pass3-valley, feature/quaternius-nature-megakit-import, feature/avatar-creator-v065-town-integration, feature/universal-characters-rebuild, feature/tripo-peasant-android-preview]
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
       - "cleanroom/peasant_gear.gd"
       - "cleanroom/tests/market_camera_visibility_test.gd"
       - "cleanroom/models/universal/*.bin"
+      - "cleanroom/models/tripo/*.part*"
+      - "cleanroom/tools/assemble_tripo.py"
       - "cleanroom/universal_character_manifest.json"
       - "cleanroom/creator_v065/*.gd"
       - "cleanroom/models/creator_v065/*.bin"
@@ -56,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install optimized Quaternius scenery assets
-        if: contains(fromJSON('["feature/quaternius-scenery-upgrade","feature/starter-town-pass2-roads","feature/starter-town-pass3-valley","feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-scenery-upgrade","feature/starter-town-pass2-roads","feature/starter-town-pass3-valley","feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -86,10 +88,17 @@ jobs:
           PY
 
       - name: Install checked Quaternius Stylized Nature MegaKit
-        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           python3 -m pip install --quiet --break-system-packages 'Pillow>=10,<13'
           python3 cleanroom/tools/install_nature_megakit.py
+
+      - name: Reassemble the two fitted Tripo peasant players
+        if: github.ref_name == 'feature/tripo-peasant-android-preview'
+        run: |
+          python3 cleanroom/tools/assemble_tripo.py
+          test -s cleanroom/models/tripo/male_runtime.bin
+          test -s cleanroom/models/tripo/female_runtime.bin
 
       - name: Verify complete Universal Base playable characters
         if: github.ref_name == 'feature/universal-characters-rebuild'
@@ -111,11 +120,11 @@ jobs:
               assert len(d.get("images",[]))>=1, "Missing embedded textures"
               print("AETHERFALL_UNIVERSAL_READY",gender,len(raw),"bytes")
           PY
-          grep -F 'include_filter="models/universal/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
+          grep -F 'include_filter="models/universal/*.bin,models/tripo/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
           ! grep -q 'res://models/creator_v065' cleanroom/starter_town.gd
 
       - name: Verify exact runtime Mixamo GLB
-        if: github.ref_name != 'feature/universal-characters-rebuild'
+        if: github.ref_name != 'feature/universal-characters-rebuild' && github.ref_name != 'feature/tripo-peasant-android-preview'
         run: |
           python3 - <<'PY'
           import json, struct
@@ -141,7 +150,7 @@ jobs:
           PY
 
       - name: Prepare export-safe raw character bytes
-        if: github.ref_name != 'feature/universal-characters-rebuild'
+        if: github.ref_name != 'feature/universal-characters-rebuild' && github.ref_name != 'feature/tripo-peasant-android-preview'
         run: |
           set -euo pipefail
           SOURCE="cleanroom/models/anime+adventurer+3d+model (1).glb"
@@ -150,7 +159,7 @@ jobs:
           cmp "$SOURCE" "$RAW"
           test "$(stat -c%s "$RAW")" -gt 3000000
           echo "Runtime raw binary ready: $(stat -c%s "$RAW") bytes"
-          grep -F 'include_filter="models/universal/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg || test "$GITHUB_REF_NAME" != "feature/universal-characters-rebuild"
+          grep -F 'include_filter="models/universal/*.bin,models/tripo/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg || test "$GITHUB_REF_NAME" != "feature/universal-characters-rebuild"
           grep -F 'const MALE_MODEL_PATH := "res://models/adventurer_runtime.bin"' cleanroom/starter_town.gd
           grep -F 'const FEMALE_MODEL_PATH := "res://models/adventurer_female_runtime.bin"' cleanroom/starter_town.gd
           python3 cleanroom/tools/merge_female_animations.py \
@@ -202,7 +211,7 @@ jobs:
           python3 -m pip install --user --disable-pip-version-check "Pillow==11.3.0"
           python3 cleanroom/tools/fetch_town_textures.py
           test "$(find cleanroom/textures -maxdepth 1 -name '*.bin' | wc -l)" -eq 7
-          grep -F 'include_filter="models/universal/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
+          grep -F 'include_filter="models/universal/*.bin,models/tripo/*.bin,models/fountain/*.bin,textures/*.bin,environment/*.hdr"' cleanroom/export_presets.cfg
 
       - name: Fetch optional licensed Poly Haven sky
         run: |
@@ -280,7 +289,7 @@ jobs:
           godot --headless --editor --path cleanroom --quit
 
       - name: Validate all 20 imported Quaternius models
-        if: contains(fromJSON('["feature/quaternius-scenery-upgrade","feature/starter-town-pass2-roads","feature/starter-town-pass3-valley","feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-scenery-upgrade","feature/starter-town-pass2-roads","feature/starter-town-pass3-valley","feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/scenery_asset_test.gd 2>&1 | tee /tmp/scenery-assets-qa.log
@@ -288,7 +297,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_SCENERY_FAIL' /tmp/scenery-assets-qa.log; then exit 1; fi
 
       - name: Verify real imported nature models and optimized grass
-        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/nature_asset_test.gd 2>&1 | tee /tmp/nature-assets-qa.log
@@ -296,7 +305,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_NATURE_ASSETS_FAIL' /tmp/nature-assets-qa.log; then exit 1; fi
 
       - name: Verify graphics optimisation and optional on-device performance instrumentation
-        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/performance_optimization_test.gd 2>&1 | tee /tmp/performance-optimisation-qa.log
@@ -304,7 +313,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_PERFORMANCE_OPT_FAIL:' /tmp/performance-optimisation-qa.log; then exit 1; fi
 
       - name: Inspect imported market counter geometry
-        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/market_counter_geometry_probe.gd 2>&1 | tee /tmp/market-counter-probe.log
@@ -312,7 +321,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|MARKET_PROBE_FAIL' /tmp/market-counter-probe.log; then exit 1; fi
 
       - name: Pass 4.2 authentic marketplace decoration with retained street assets
-        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/market_decorations_test.gd 2>&1 | tee /tmp/market-decor-qa.log
@@ -320,7 +329,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_MARKET_DECOR_FAIL:' /tmp/market-decor-qa.log; then exit 1; fi
 
       - name: Pass 4.1 four unique hanging shop signs and unobstructed entryways
-        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/hanging_signs_test.gd 2>&1 | tee /tmp/hanging-signs-qa.log
@@ -328,7 +337,7 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_HANGING_SIGNS_FAIL:' /tmp/hanging-signs-qa.log; then exit 1; fi
 
       - name: Verify authentic user fountain asset and playable square
-        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild"]'), github.ref_name)
+        if: contains(fromJSON('["feature/quaternius-nature-megakit-import","feature/avatar-creator-v065-town-integration","feature/universal-characters-rebuild","feature/tripo-peasant-android-preview"]'), github.ref_name)
         run: |
           set -o pipefail
           godot --headless --path cleanroom --script res://tests/fountain_asset_test.gd 2>&1 | tee /tmp/fountain-qa.log
