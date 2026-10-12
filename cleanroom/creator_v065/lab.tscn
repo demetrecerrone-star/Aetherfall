@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/studio.gd" id="1_studio"]
+
+[node name="AetherfallAvatarStudio" type="Node3D"]
+script = ExtResource("1_studio")
+
+[node name="StartupFallback" type="CanvasLayer" parent="."]
+layer = 40
+
+[node name="Backdrop" type="ColorRect" parent="StartupFallback"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.1, 0.12, 0.18, 1)
+
+[node name="StartupMessage" type="Label" parent="StartupFallback"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 25.0
+offset_top = 25.0
+offset_right = -25.0
+offset_bottom = -25.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.93, 0.9, 0.8, 1)
+theme_override_font_sizes/font_size = 24
+text = "AETHERFALL AVATAR STUDIO\n\nStarting character studio...\n\nIf this message stays visible, startup failed: AF-STUDIO-000.\nPlease send a screenshot so we can identify the failure."
+horizontal_alignment = 1
+vertical_alignment = 1
