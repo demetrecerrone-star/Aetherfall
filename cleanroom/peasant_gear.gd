@@ -49,6 +49,134 @@ static func equip_default(character: Node3D, rig: Skeleton3D, variant: String) -
     character.set_meta("peasant_skinned_parts", generated)
     return {"ok": true, "parts": generated, "starter_items": STARTER_ITEMS.duplicate(true)}
 
+static func equip_tripo_default(character: Node3D, rig: Skeleton3D, variant: String) -> Dictionary:
+    # The first Tripo preview carried a set of pre-fitted garment objects that
+    # were technically skinned but visibly sat away from the body at sleeves,
+    # hands and seams. Keep those source meshes for reference but never render
+    # them in gameplay. Build the starter clothes from the character's OWN
+    # skinned body surfaces so every vertex inherits the exact same deformation.
+    if character == null or rig == null:
+        return {"ok": false, "reason": "Missing Tripo character or animation skeleton"}
+
+    var source_meshes: Array[MeshInstance3D] = []
+    var queue: Array[Node] = [character]
+    var legacy_hidden := 0
+    while not queue.is_empty():
+        var node: Node = queue.pop_back()
+        if node is MeshInstance3D:
+            var visual := node as MeshInstance3D
+            var lowered := String(visual.name).to_lower()
+            if lowered.begins_with("af_gear_peasant_"):
+                visual.visible = false
+                legacy_hidden += 1
+            elif lowered.begins_with("af_") and visual.mesh != null and visual.skin != null:
+                source_meshes.append(visual)
+        for child in node.get_children():
+            queue.append(child)
+
+    if source_meshes.is_empty():
+        return {"ok": false, "reason": "No skinned modular Tripo body regions were found"}
+
+    var generated := 0
+    for source in source_meshes:
+        var lowered := String(source.name).to_lower()
+        # Torso + pelvis + upper arms form a close, deforming tunic. The
+        # narrower belt strip is cut directly from the lower torso surface.
+        if lowered.contains("torso"):
+            generated += _spawn_tripo_shell(source, "Tunic", variant, 0.0, 1.0, 0.006)
+            generated += _spawn_tripo_shell(source, "Belt", variant, 0.0, 0.14, 0.009)
+        elif lowered.contains("pelvis"):
+            generated += _spawn_tripo_shell(source, "Tunic", variant, 0.55, 1.0, 0.006)
+        elif lowered.contains("upperarm") or (lowered.contains("arm") and not lowered.contains("forearm") and not lowered.contains("lowerarm")):
+            generated += _spawn_tripo_shell(source, "Tunic", variant, 0.10, 1.0, 0.006)
+        # Trousers are derived from the thigh/calf skin itself. A small lower
+        # calf section also becomes the boot cuff, preventing a visible gap.
+        elif lowered.contains("thigh"):
+            generated += _spawn_tripo_shell(source, "Trousers", variant, 0.0, 1.0, 0.006)
+        elif lowered.contains("calf") or lowered.contains("shin") or lowered.contains("lowerleg"):
+            generated += _spawn_tripo_shell(source, "Trousers", variant, 0.18, 1.0, 0.006)
+            generated += _spawn_tripo_shell(source, "Boots", variant, 0.0, 0.30, 0.008)
+        elif lowered.contains("foot"):
+            generated += _spawn_tripo_shell(source, "Boots", variant, 0.0, 1.0, 0.008)
+
+    if generated < 10:
+        return {"ok": false, "reason": "Expected fitted body-derived garments; generated only %d pieces" % generated}
+
+    character.set_meta("equipped_outfit", "peasant_clothes")
+    character.set_meta("starting_equipment", STARTER_ITEMS.duplicate(true))
+    character.set_meta("equipment_slots", EQUIPMENT_SLOTS.duplicate())
+    character.set_meta("tutorial_armor_unlocked", false)
+    character.set_meta("peasant_skinned_parts", generated)
+    character.set_meta("legacy_tripo_gear_hidden", legacy_hidden)
+    character.set_meta("tripo_body_derived_clothes", true)
+    return {"ok": true, "parts": generated, "legacy_hidden": legacy_hidden}
+
+
+static func _spawn_tripo_shell(source: MeshInstance3D, part: String, variant: String, slice_min: float, slice_max: float, offset: float) -> int:
+    var shell_mesh := _make_surface_shell(source.mesh, slice_min, slice_max, offset)
+    if shell_mesh == null or shell_mesh.get_surface_count() == 0:
+        return 0
+    var cloth := MeshInstance3D.new()
+    cloth.name = "AF_Gear_fitted_peasant_%s_%s" % [part, source.name]
+    source.get_parent().add_child(cloth)
+    cloth.transform = source.transform
+    cloth.skin = source.skin
+    cloth.skeleton = source.skeleton
+    cloth.mesh = shell_mesh
+    cloth.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    cloth.material_override = _fabric_material(part, variant)
+    return 1
+
+
+static func _make_surface_shell(source_mesh: Mesh, slice_min: float, slice_max: float, offset: float) -> ArrayMesh:
+    var result := ArrayMesh.new()
+    if source_mesh == null:
+        return result
+    for surface in range(source_mesh.get_surface_count()):
+        var arrays := source_mesh.surface_get_arrays(surface)
+        var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+        var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+        var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+        var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+        var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+        if verts.is_empty() or normals.size() != verts.size() or indices.is_empty() or bones.is_empty() or weights.is_empty():
+            continue
+
+        var low_y := verts[0].y
+        var high_y := verts[0].y
+        for vertex in verts:
+            low_y = minf(low_y, vertex.y)
+            high_y = maxf(high_y, vertex.y)
+        var height := maxf(high_y - low_y, 0.00001)
+        var kept := PackedInt32Array()
+        for index in range(0, indices.size() - 2, 3):
+            var i0 := int(indices[index])
+            var i1 := int(indices[index + 1])
+            var i2 := int(indices[index + 2])
+            var average_y := (verts[i0].y + verts[i1].y + verts[i2].y) / 3.0
+            var normalized_y := (average_y - low_y) / height
+            if normalized_y < slice_min or normalized_y > slice_max:
+                continue
+            kept.append_array(PackedInt32Array([i0, i1, i2]))
+        if kept.size() < 3:
+            continue
+
+        var expanded: PackedVector3Array = verts.duplicate()
+        for i in range(expanded.size()):
+            expanded[i] = expanded[i] + normals[i] * offset
+        var output := arrays.duplicate(true)
+        output[Mesh.ARRAY_VERTEX] = expanded
+        output[Mesh.ARRAY_INDEX] = kept
+        # Imported GLBs may map extra accessors to Godot custom channels.
+        # Starter cloth uses its own material, so keep UVs/joints/weights and
+        # drop only unsupported custom payloads when constructing ArrayMesh.
+        for channel in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
+            output[channel] = null
+        var flags: int = int(source_mesh.surface_get_format(surface)) & int(Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+        result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, output, [], {}, flags)
+    return result
+
+
 static func _find_body(node: Node) -> MeshInstance3D:
     if node is MeshInstance3D and node.name.to_lower().contains("superhero"):
         return node as MeshInstance3D
