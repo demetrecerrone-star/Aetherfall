@@ -142,6 +142,13 @@ static func _make_garment(body_mesh: Mesh, part: String, bind_names: Array[Strin
         var output := a.duplicate(true)
         output[Mesh.ARRAY_VERTEX] = expanded
         output[Mesh.ARRAY_INDEX] = garment_indices
+        # The female Universal body also carries extended glTF UV/color sets.
+        # Godot maps these to custom channels whose packed type is not valid
+        # when we create a new mesh without its original custom format flags.
+        # Starter cloth is untextured, so safely drop ALL custom attributes;
+        # keep both sets of joint indices / weights untouched.
+        for channel in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
+            output[channel] = null
         var flags: int = int(body_mesh.surface_get_format(surface)) & int(Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
         result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, output, [], {}, flags)
     return result
