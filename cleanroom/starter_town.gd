@@ -33,7 +33,7 @@ const FEMALE_MODEL_PATH := "res://models/universal/female_runtime.bin"
 const UNIVERSAL_CLIPS := {
     "standing_relax": "Idle_Loop", "idle": "Idle_Loop",
     "look_around": "Idle_FoldArms_Loop", "walk": "Walk_Loop",
-    "run": "Sprint_Loop", "jump": "Jump_Loop", "attack": "Sword_Attack",
+    "run": "Jog_Fwd_Loop", "jump": "Jump_Loop", "attack": "Sword_Attack",
     "interact": "Interact", "block": "Sword_Block"
 }
 const IDLE_OPTIONS := ["standing_relax", "idle", "look_around"]
@@ -71,6 +71,9 @@ const CAMERA_WALL_GAP := 0.16
 const CAMERA_FADE_START := 1.85
 const CAMERA_FADE_FULL := 0.95
 const CAMERA_FADE_RETURN_SPEED := 3.0
+const MARKET_AWNING_FADE_LEVEL := 0.91
+const MARKET_AWNING_FADE_IN_SPEED := 9.0
+const MARKET_AWNING_FADE_OUT_SPEED := 5.5
 
 var _actor: Node3D
 var _model: Node3D
@@ -139,6 +142,7 @@ var _character_button: Button
 var _character_variant := "male"
 var _universal_active := false
 var _universal_action_in_progress := false
+var _market_canopy_fades: Array[Dictionary] = []
 var _idle_option_index := 0
 var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
@@ -1205,7 +1209,9 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
             post_positions.append(post_center)
     stall.set_meta("support_post_positions", post_positions)
     stall.set_meta("facing_degrees", yaw)
-    _add_camera_obstacle(position + Vector3(0, 1.0, 0), Vector3(2.75, 2.0, 2.75))
+    # Only the low counter should push the camera forward. Roofs stay passable.
+    _add_camera_obstacle(position + Vector3(0, 0.44, 0), Vector3(2.10, 0.88, 1.45))
+    _register_market_canopy_fade(stall)
     # Pass 4.2f: lower the complete selling assembly by one physical foot.
     # Quaternius frame. In phone feedback the earlier counter was a large
     # 30cm-deep vertical box hanging over the plaza-facing posts. Keep the
@@ -1253,6 +1259,77 @@ func _add_market_stall(position: Vector3, awning: Color, yaw: float) -> void:
     stall.set_meta("market_wares_canopy_clearance", true)
     stall.set_meta("native_stall_has_counter", false)
     stall.set_meta("market_counter_frame_integrated", true)
+
+
+func _register_market_canopy_fade(stall: Node3D) -> void:
+    # Prefer separately modeled roofs; some source stalls merge fabric/posts.
+    var imported := stall.get_node_or_null("Quaternius_MarketStand_1") as Node3D
+    if imported == null:
+        return
+    var all_meshes: Array[MeshInstance3D] = []
+    var roof_meshes: Array[MeshInstance3D] = []
+    for node in imported.find_children("*", "MeshInstance3D", true, false):
+        var visual := node as MeshInstance3D
+        if visual == null or visual.mesh == null:
+            continue
+        all_meshes.append(visual)
+        var bounds := visual.get_aabb()
+        var bottom := INF
+        var top := -INF
+        for x in [0.0, 1.0]:
+            for y in [0.0, 1.0]:
+                for z in [0.0, 1.0]:
+                    var vertex := bounds.position + bounds.size * Vector3(x, y, z)
+                    var world_height := stall.to_local(visual.to_global(vertex)).y
+                    bottom = minf(bottom, world_height)
+                    top = maxf(top, world_height)
+        var label := visual.name.to_lower()
+        if label.contains("awning") or label.contains("canopy") or label.contains("roof") or label.contains("cloth") or (bottom > 1.18 and top >= 1.55):
+            roof_meshes.append(visual)
+    var use_roof_only := not roof_meshes.is_empty()
+    var candidates: Array[MeshInstance3D] = roof_meshes if use_roof_only else all_meshes
+    if candidates.is_empty():
+        return
+    var tracked: Array[Dictionary] = []
+    for mesh in candidates:
+        tracked.append({"mesh": mesh, "base": mesh.transparency})
+    _market_canopy_fades.append({"stall": stall, "meshes": tracked, "fade": 0.0})
+    stall.set_meta("camera_awning_fade_registered", true)
+    stall.set_meta("camera_awning_roof_only", use_roof_only)
+    stall.set_meta("camera_awning_fade_meshes", tracked.size())
+
+
+func _market_canopy_blocks_view(stall: Node3D, camera_point: Vector3,
+        actor_point: Vector3) -> bool:
+    # Oriented stall-local test handles all 45/135-degree stand placements.
+    var cam_local := stall.to_local(camera_point)
+    var actor_local := stall.to_local(actor_point)
+    var volume := AABB(Vector3(-1.50, 1.18, -1.06), Vector3(3.0, 2.05, 2.12))
+    if volume.has_point(cam_local):
+        return true
+    return volume.intersects_segment(actor_local, cam_local) is Vector3
+
+
+func _update_market_canopy_fades(delta: float) -> void:
+    if _camera == null or _actor == null:
+        return
+    var target := _actor.global_position + Vector3(0.0, 1.02, 0.0)
+    for entry in _market_canopy_fades:
+        var stall: Node3D = entry["stall"]
+        if not is_instance_valid(stall):
+            continue
+        var obscured := _market_canopy_blocks_view(stall, _camera.global_position, target)
+        var desired := MARKET_AWNING_FADE_LEVEL if obscured else 0.0
+        var current: float = float(entry["fade"])
+        var rate := MARKET_AWNING_FADE_IN_SPEED if obscured else MARKET_AWNING_FADE_OUT_SPEED
+        current = move_toward(current, desired, delta * rate)
+        entry["fade"] = current
+        for info in entry["meshes"]:
+            var mesh: MeshInstance3D = info["mesh"]
+            if is_instance_valid(mesh):
+                var base: float = float(info["base"])
+                # Per-instance fade preserves original Quaternius materials/UVs.
+                mesh.transparency = base + (1.0 - base) * current
 
 
 func _add_market_counter_goods(stall: Node3D, label: String,
@@ -2717,6 +2794,7 @@ func _process(delta: float) -> void:
         _correct_foot_ground(delta)
     _update_ground_contact_shadow()
     _update_camera(delta)
+    _update_market_canopy_fades(delta)
     _graphics_lod_accum += delta
     if _graphics_lod_accum >= 0.40:
         _graphics_lod_accum = 0.0
