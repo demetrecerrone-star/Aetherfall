@@ -1824,6 +1824,22 @@ func _build_ui() -> void:
     _character_button.pressed.connect(_switch_character)
     ui.add_child(_character_button)
 
+    # Reuse the original v0.6.5 appearance + equipment controller on the male.
+    var looks_button := Button.new()
+    looks_button.name = "CreatorLooksButton"
+    looks_button.text = "✦ LOOKS"
+    looks_button.anchor_left = 1.0
+    looks_button.anchor_right = 1.0
+    looks_button.anchor_top = 1.0
+    looks_button.anchor_bottom = 1.0
+    looks_button.offset_left = -226.0
+    looks_button.offset_right = -34.0
+    looks_button.offset_top = -356.0
+    looks_button.offset_bottom = -291.0
+    looks_button.add_theme_font_size_override("font_size", 18)
+    looks_button.pressed.connect(_toggle_v065_creator)
+    ui.add_child(looks_button)
+
     var pause_button := Button.new()
     pause_button.text = "PAUSE"
     pause_button.anchor_left = 1.0
@@ -2143,6 +2159,171 @@ func _load_runtime_glb() -> void:
     _refresh_character_buttons()
     _set_status("READY", "Male/Female adventurers • Tap CHARACTER to switch • Tap POSE to compare")
     _diag_stage("AF-READY-900", "Starter Town, selected character, rig, animations and controls initialized successfully.")
+
+func _build_v065_creator_overlay() -> void:
+    var canvas := CanvasLayer.new()
+    canvas.name = "Creator065UI"
+    canvas.layer = 15
+    add_child(canvas)
+    var root := Control.new()
+    root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    canvas.add_child(root)
+    _creator_v065_panel = PanelContainer.new()
+    _creator_v065_panel.name = "Creator065Panel"
+    _creator_v065_panel.anchor_left = 0.60
+    _creator_v065_panel.anchor_right = 0.99
+    _creator_v065_panel.anchor_top = 0.055
+    _creator_v065_panel.anchor_bottom = 0.97
+    _creator_v065_panel.add_theme_stylebox_override("panel", _round_style(Color(0.045, 0.065, 0.105, 0.97), 16))
+    root.add_child(_creator_v065_panel)
+    var stack := VBoxContainer.new()
+    stack.add_theme_constant_override("separation", 9)
+    _creator_v065_panel.add_child(stack)
+    var heading := Label.new()
+    heading.text = "AETHERFALL  •  FORGE YOUR HERO"
+    heading.add_theme_font_size_override("font_size", 20)
+    heading.add_theme_color_override("font_color", Color("#eac180"))
+    stack.add_child(heading)
+    var subheading := Label.new()
+    subheading.text = "Original v0.6.5 creator  •  Changes save automatically"
+    subheading.add_theme_font_size_override("font_size", 12)
+    stack.add_child(subheading)
+    var scroll := ScrollContainer.new()
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    stack.add_child(scroll)
+    var items := VBoxContainer.new()
+    items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    items.add_theme_constant_override("separation", 6)
+    scroll.add_child(items)
+    var controls := [
+        ["hair", "HAIRSTYLE"], ["hair_color", "HAIR COLOR"],
+        ["skin", "SKIN TONE"], ["eye_color", "IRIS COLOR"],
+        ["eye_style", "EYE FINISH"], ["height_up", "HEIGHT +"],
+        ["height_down", "HEIGHT -"], ["beard", "BEARD"],
+        ["outfit", "FULL OUTFIT"], ["arms", "ARMS"],
+        ["body", "TORSO"], ["legs", "LEGS"], ["feet", "BOOTS"],
+        ["hood", "HOOD"], ["shoulders", "SHOULDERS"],
+        ["randomize", "RANDOMIZE"], ["reset", "RESET LOOK"]
+    ]
+    for choice in controls:
+        var key: String = choice[0]
+        var button := Button.new()
+        button.name = "Creator_" + key
+        button.text = choice[1]
+        button.custom_minimum_size.y = 44.0
+        button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        button.add_theme_font_size_override("font_size", 15)
+        button.pressed.connect(_creator_v065_action.bind(key))
+        items.add_child(button)
+        _creator_v065_labels[key] = button
+    var done := Button.new()
+    done.name = "CreatorDone"
+    done.text = "SAVE AND RETURN TO TOWN"
+    done.custom_minimum_size.y = 49.0
+    done.pressed.connect(_toggle_v065_creator)
+    stack.add_child(done)
+    _creator_v065_panel.visible = false
+
+
+func _creator_v065_save() -> void:
+    if _creator_v065_avatar == null:
+        return
+    var data: Dictionary = _creator_v065_avatar.call("export_profile")
+    data["name"] = "Adventurer"
+    var file := FileAccess.open("user://aetherfall_hero_profile_v1.json", FileAccess.WRITE)
+    if file != null:
+        file.store_string(JSON.stringify(data, "  "))
+        file.close()
+
+
+func _creator_v065_action(key: String) -> void:
+    if _creator_v065_avatar == null:
+        return
+    match key:
+        "hair":
+            _creator_v065_avatar.call("cycle_hair", 1)
+        "hair_color":
+            _creator_v065_avatar.call("cycle_hair_color")
+        "skin":
+            _creator_v065_avatar.call("cycle_skin")
+        "eye_color":
+            _creator_v065_avatar.call("cycle_eye_color")
+        "eye_style":
+            _creator_v065_avatar.call("cycle_eye_style")
+        "height_up":
+            _creator_v065_avatar.call("change_height", 0.05)
+        "height_down":
+            _creator_v065_avatar.call("change_height", -0.05)
+        "beard":
+            _creator_v065_avatar.call("toggle_beard")
+        "outfit":
+            _creator_v065_avatar.call("toggle_full_outfit")
+        "arms", "body", "legs", "feet":
+            _creator_v065_avatar.call("cycle_slot", key)
+        "hood":
+            _creator_v065_avatar.call("toggle_hood")
+        "shoulders":
+            _creator_v065_avatar.call("toggle_shoulders")
+        "randomize":
+            _creator_v065_avatar.call("randomize_look")
+        "reset":
+            _creator_v065_avatar.call("reset_appearance")
+    _creator_v065_save()
+    _creator_v065_update_labels()
+    # Colors are now overridden per material; recache camera transparency.
+    _camera_fade_surfaces.clear()
+    _camera_fade_alpha = 1.0
+    _cache_camera_fade_surfaces(_model)
+
+
+func _creator_v065_update_labels() -> void:
+    if _creator_v065_avatar == null:
+        return
+    var labels := {
+        "hair": "HAIRSTYLE: " + str(_creator_v065_avatar.call("hairstyle_label")),
+        "hair_color": "HAIR COLOR: " + str(_creator_v065_avatar.call("hair_color_label")),
+        "skin": "SKIN: " + str(_creator_v065_avatar.call("skin_label")),
+        "eye_color": "IRIS: " + str(_creator_v065_avatar.call("eye_color_label")),
+        "eye_style": "EYES: " + str(_creator_v065_avatar.call("eye_style_label")),
+        "height_up": "HEIGHT: " + str(_creator_v065_avatar.call("height_label")) + "  +",
+        "height_down": "HEIGHT: " + str(_creator_v065_avatar.call("height_label")) + "  -",
+        "beard": "BEARD: " + ("ON" if bool(_creator_v065_avatar.get("beard_enabled")) else "OFF"),
+        "outfit": "OUTFIT: " + str(_creator_v065_avatar.get("outfit")),
+        "hood": "HOOD: " + ("ON" if bool(_creator_v065_avatar.get("hood_enabled")) else "OFF"),
+        "shoulders": "SHOULDERS: " + ("ON" if bool(_creator_v065_avatar.get("shoulders_enabled")) else "OFF")
+    }
+    var slots: Dictionary = _creator_v065_avatar.get("slot_styles")
+    for slot in ["arms", "body", "legs", "feet"]:
+        labels[slot] = slot.to_upper() + ": " + str(slots.get(slot, "Ranger"))
+    for key in labels:
+        if _creator_v065_labels.has(key):
+            var button := _creator_v065_labels[key] as Button
+            button.text = str(labels[key])
+
+
+func _toggle_v065_creator() -> void:
+    if not _loaded or _creator_v065_avatar == null or not _creator_v065_active:
+        _set_status("CHARACTER CREATOR", "v0.6.5 male is available. The female source is still incomplete.")
+        return
+    if _creator_v065_panel == null:
+        _build_v065_creator_overlay()
+    _creator_v065_open = not _creator_v065_open
+    _creator_v065_panel.visible = _creator_v065_open
+    if _creator_v065_open:
+        _creator_v065_camera_yaw = _camera_yaw
+        _creator_v065_camera_distance = _camera_distance
+        _release_joystick()
+        _camera_touch = -1
+        _move_speed = 0.0
+        _ensure_motion("IDLE")
+        _camera_yaw = _actor.rotation.y + PI
+        _camera_distance = 3.1
+        _creator_v065_update_labels()
+    else:
+        _creator_v065_save()
+        _camera_yaw = _creator_v065_camera_yaw
+        _camera_distance = _creator_v065_camera_distance
 
 func _polish_actor_materials(node: Node) -> void:
     # Restrict changes to recognizable hair and garment materials; retain
