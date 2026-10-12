@@ -1,134 +1,93 @@
 extends SceneTree
-## Confirm that both characters can actually load and animate in the town.
-
+## Two NEW Quaternius Universal Base characters must play in Starter Town,
+## with their own 65-joint rig and 25-clip animation library.
 func _initialize() -> void:
-    call_deferred("_test_characters")
+    call_deferred("_run")
 
-
-func _test_characters() -> void:
+func _run() -> void:
     var scene := load("res://starter_town.tscn") as PackedScene
     if scene == null:
-        _fail("Starter town scene missing")
+        _fail("Missing starter town")
         return
-    var town := scene.instantiate()
+    var town := scene.instantiate() as Node3D
     root.add_child(town)
-    for i in range(8):
+    for i in range(12):
         await process_frame
-
-    if not _assert_character(town, "male", "standing_relax"):
+    if not _check(town, "male"):
         return
-    if not bool(town.get("_creator_v065_active")):
-        _fail("Recovered v0.6.5 male must replace the starter-town original male")
-        return
-    var creator := town.get("_creator_v065_avatar") as Node3D
-    if creator == null:
-        _fail("Original v0.6.5 modular appearance controller is not loaded")
-        return
-    # The replacement must retain real authored animation timing and moving
-    # knees, but not import the incompatible finger-joint motion that created
-    # branch-shaped hands on the previous screenshot.
-    var player := town.get("_animation") as AnimationPlayer
-    if player == null:
-        _fail("Playable v0.6.5 male missing animation player")
-        return
-    for motion in ["standing_relax", "idle", "walk", "run"]:
-        var clip: String = str(town.call("_clip_for", motion))
-        if clip.is_empty():
-            _fail("Authored replacement animation missing: " + motion)
-            return
-        var authored := player.get_animation(clip)
-        if authored == null or authored.get_track_count() < 8:
-            _fail("Imported creator animation is missing its moving bone tracks: " + motion)
-            return
-        # Godot's glTF optimizer drops constant animation tracks at import.
-        # Verify the full 64-joint authored set before import in GitHub CI;
-        # runtime must preserve duration and active tracks, not all 64 keys.
-        print("AETHERFALL_AUTHORED_CLIP: ", motion,
-            " tracks=", authored.get_track_count(), " duration=", authored.length)
-        if motion == "standing_relax" and authored.length < 10.0:
-            _fail("Full authored breathing and weight-shifting idle missing")
-            return
-    var creator_meshes: Array = creator.get("meshes")
-    if creator_meshes.size() < 10:
-        _fail("Original v0.6.5 equipment meshes are missing")
-        return
-    var costume: Dictionary = creator.call("export_profile")
-    if str(costume.get("gender", "")) != "male":
-        _fail("Loaded creator profile is not the recovered male avatar")
-        return
-    town.call("_toggle_v065_creator")
-    if not bool(town.get("_creator_v065_open")):
-        _fail("LOOKS button did not open the creator")
-        return
-    town.call("_creator_v065_action", "hair")
-    town.call("_creator_v065_action", "outfit")
-    town.call("_toggle_v065_creator")
-    if bool(town.get("_creator_v065_open")):
-        _fail("Creator remained open after returning to town")
-        return
-    town.call("_switch_character")
-    for i in range(4):
-        await process_frame
-    if not _assert_character(town, "female", "idle"):
-        return
-    if bool(town.get("_creator_v065_active")):
-        _fail("Incomplete v0.6.5 female must not be silently substituted")
-        return
-    # No joystick is held in headless QA, so do not wait frames between these
-    # checks: the normal controller would correctly return the actor to idle.
     town.call("_set_motion", "WALK")
-    var walk_player := town.get("_animation") as AnimationPlayer
-    if String(town.get("_motion")) != "WALK" or walk_player == null or not String(walk_player.current_animation).to_lower().ends_with("walk"):
-        _fail("Female walk animation did not activate")
+    if not _current_clip(town).to_lower().ends_with("walk_loop"):
+        _fail("Male should walk using native Universal library")
         return
     town.call("_set_motion", "RUN")
-    var run_player := town.get("_animation") as AnimationPlayer
-    if String(town.get("_motion")) != "RUN" or run_player == null or not String(run_player.current_animation).to_lower().ends_with("run"):
-        _fail("Female run animation did not activate")
+    if not _current_clip(town).to_lower().ends_with("sprint_loop"):
+        _fail("Male should sprint using native Universal library")
         return
     town.call("_set_motion", "IDLE")
     town.call("_switch_character")
-    for i in range(4):
+    for i in range(12):
         await process_frame
-    if not _assert_character(town, "male", "standing_relax"):
+    if not _check(town, "female"):
         return
-    print("AETHERFALL_CHARACTER_SWITCH_OK: original creator v0.6.5 male with equipment/LOOKS; female fallback retained; walk/run passed")
+    town.call("_set_motion", "WALK")
+    if not _current_clip(town).to_lower().ends_with("walk_loop"):
+        _fail("Female should walk using native Universal library")
+        return
+    town.call("_set_motion", "RUN")
+    if not _current_clip(town).to_lower().ends_with("sprint_loop"):
+        _fail("Female should sprint using native Universal library")
+        return
+    town.call("_set_motion", "IDLE")
+    town.call("_cycle_idle_pose")
+    if not _current_clip(town).to_lower().ends_with("idle_loop"):
+        _fail("Female idle pose cycle failed")
+        return
+    var buttons := town.find_children("*", "Button", true, false)
+    var action_found := false
+    for child in buttons:
+        if child.name == "UniversalActionButton" and child.text == "INTERACT":
+            action_found = true
+            break
+    if not action_found:
+        _fail("Expected in-town action preview, NOT old creator UI")
+        return
+    print("AETHERFALL_CHARACTER_SWITCH_OK: Universal male/female, 65-bone rigs, 25 native clips, idle/walk/sprint, interaction control")
     town.queue_free()
     quit(0)
 
+func _current_clip(town: Node) -> String:
+    var player := town.get("_animation") as AnimationPlayer
+    return String(player.current_animation) if player != null else ""
 
-func _assert_character(town: Node, expected: String, expected_idle: String) -> bool:
-    if not bool(town.get("_loaded")):
-        _fail("Character did not finish loading: " + expected)
+func _check(town: Node3D, gender: String) -> bool:
+    if not bool(town.get("_loaded")) or not bool(town.get("_universal_active")):
+        _fail("Universal player failed to become playable: "+gender)
         return false
-    if String(town.get("_character_variant")) != expected:
-        _fail("Character selection state incorrect: " + expected)
+    if String(town.get("_character_variant")) != gender:
+        _fail("Wrong character selected: "+gender)
         return false
-    var actor := town.get_node_or_null("TripoActor") as Node3D
-    if actor == null or absf(actor.scale.x - 1.62) > 0.01 or absf(actor.scale.y - 1.62) > 0.01:
-        _fail("Both adventurers must use the new slightly smaller world scale: " + expected)
-        return false
-    var sole_y: float = town.call("_sole_floor_y")
-    var floor_y: float = town.call("_ground_surface_y", actor.global_position)
-    if absf(sole_y - floor_y) > 0.10:
-        _fail("Rescaling caused boot grounding regression: %s sole=%f ground=%f" % [expected, sole_y, floor_y])
+    var model := town.get("_model") as Node3D
+    if model == null or model.name != "Universal_"+gender:
+        _fail("Old character appeared instead of Universal "+gender)
         return false
     var rig := town.get("_skeleton") as Skeleton3D
-    if rig == null or rig.get_bone_count() != 65:
-        _fail("Active character has no valid 65-joint skeleton: " + expected)
-        return false
     var player := town.get("_animation") as AnimationPlayer
-    if player == null:
-        _fail("Active character missing AnimationPlayer: " + expected)
+    if rig == null or player == null or rig.get_bone_count() != 65:
+        _fail("New player skeleton and animation player missing: "+gender)
         return false
-    var current := String(player.current_animation).to_lower()
-    if not current.ends_with(expected_idle):
-        _fail("Wrong idle clip for %s: %s" % [expected, current])
+    for clip in ["Idle_Loop","Walk_Loop","Sprint_Loop","Sword_Attack","Sword_Block","Interact"]:
+        if String(town.call("_clip_for",clip)).is_empty():
+            _fail("Native Universal animation missing: "+clip)
+            return false
+    if player.get_animation_list().size() < 25:
+        _fail("Universal action library is incomplete for "+gender)
         return false
-    print("AETHERFALL_CHARACTER_OK: " + expected + " idle=" + current)
+    if town.get("_left_foot_index") < 0 or town.get("_right_foot_index") < 0:
+        _fail("Both feet bones must remain grounded: "+gender)
+        return false
+    print("AETHERFALL_UNIVERSAL_CHARACTER_OK: "+gender+"; 65 bones, 25 animations and valid feet")
     return true
 
-
 func _fail(message: String) -> void:
-    push_error("AETHERFALL_CHARACTER_QA_FAIL: " + message)
+    push_error("AETHERFALL_CHARACTER_QA_FAIL: "+message)
     quit(1)

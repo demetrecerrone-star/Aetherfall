@@ -1,8 +1,8 @@
 extends SceneTree
 ## Test only the EXPORTED Android resource pack, never the source tree.
 
-const MODEL_FILES := ["res://models/adventurer_runtime.bin", "res://models/adventurer_female_runtime.bin"]
-const REQUIRED := ["standing_relax", "idle", "look_around", "walk", "run", "jump", "sit"]
+const MODEL_FILES := ["res://models/universal/male_runtime.bin", "res://models/universal/female_runtime.bin"]
+const REQUIRED := ["Idle_Loop", "Walk_Loop", "Sprint_Loop", "Sword_Attack", "Sword_Block", "Interact"]
 
 
 func _initialize() -> void:
@@ -16,40 +16,10 @@ func _initialize() -> void:
     for model_file in MODEL_FILES:
         if not _validate_model(String(model_file)):
             return
-    # Verify that the original v0.6.5 modular male is in the exported game pack.
-    var v065_path := "res://models/creator_v065/male_playable.bin"
-    if FileAccess.file_exists(v065_path):
-        var original_bytes := FileAccess.get_file_as_bytes(v065_path)
-        if original_bytes.size() < 11000000 or original_bytes.slice(0, 4).get_string_from_ascii() != "glTF":
-            _fail("Original v0.6.5 playable male is invalid in Android PCK")
-            return
-        var original_doc := GLTFDocument.new()
-        var original_state := GLTFState.new()
-        if original_doc.append_from_buffer(original_bytes, "", original_state) != OK:
-            _fail("Original v0.6.5 playable male cannot be imported on Android")
-            return
-        var original_scene := original_doc.generate_scene(original_state)
-        if original_scene == null:
-            _fail("Original v0.6.5 model has no scene in exported pack")
-            return
-        var original_rig := _find_skeleton(original_scene)
-        var original_player := _find_animation_player(original_scene)
-        if original_rig == null or original_rig.get_bone_count() != 65 or original_player == null:
-            _fail("Original v0.6.5 rig or animation player missing")
-            original_scene.free()
-            return
-        for clip in ["idle", "walk", "run", "standing_relax", "look_around"]:
-            var found := false
-            for existing in original_player.get_animation_list():
-                if String(existing).to_lower().ends_with(clip):
-                    found = true
-                    break
-            if not found:
-                _fail("v0.6.5 gameplay animation missing: " + clip)
-                original_scene.free()
-                return
-        original_scene.free()
-        print("AETHERFALL_CREATOR_V065_PACK_OK: original modular male and locomotion in Android PCK")
+    # The old creator and imported Tripo players are deliberately absent.
+    if FileAccess.file_exists("res://models/creator_v065/male_playable.bin"):
+        _fail("Old v0.6.5 model was bundled in the new APK")
+        return
     # This catches exactly the Android packaging mistake that broke 0.2P:
     # verifying the source file is not enough; both models AND each texture
     # must remain inside the exported Android PCK.
@@ -85,7 +55,7 @@ func _initialize() -> void:
         return
     fountain_scene.free()
     print("AETHERFALL_FOUNTAIN_PACK_OK: authentic optimized fountain included in Android")
-    print("AETHERFALL_DUAL_PACK_OK: Two rigs, all animations, seven materials and fountain validated")
+    print("AETHERFALL_DUAL_PACK_OK: two new Universal characters, 25 clips, seven materials and fountain validated")
     quit(0)
 
 
@@ -109,7 +79,7 @@ func _validate_model(model_file: String) -> bool:
         return false
     var player := _find_animation_player(scene)
     var skeleton := _find_skeleton(scene)
-    if skeleton == null or skeleton.get_bone_count() != 65 or player == null:
+    if skeleton == null or skeleton.get_bone_count() != 65 or player == null or player.get_animation_list().size() < 25:
         _fail("Missing 65-joint rig or animation player in " + model_file)
         scene.free()
         return false

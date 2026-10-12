@@ -25,3 +25,18 @@ The generator retargets each source bone's relative local quaternion onto the ta
 
 ## Other available asset packs
 Quaternius Medieval Weapons, Village, Fantasy Props, Nature, Crops, Dungeon and NPC/Monster packs have been uploaded. Review individual licenses before publishing raw assets in a public repository. In particular, the uploaded Bestiary pack has **Quaternius Asset License 1.0**, not CC0; it allows distributing a game but forbids redistributing the extracted pack as assets.
+
+## First playable in-town replacement (Universal Base)
+The current experimental branch now loads **both** supplied Universal Base
+male and female instead of the old v0.6.5 or Tripo player. Both GLBs and their
+embedded textures plus 25 authored action animations are stored permanently
+in GitHub under `cleanroom/models/universal/*.bin`. The game uses the original
+Starter Town controller and 1.62 actor scale with a 0.62 model fit factor,
+matching an approximately 1.8-metre player. Idle_Loop, Walk_Loop, Sprint_Loop,
+and Idle_FoldArms_Loop power the existing controls and POSE button. The new
+INTERACT button previews the matching authored action on either sex. The old
+LOOKS panel and v0.6.5 fallback are disconnected on this branch; detailed
+Universal character customization will be reimplemented after mobile QA.
+The isolated release-quality branch feature/avatar-creator-v065-town-integration
+retains Build #141 unchanged. The experimental signed APK passes required
+both-sex skeleton/25-animation/Android pack checks before phone testing.

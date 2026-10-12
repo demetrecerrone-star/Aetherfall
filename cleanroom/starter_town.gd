@@ -26,10 +26,16 @@ const NEXT_ZONE_NAME := "Valley Outskirts"
 # Raw GLB bytes are copied into this .bin path during CI before Android export.
 # Godot imports .glb as a resource and may omit the raw source from Android PCKs;
 # the unrecognized .bin extension is included as a non-resource by export filters.
-const MALE_MODEL_PATH := "res://models/adventurer_runtime.bin"
-const FEMALE_MODEL_PATH := "res://models/adventurer_female_runtime.bin"
-# Original Avatar Creator v0.6.5: complete user-approved modular male model.
-const CREATOR_V065_MALE_MODEL_PATH := "res://models/creator_v065/male_playable.bin"
+# Universal Base Characters are the ONLY playable models in this new game branch.
+# Both have a matched 65-bone Quaternius skeleton and 25 action clips.
+const MALE_MODEL_PATH := "res://models/universal/male_runtime.bin"
+const FEMALE_MODEL_PATH := "res://models/universal/female_runtime.bin"
+const UNIVERSAL_CLIPS := {
+    "standing_relax": "Idle_Loop", "idle": "Idle_Loop",
+    "look_around": "Idle_FoldArms_Loop", "walk": "Walk_Loop",
+    "run": "Sprint_Loop", "jump": "Jump_Loop", "attack": "Sword_Attack",
+    "interact": "Interact", "block": "Sword_Block"
+}
 const IDLE_OPTIONS := ["standing_relax", "idle", "look_around"]
 const MOTION_BLEND_TIME := 0.24
 const WALK_SPEED := 0.92
@@ -127,13 +133,8 @@ var _sun_light: DirectionalLight3D
 var _pose_button: Button
 var _character_button: Button
 var _character_variant := "male"
-var _creator_v065_active := false
-var _creator_v065_avatar: Node3D
-var _creator_v065_panel: PanelContainer
-var _creator_v065_open := false
-var _creator_v065_camera_yaw := 0.0
-var _creator_v065_camera_distance := 4.0
-var _creator_v065_labels: Dictionary = {}
+var _universal_active := false
+var _universal_action_in_progress := false
 var _idle_option_index := 0
 var _world_blockers: Array[Rect2] = []
 var _circle_blockers: Array[Vector3] = []
@@ -187,7 +188,7 @@ func _ready() -> void:
 
     _diag_stage("AF-PLAYER-230", "Creating player actor root.")
     _actor = Node3D.new()
-    _actor.name = "TripoActor"
+    _actor.name = "TripoActor" # Preserve existing controller/camera test node name for now.
     _actor.scale = Vector3.ONE * ACTOR_SCALE
     _actor.position = Vector3(0.0, 0.0, 18.0)
     add_child(_actor)
@@ -205,7 +206,7 @@ func _ready() -> void:
     _diag_stage("AF-UI-250", "Building gameplay HUD and touch controls.")
     _build_ui()
     _set_graphics_preset(GraphicsQuality.restored(), false)
-    _set_status("LOADING", "Diagnostics active • reading embedded Tripo GLB…")
+    _set_status("LOADING", "Importing the new Universal Base adventurer…")
     _update_camera(1.0)
     _diag_stage("AF-MODEL-300", "Town is visible. Loading embedded character GLB next.")
     call_deferred("_load_runtime_glb")
@@ -1824,10 +1825,10 @@ func _build_ui() -> void:
     _character_button.pressed.connect(_switch_character)
     ui.add_child(_character_button)
 
-    # Reuse the original v0.6.5 appearance + equipment controller on the male.
+    # New action-preview control: no old v0.6.5 creator panel.
     var looks_button := Button.new()
-    looks_button.name = "CreatorLooksButton"
-    looks_button.text = "✦ LOOKS"
+    looks_button.name = "UniversalActionButton"
+    looks_button.text = "INTERACT"
     looks_button.anchor_left = 1.0
     looks_button.anchor_right = 1.0
     looks_button.anchor_top = 1.0
@@ -1837,7 +1838,7 @@ func _build_ui() -> void:
     looks_button.offset_top = -356.0
     looks_button.offset_bottom = -291.0
     looks_button.add_theme_font_size_override("font_size", 18)
-    looks_button.pressed.connect(_toggle_v065_creator)
+    looks_button.pressed.connect(_universal_interact)
     ui.add_child(looks_button)
 
     var pause_button := Button.new()
@@ -2016,14 +2017,12 @@ func _fail(message: String) -> void:
     _set_status("LOAD ERROR", message + "\nThe app stays open so the error can be photographed.")
 
 func _active_model_path() -> String:
-    if _character_variant == "male" and FileAccess.file_exists(CREATOR_V065_MALE_MODEL_PATH):
-        return CREATOR_V065_MALE_MODEL_PATH
     return FEMALE_MODEL_PATH if _character_variant == "female" else MALE_MODEL_PATH
 
 
 func _load_runtime_glb() -> void:
     var model_path := _active_model_path()
-    _creator_v065_active = model_path == CREATOR_V065_MALE_MODEL_PATH
+    _universal_active = true
     _diag_stage("AF-MODEL-301", "Checking embedded " + _character_variant + " character model.")
     if not FileAccess.file_exists(model_path):
         _fail("Embedded model file is missing: " + model_path)
@@ -2056,37 +2055,12 @@ func _load_runtime_glb() -> void:
         return
 
     _diag_stage("AF-MODEL-305", "Character scene generated. Attaching model.")
-    _model.name = "Creator065_" + _character_variant if _creator_v065_active else "TripoAdventurer_" + _character_variant
+    _model.name = "Universal_" + _character_variant
     _actor.add_child(_model)
-    # Tripo visual forward is opposite the controller's actor forward.
-    # Rotate only the generated model, not gameplay/world motion.
+    # Base models are ~1.8m tall: actor scale 1.62 * .62 ~= real 1.0.
+    _model.scale = Vector3.ONE * 0.62
     _model.rotation.y = PI
     _polish_actor_materials(_model)
-    if _creator_v065_active:
-        var creator_script := load("res://creator_v065/playable_avatar.gd") as Script
-        if creator_script == null:
-            _fail("Original 0.6.5 creator appearance script missing")
-            return
-        _creator_v065_avatar = creator_script.new() as Node3D
-        if _creator_v065_avatar == null:
-            _fail("Original 0.6.5 appearance controller cannot instantiate")
-            return
-        _creator_v065_avatar.name = "Creator065Appearance"
-        _actor.add_child(_creator_v065_avatar)
-        _creator_v065_avatar.set("loaded_root", _model)
-        _creator_v065_avatar.call("_collect", _model)
-        _creator_v065_avatar.call("_refresh_equipment")
-        _creator_v065_avatar.call("_prepare_appearance_materials")
-        var profile_path := "user://aetherfall_hero_profile_v1.json"
-        if FileAccess.file_exists(profile_path):
-            var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(profile_path))
-            if parsed is Dictionary:
-                var profile: Dictionary = parsed as Dictionary
-                if profile.has("appearance") and profile["appearance"] is Dictionary:
-                    profile = profile["appearance"] as Dictionary
-                _creator_v065_avatar.call("import_profile", profile)
-        _creator_v065_avatar.call("_apply_appearance")
-        _creator_v065_avatar.set("is_ready", true)
     _camera_fade_surfaces.clear()
     _camera_fade_alpha = 1.0
     _cache_camera_fade_surfaces(_model)
@@ -2097,7 +2071,7 @@ func _load_runtime_glb() -> void:
     if _skeleton == null:
         _fail("No Skeleton3D was generated from the GLB.")
         return
-    _diag_stage("AF-RIG-307", "Skeleton found. Verifying 65-joint Mixamo rig.")
+    _diag_stage("AF-RIG-307", "Skeleton found. Verifying 65-joint Universal rig.")
     if _skeleton.get_bone_count() != 65:
         _fail("Expected 65 Mixamo joints, got %d." % _skeleton.get_bone_count())
         return
@@ -2157,173 +2131,26 @@ func _load_runtime_glb() -> void:
     _loaded = true
     _set_motion("IDLE")
     _refresh_character_buttons()
-    _set_status("READY", "Male/Female adventurers • Tap CHARACTER to switch • Tap POSE to compare")
+    _set_status("READY", "Universal Base male/female • Full 65-bone animation library ready")
     _diag_stage("AF-READY-900", "Starter Town, selected character, rig, animations and controls initialized successfully.")
 
-func _build_v065_creator_overlay() -> void:
-    var canvas := CanvasLayer.new()
-    canvas.name = "Creator065UI"
-    canvas.layer = 15
-    add_child(canvas)
-    var root := Control.new()
-    root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    canvas.add_child(root)
-    _creator_v065_panel = PanelContainer.new()
-    _creator_v065_panel.name = "Creator065Panel"
-    _creator_v065_panel.anchor_left = 0.60
-    _creator_v065_panel.anchor_right = 0.99
-    _creator_v065_panel.anchor_top = 0.055
-    _creator_v065_panel.anchor_bottom = 0.97
-    _creator_v065_panel.add_theme_stylebox_override("panel", _round_style(Color(0.045, 0.065, 0.105, 0.97), 16))
-    root.add_child(_creator_v065_panel)
-    var stack := VBoxContainer.new()
-    stack.add_theme_constant_override("separation", 9)
-    _creator_v065_panel.add_child(stack)
-    var heading := Label.new()
-    heading.text = "AETHERFALL  •  FORGE YOUR HERO"
-    heading.add_theme_font_size_override("font_size", 20)
-    heading.add_theme_color_override("font_color", Color("#eac180"))
-    stack.add_child(heading)
-    var subheading := Label.new()
-    subheading.text = "Original v0.6.5 creator  •  Changes save automatically"
-    subheading.add_theme_font_size_override("font_size", 12)
-    stack.add_child(subheading)
-    var scroll := ScrollContainer.new()
-    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    stack.add_child(scroll)
-    var items := VBoxContainer.new()
-    items.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    items.add_theme_constant_override("separation", 6)
-    scroll.add_child(items)
-    var controls := [
-        ["hair", "HAIRSTYLE"], ["hair_color", "HAIR COLOR"],
-        ["skin", "SKIN TONE"], ["eye_color", "IRIS COLOR"],
-        ["eye_style", "EYE FINISH"], ["height_up", "HEIGHT +"],
-        ["height_down", "HEIGHT -"], ["beard", "BEARD"],
-        ["outfit", "FULL OUTFIT"], ["arms", "ARMS"],
-        ["body", "TORSO"], ["legs", "LEGS"], ["feet", "BOOTS"],
-        ["hood", "HOOD"], ["shoulders", "SHOULDERS"],
-        ["randomize", "RANDOMIZE"], ["reset", "RESET LOOK"]
-    ]
-    for choice in controls:
-        var key: String = choice[0]
-        var button := Button.new()
-        button.name = "Creator_" + key
-        button.text = choice[1]
-        button.custom_minimum_size.y = 44.0
-        button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-        button.add_theme_font_size_override("font_size", 15)
-        button.pressed.connect(_creator_v065_action.bind(key))
-        items.add_child(button)
-        _creator_v065_labels[key] = button
-    var done := Button.new()
-    done.name = "CreatorDone"
-    done.text = "SAVE AND RETURN TO TOWN"
-    done.custom_minimum_size.y = 49.0
-    done.pressed.connect(_toggle_v065_creator)
-    stack.add_child(done)
-    _creator_v065_panel.visible = false
-
-
-func _creator_v065_save() -> void:
-    if _creator_v065_avatar == null:
+func _universal_interact() -> void:
+    if not _loaded or _paused or _animation == null or _universal_action_in_progress:
         return
-    var data: Dictionary = _creator_v065_avatar.call("export_profile")
-    data["name"] = "Adventurer"
-    var file := FileAccess.open("user://aetherfall_hero_profile_v1.json", FileAccess.WRITE)
-    if file != null:
-        file.store_string(JSON.stringify(data, "  "))
-        file.close()
-
-
-func _creator_v065_action(key: String) -> void:
-    if _creator_v065_avatar == null:
+    var clip_name := _clip_for("interact")
+    if clip_name.is_empty():
         return
-    match key:
-        "hair":
-            _creator_v065_avatar.call("cycle_hair", 1)
-        "hair_color":
-            _creator_v065_avatar.call("cycle_hair_color")
-        "skin":
-            _creator_v065_avatar.call("cycle_skin")
-        "eye_color":
-            _creator_v065_avatar.call("cycle_eye_color")
-        "eye_style":
-            _creator_v065_avatar.call("cycle_eye_style")
-        "height_up":
-            _creator_v065_avatar.call("change_height", 0.05)
-        "height_down":
-            _creator_v065_avatar.call("change_height", -0.05)
-        "beard":
-            _creator_v065_avatar.call("toggle_beard")
-        "outfit":
-            _creator_v065_avatar.call("toggle_full_outfit")
-        "arms", "body", "legs", "feet":
-            _creator_v065_avatar.call("cycle_slot", key)
-        "hood":
-            _creator_v065_avatar.call("toggle_hood")
-        "shoulders":
-            _creator_v065_avatar.call("toggle_shoulders")
-        "randomize":
-            _creator_v065_avatar.call("randomize_look")
-        "reset":
-            _creator_v065_avatar.call("reset_appearance")
-    _creator_v065_save()
-    _creator_v065_update_labels()
-    # Colors are now overridden per material; recache camera transparency.
-    _camera_fade_surfaces.clear()
-    _camera_fade_alpha = 1.0
-    _cache_camera_fade_surfaces(_model)
+    _universal_action_in_progress = true
+    _release_joystick()
+    var clip := _animation.get_animation(clip_name)
+    if clip != null:
+        clip.loop_mode = Animation.LOOP_NONE
+    _animation.play(clip_name, 0.20)
+    await _animation.animation_finished
+    _universal_action_in_progress = false
+    if _loaded and not _paused:
+        _set_motion("IDLE")
 
-
-func _creator_v065_update_labels() -> void:
-    if _creator_v065_avatar == null:
-        return
-    var labels := {
-        "hair": "HAIRSTYLE: " + str(_creator_v065_avatar.call("hairstyle_label")),
-        "hair_color": "HAIR COLOR: " + str(_creator_v065_avatar.call("hair_color_label")),
-        "skin": "SKIN: " + str(_creator_v065_avatar.call("skin_label")),
-        "eye_color": "IRIS: " + str(_creator_v065_avatar.call("eye_color_label")),
-        "eye_style": "EYES: " + str(_creator_v065_avatar.call("eye_style_label")),
-        "height_up": "HEIGHT: " + str(_creator_v065_avatar.call("height_label")) + "  +",
-        "height_down": "HEIGHT: " + str(_creator_v065_avatar.call("height_label")) + "  -",
-        "beard": "BEARD: " + ("ON" if bool(_creator_v065_avatar.get("beard_enabled")) else "OFF"),
-        "outfit": "OUTFIT: " + str(_creator_v065_avatar.get("outfit")),
-        "hood": "HOOD: " + ("ON" if bool(_creator_v065_avatar.get("hood_enabled")) else "OFF"),
-        "shoulders": "SHOULDERS: " + ("ON" if bool(_creator_v065_avatar.get("shoulders_enabled")) else "OFF")
-    }
-    var slots: Dictionary = _creator_v065_avatar.get("slot_styles")
-    for slot in ["arms", "body", "legs", "feet"]:
-        labels[slot] = slot.to_upper() + ": " + str(slots.get(slot, "Ranger"))
-    for key in labels:
-        if _creator_v065_labels.has(key):
-            var button := _creator_v065_labels[key] as Button
-            button.text = str(labels[key])
-
-
-func _toggle_v065_creator() -> void:
-    if not _loaded or _creator_v065_avatar == null or not _creator_v065_active:
-        _set_status("CHARACTER CREATOR", "v0.6.5 male is available. The female source is still incomplete.")
-        return
-    if _creator_v065_panel == null:
-        _build_v065_creator_overlay()
-    _creator_v065_open = not _creator_v065_open
-    _creator_v065_panel.visible = _creator_v065_open
-    if _creator_v065_open:
-        _creator_v065_camera_yaw = _camera_yaw
-        _creator_v065_camera_distance = _camera_distance
-        _release_joystick()
-        _camera_touch = -1
-        _move_speed = 0.0
-        _ensure_motion("IDLE")
-        _camera_yaw = _actor.rotation.y + PI
-        _camera_distance = 3.1
-        _creator_v065_update_labels()
-    else:
-        _creator_v065_save()
-        _camera_yaw = _creator_v065_camera_yaw
-        _camera_distance = _creator_v065_camera_distance
 
 func _polish_actor_materials(node: Node) -> void:
     # Restrict changes to recognizable hair and garment materials; retain
@@ -2420,7 +2247,7 @@ func _find_bone_suffix(suffix: String) -> int:
     if _skeleton == null:
         return -1
     var needle := suffix.to_lower()
-    if _creator_v065_active:
+    if _universal_active:
         var aliases := {
             "hips": "pelvis", "spine": "spine_01", "spine1": "spine_02",
             "head": "head", "leftfoot": "foot_l", "rightfoot": "foot_r",
@@ -2451,7 +2278,7 @@ func _collect_finger_bones(hand_prefix: String) -> Array[int]:
 func _clip_for(mode: String) -> String:
     if _animation == null:
         return ""
-    var needle := mode.to_lower()
+    var needle := str(UNIVERSAL_CLIPS.get(mode.to_lower(), mode)).to_lower()
     for entry in _animation.get_animation_list():
         var raw := String(entry)
         var label := raw.to_lower()
@@ -2493,8 +2320,7 @@ func _refresh_character_buttons() -> void:
 func _switch_character() -> void:
     if not _loaded or _paused or _actor == null:
         return
-    if _creator_v065_open:
-        _toggle_v065_creator()
+    _universal_action_in_progress = false
     # Preserve world position/heading but recalibrate Y from new boot soles.
     _loaded = false
     if _animation != null:
@@ -2505,11 +2331,7 @@ func _switch_character() -> void:
         _model = null
     _camera_fade_surfaces.clear()
     _camera_fade_alpha = 1.0
-    if _creator_v065_avatar != null:
-        _actor.remove_child(_creator_v065_avatar)
-        _creator_v065_avatar.queue_free()
-        _creator_v065_avatar = null
-    _creator_v065_active = false
+    _universal_active = false
     _skeleton = null
     _animation = null
     _neutral_pose.clear()
@@ -2520,9 +2342,9 @@ func _switch_character() -> void:
     _actor.position.y = 0.0
 
     _character_variant = "female" if _character_variant == "male" else "male"
-    _idle_option_index = 1 if _character_variant == "female" else 0
+    _idle_option_index = 0
     _refresh_character_buttons()
-    _set_status("LOADING", "Loading " + _character_variant + " adventurer")
+    _set_status("LOADING", "Loading Universal Base " + _character_variant)
     _load_runtime_glb()
 
 
@@ -2562,8 +2384,7 @@ func _set_motion(mode: String) -> void:
     elif mode == "RUN":
         speed = RUN_SPEED
     _animation.speed_scale = 1.0
-    # Never stop() into a hand-twisted bind pose. All three idle modes are
-    # genuine animations driving every joint from the verified model.
+    # Preserve authored Quaternius animation, including all fingers and shoulders.
     _animation.play(clip_name, 0.0, speed)
     _set_status(mode, _motion_detail())
 
@@ -2663,10 +2484,10 @@ func _sole_floor_y() -> float:
     if _skeleton == null:
         return 0.0
     var scale_y := absf(_actor.scale.y)
-    if _creator_v065_active and _model != null:
+    if _universal_active and _model != null:
         scale_y *= absf(_model.scale.y)
-    var foot_offset := (0.045 if _creator_v065_active else FOOT_TO_SOLE_SOURCE_Y) * scale_y
-    var toe_offset := (0.018 if _creator_v065_active else TOE_TO_SOLE_SOURCE_Y) * scale_y
+    var foot_offset := (0.055 if _universal_active else FOOT_TO_SOLE_SOURCE_Y) * scale_y
+    var toe_offset := (0.014 if _universal_active else TOE_TO_SOLE_SOURCE_Y) * scale_y
     # Use both ankle/foot and toe origins. During a stride either the heel or
     # the toe may be the lowest planted part of the boot.
     var left_sole := minf(_bone_world_y(_left_foot_index) - foot_offset,
@@ -2818,7 +2639,7 @@ func _resolve_world_position(previous: Vector3) -> void:
         _move_speed = minf(_move_speed, WALK_WORLD_SPEED * 0.72)
 
 func _update_gameplay_movement(delta: float) -> void:
-    if _actor == null or not _loaded or _paused or _creator_v065_open:
+    if _actor == null or not _loaded or _paused or _universal_action_in_progress:
         return
     var input_vec := _desired_input()
     var strength := clampf(input_vec.length(), 0.0, 1.0)
@@ -2926,8 +2747,8 @@ func _update_camera(delta: float) -> void:
         _apply_camera_fade(move_toward(_camera_fade_alpha, visible_alpha, delta * CAMERA_FADE_RETURN_SPEED))
 
 func _input(event: InputEvent) -> void:
-    if _creator_v065_open:
-        return # Original creator GUI receives touch, not joystick/camera orbit.
+    if _universal_action_in_progress:
+        return # Ignore movement touches while the new action preview runs.
     if event is InputEventScreenTouch:
         # Ignore synthetic touch events generated by desktop mouse input.
         # Native Android touch indexes remain distinct for each finger.
