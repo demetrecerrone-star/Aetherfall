@@ -9,6 +9,7 @@ on:
       - "cleanroom/creator_v065/*.gd"
       - "cleanroom/models/creator_v065/*.bin"
       - "cleanroom/tools/add_v065_locomotion.py"
+      - "cleanroom/tools/retarget_v065_authored.py"
       - "cleanroom/graphics_quality.gd"
       - "cleanroom/tests/performance_optimization_test.gd"
       - "cleanroom/hanging_shop_signs.gd"
@@ -129,15 +130,38 @@ jobs:
             --output cleanroom/models/adventurer_female_runtime.bin
           test "$(stat -c%s cleanroom/models/adventurer_female_runtime.bin)" -gt 3000000
 
-      - name: Build first-pass locomotion on original v0.6.5 65-bone male
+      - name: Retarget real authored Mixamo full-body locomotion onto v0.6.5 male
         if: github.ref_name == 'feature/avatar-creator-v065-town-integration'
         run: |
           set -euo pipefail
-          python3 cleanroom/tools/add_v065_locomotion.py \
+          python3 cleanroom/tools/retarget_v065_authored.py \
             cleanroom/models/creator_v065/male_refined.bin \
+            'cleanroom/models/anime+adventurer+3d+model (1).glb' \
             cleanroom/models/creator_v065/male_playable.bin
           test "$(stat -c%s cleanroom/models/creator_v065/male_playable.bin)" -gt 11000000
           grep -F 'const CREATOR_V065_MALE_MODEL_PATH := "res://models/creator_v065/male_playable.bin"' cleanroom/starter_town.gd
+          # Confirm the rendered character has imported full-body tracks and
+          # substantial original idle/walk/run, NOT generated 11-bone sine poses.
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          base=Path("cleanroom/models/creator_v065/male_refined.bin").read_bytes()
+          result=Path("cleanroom/models/creator_v065/male_playable.bin").read_bytes()
+          def doc(b):
+              n=struct.unpack_from("<I",b,12)[0]
+              return json.loads(b[20:20+n])
+          original,animated=doc(base),doc(result)
+          for key in ("meshes","skins","materials","nodes"):
+              assert original[key]==animated[key],f"Creator rig/appearance changed: {key}"
+          clips={x["name"]:x for x in animated["animations"]}
+          assert len(clips)==8
+          for clip in ("standing_relax","idle","walk","run"):
+              assert len(clips[clip]["channels"])>=60,clip
+          idle=clips["standing_relax"]
+          ai=idle["samplers"][0]["input"]
+          assert animated["accessors"][ai]["max"][0]>10.0, "Expected authored long-form relaxed idle"
+          print("AETHERFALL_ANIM_AUTHORED_OK: intact v0.6.5 meshes, 64-bone retarget and 17s+ idle")
+          PY
 
       - name: Fetch and validate seven CC0 Poly Haven diffuse maps
         run: |

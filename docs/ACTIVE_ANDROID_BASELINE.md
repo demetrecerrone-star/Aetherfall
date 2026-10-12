@@ -87,3 +87,17 @@ JSON schema persisted. The previous complete female character remains the
 fallback while awaiting complete v0.6.5 female model source; no fake female
 replacement is created. This integration must pass Android source, runtime,
 equipment UI, and exported resource-pack tests before being considered ready.
+
+## Animator improvement: retarget authored full-body Mixamo onto v0.6.5
+The user tested Build #138 and reported stiff arms and nearly unmoving legs.
+The prior 11-joint generated preview motions are replaced at Android build time
+by the **seven existing authored 65-joint clips** from Aetherfall's previously
+included Mixamo adventurer: `standing_relax`, `idle`, `look_around`,
+`walk`, `run`, `jump`, `sit`. The retargeter maps **64 matching semantic
+bones**, transforms source animation quaternions between the two rigs' rest
+spaces, and samples at 30 fps. Character meshes, equipment visibility,
+materials, original weights, and bone bind transforms remain untouched.
+`wave` remains creator-authored provisional until a dedicated imported clip
+is available. The existing female fallback is not altered.
+New CI assertions prohibit regression to sparse 11-track animations; original
+standing relaxation is >10 seconds with visibly articulated arms and knees.

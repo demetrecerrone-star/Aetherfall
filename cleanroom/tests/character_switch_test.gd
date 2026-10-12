@@ -24,6 +24,24 @@ func _test_characters() -> void:
     if creator == null:
         _fail("Original v0.6.5 modular appearance controller is not loaded")
         return
+    # The replacement must have genuine full-body authored animations.
+    # The previous placeholder generated only 11 bone tracks and stiff arms.
+    var player := town.get("_animation") as AnimationPlayer
+    if player == null:
+        _fail("Playable v0.6.5 male missing animation player")
+        return
+    for motion in ["standing_relax", "idle", "walk", "run"]:
+        var clip: String = str(town.call("_clip_for", motion))
+        if clip.is_empty():
+            _fail("Authored replacement animation missing: " + motion)
+            return
+        var authored := player.get_animation(clip)
+        if authored == null or authored.get_track_count() < 60:
+            _fail("Creator still has generated sparse/stiff motion: " + motion)
+            return
+        if motion == "standing_relax" and authored.length < 10.0:
+            _fail("Full authored breathing and weight-shifting idle missing")
+            return
     var creator_meshes: Array = creator.get("meshes")
     if creator_meshes.size() < 10:
         _fail("Original v0.6.5 equipment meshes are missing")
