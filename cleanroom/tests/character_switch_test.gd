@@ -74,6 +74,26 @@ func _check(town: Node3D, gender: String) -> bool:
     if absf(model.scale.y - 0.46575) > 0.0001:
         _fail("New Universal "+gender+" height was not applied")
         return false
+    # The playable characters must START dressed and have four skinned pieces.
+    if String(model.get_meta("equipped_outfit", "")) != "peasant_clothes":
+        _fail("Starting peasant clothing not equipped for " + gender)
+        return false
+    if bool(model.get_meta("tutorial_armor_unlocked", true)):
+        _fail("Tutorial armor must not be unlocked at character creation")
+        return false
+    var items: Dictionary = model.get_meta("starting_equipment", {})
+    if items.get("chest") != "worn_linen_tunic" or items.get("feet") != "scuffed_leather_boots":
+        _fail("Incorrect peasant starting loadout for " + gender)
+        return false
+    var clothing := ["Peasant_Tunic", "Peasant_Trousers", "Peasant_Boots", "Peasant_Belt"]
+    for part in clothing:
+        var garment := model.find_child(part, true, false) as MeshInstance3D
+        if garment == null or garment.mesh == null or garment.skin == null:
+            _fail("Missing skinned garment " + part + " for " + gender)
+            return false
+        if garment.mesh.get_surface_count() == 0 or garment.mesh.surface_get_array_index_len(0) < 24:
+            _fail("Garment is empty: " + part + " for " + gender)
+            return false
     # Sprint is faster in world space, while walk speed remains unchanged.
     var movement_constants: Dictionary = town.get_script().get_script_constant_map()
     if absf(float(movement_constants.get("RUN_WORLD_SPEED", -1.0)) - 5.00) > 0.001:

@@ -5,6 +5,7 @@ const NatureReplacement = preload("res://nature_replacements.gd")
 const GateAshlar = preload("res://gate_ashlar.gd")
 const GrassField = preload("res://grass_field.gd")
 const GraphicsQuality = preload("res://graphics_quality.gd")
+const PeasantGear = preload("res://peasant_gear.gd")
 # Runtime .bin holds the same optimized GLB bytes and is explicitly
 # bundled in the Android export (Godot does not reliably preload raw .glb).
 const FOUNTAIN_RUNTIME_PATH := "res://models/fountain/MedievalFountain.bin"
@@ -2146,7 +2147,6 @@ func _load_runtime_glb() -> void:
     _polish_actor_materials(_model)
     _camera_fade_surfaces.clear()
     _camera_fade_alpha = 1.0
-    _cache_camera_fade_surfaces(_model)
     _skeleton = _find_skeleton(_model)
     _animation = _find_animation_player(_model)
 
@@ -2173,6 +2173,14 @@ func _load_runtime_glb() -> void:
         if _clip_for(idle_option).is_empty():
             _fail("Missing authored pose %s in: %s" % [idle_option, str(_animation.get_animation_list())])
             return
+
+    # Start in humble fitted peasant clothes; armor is earned in the tutorial.
+    var starter_gear := PeasantGear.equip_default(_model, _skeleton, _character_variant)
+    if not bool(starter_gear.get("ok", false)):
+        _fail("Could not equip starting peasant clothes: " + String(starter_gear.get("reason", "unknown")))
+        return
+    # The body and clothing must fade together in the close third-person camera.
+    _cache_camera_fade_surfaces(_model)
 
     _neutral_pose.clear()
     for i in range(_skeleton.get_bone_count()):
