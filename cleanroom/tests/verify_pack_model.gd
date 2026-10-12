@@ -2,7 +2,7 @@ extends SceneTree
 ## Test only the EXPORTED Android resource pack, never the source tree.
 
 const MODEL_FILES := ["res://models/universal/male_runtime.bin", "res://models/universal/female_runtime.bin"]
-const REQUIRED := ["Idle_Loop", "Walk_Loop", "Sprint_Loop", "Sword_Attack", "Sword_Block", "Interact"]
+const REQUIRED := ["idle_loop", "walk_loop", "sprint_loop", "sword_attack", "sword_block", "interact"]
 
 
 func _initialize() -> void:
