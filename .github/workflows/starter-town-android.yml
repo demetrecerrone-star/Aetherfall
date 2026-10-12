@@ -6,6 +6,7 @@ on:
     paths:
       - "cleanroom/models/*.glb"
       - "cleanroom/starter_town.gd"
+      - "cleanroom/tests/market_camera_visibility_test.gd"
       - "cleanroom/models/universal/*.bin"
       - "cleanroom/universal_character_manifest.json"
       - "cleanroom/creator_v065/*.gd"
@@ -357,6 +358,13 @@ jobs:
           if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_ENVIRONMENT_FAIL:' /tmp/environment-qa.log; then
             exit 1
           fi
+
+      - name: Verify market canopy is camera-transparent but walls remain solid
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/market_camera_visibility_test.gd 2>&1 | tee /tmp/market-camera-qa.log
+          grep -F 'AETHERFALL_MARKET_CAMERA_OK' /tmp/market-camera-qa.log
+          if grep -Ei 'SCRIPT ERROR:|Parse Error:|AETHERFALL_MARKET_CAMERA_FAIL:' /tmp/market-camera-qa.log; then exit 1; fi
 
       - name: Test doorway and camera collision regression
         run: |

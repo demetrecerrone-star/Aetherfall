@@ -17,11 +17,11 @@ func _run() -> void:
         return
     town.call("_set_motion", "WALK")
     if not _current_clip(town).to_lower().ends_with("walk_loop"):
-        _fail("Male should walk using native Universal library")
+        _fail("Male should walk using smoother Universal Jog_Fwd_Loop")
         return
     town.call("_set_motion", "RUN")
-    if not _current_clip(town).to_lower().ends_with("sprint_loop"):
-        _fail("Male should sprint using native Universal library")
+    if not _current_clip(town).to_lower().ends_with("jog_fwd_loop"):
+        _fail("Male should sprint using smoother Universal Jog_Fwd_Loop")
         return
     town.call("_set_motion", "IDLE")
     town.call("_switch_character")
@@ -31,11 +31,11 @@ func _run() -> void:
         return
     town.call("_set_motion", "WALK")
     if not _current_clip(town).to_lower().ends_with("walk_loop"):
-        _fail("Female should walk using native Universal library")
+        _fail("Female should walk using smoother Universal Jog_Fwd_Loop")
         return
     town.call("_set_motion", "RUN")
-    if not _current_clip(town).to_lower().ends_with("sprint_loop"):
-        _fail("Female should sprint using native Universal library")
+    if not _current_clip(town).to_lower().ends_with("jog_fwd_loop"):
+        _fail("Female should sprint using smoother Universal Jog_Fwd_Loop")
         return
     town.call("_set_motion", "IDLE")
     town.call("_cycle_idle_pose")

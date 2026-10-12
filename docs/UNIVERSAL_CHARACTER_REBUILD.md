@@ -51,3 +51,19 @@ sprint toggle or original 25 animation clips. The existing world-space boot
 contact solver reads `_model.scale.y` and recalibrates on each import and
 male/female switch. Character QA now requires the same 0.575 scale and near-
 road grounded feet on both sexes. No change to fountain/market/nature/scenery.
+
+## Build #146: walk-under market stall camera + calmer running
+Phone feedback says the awning fills the view when the camera slips under it.
+Low counter collision remains, but the previous oversized 2m camera AABB
+above it is replaced with a compact below-waist camera blocker. Quaternius
+market canopy geometry now fades dynamically if the roof obstructs the
+camera-to-character line or the camera is inside its footprint, restoring
+textures and opacity when the view clears. Only canopy meshes are faded when
+separate; when merged with the full stall mesh, the imported model fades
+smoothly rather than blocking the view. The four diagonally placed stands
+track occlusion independently. House walls, town borders, camera-orbit behavior
+and walk collision remain unchanged.
+Both male and female now use the library's `Jog_Fwd_Loop` animation for
+the RUN state in place of the exaggerated `Sprint_Loop`. Actual movement
+speed and sprint toggle are preserved. Add regression for awning visibility,
+restoration, wall collision and alternate character locomotion.
