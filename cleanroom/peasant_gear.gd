@@ -113,7 +113,26 @@ static func equip_tripo_default(character: Node3D, rig: Skeleton3D, variant: Str
     character.set_meta("peasant_skinned_parts", generated)
     character.set_meta("legacy_tripo_gear_hidden", legacy_hidden)
     character.set_meta("tripo_body_derived_clothes", true)
+    character.set_meta("peasant_adaptive_joint_clearance", true)
     return {"ok": true, "parts": generated, "legacy_hidden": legacy_hidden}
+
+
+static func _adaptive_joint_clearance(part: String, dominant_weight: float) -> float:
+    # A body-derived shell already inherits the exact body skinning. The only
+    # places that still tend to pinch during animation are vertices influenced
+    # by several bones at once. Add a small amount of extra space only at those
+    # blended joints, leaving rigid areas fitted close to the body.
+    var blend := clampf((0.86 - dominant_weight) / 0.46, 0.0, 1.0)
+    match part:
+        "Tunic":
+            return blend * 0.007
+        "Trousers":
+            return blend * 0.006
+        "Boots":
+            return blend * 0.0035
+        "Belt":
+            return blend * 0.002
+    return 0.0
 
 
 static func _mixamo_leaf(name: String) -> String:
@@ -170,6 +189,7 @@ static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array
         var zones := PackedStringArray()
         var normalized_heights := PackedFloat32Array()
         var dominant_bones := PackedStringArray()
+        var dominant_weights := PackedFloat32Array()
         for v in range(verts.size()):
             var winner := 0
             var highest := -1.0
@@ -181,6 +201,7 @@ static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array
             var bind_name := bind_names[winner] if winner >= 0 and winner < bind_names.size() else ""
             var ny := (verts[v].y - low_y) / height
             dominant_bones.append(_mixamo_leaf(bind_name))
+            dominant_weights.append(maxf(highest, 0.0))
             normalized_heights.append(ny)
             zones.append(_tripo_region(bind_name, ny))
 
@@ -219,6 +240,7 @@ static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array
                 offset = 0.017
             elif part == "Trousers":
                 offset = 0.014
+            offset += _adaptive_joint_clearance(part, dominant_weights[v])
             expanded[v] = expanded[v] + normals[v] * offset
 
         var output := arrays.duplicate(true)
