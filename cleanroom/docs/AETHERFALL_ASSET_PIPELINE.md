@@ -124,3 +124,18 @@ Garments must be checked at each pose because these expose different knee, hip, 
 ### Aetherfall implementation consequence
 
 The male peasant baseline is not approved from a single rest render. A pass must preserve or improve the accepted front/3/4/side/back silhouette, then survive the locomotion pose set. Only after that do UV/material improvements become the new baseline.
+
+
+### Skillshare lesson notes — Blender interface and workspace discipline
+
+From SouthernShotty's "Your First 3D Character" interface lesson:
+
+- Keep Blender in metric units and use typed axis-constrained transforms for repeatable game-scale edits.
+- Use the Outliner and Collections as production organization, not just viewport clutter control; separate character body, rig, garments, accessories, references, cameras, and lights.
+- Use named Blender workspaces deliberately: Modeling, Sculpting, UV Editing, Texture Paint, Shading, Animation, Rendering, Compositing, and Scripting.
+- Use Solid/Wireframe/Material Preview/Rendered views as separate QA modes rather than judging everything from one viewport mode.
+- Use modifiers non-destructively during authoring and apply only when required by the export pipeline.
+- Keep reference images and helper objects isolated in their own collection and toggleable.
+- Treat UV editing and Texture Paint as first-class production stages, not final cleanup.
+- The Scripting workspace is part of the Aetherfall production path: repetitive Blender operations should be scripted and validated rather than repeated manually.
+- Camera/render views are for presentation checks; final asset approval remains based on the game camera in Godot/Android.
