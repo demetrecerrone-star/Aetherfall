@@ -4,7 +4,7 @@ extends Node3D
 ## No spheres/cylinders/boxes created by this script.
 signal appearance_changed(summary: String)
 
-const MODEL: PackedScene = preload("res://assets/characters/aetherfall_adventurer.gltf")
+const MODEL: PackedScene = preload("res://assets/characters/AF_Male_Peasant_Game_v19_ultralite.glb")
 const SAVE_PATH := "user://aetherfall_appearance_v02.json"
 const SKIN_COLORS := ["f1c6ad", "dba687", "b78269", "95644e", "65483b", "f5d9c8"]
 const HAIR_COLORS := ["202338", "6e4b40", "d6a568", "a7b7ce", "ab627a", "e2ded0"]
@@ -124,8 +124,11 @@ func _start_animation(name_value: String) -> void:
 				full_name = str(clip)
 				break
 	if not _animation_player.has_animation(full_name):
-		push_warning("Missing animation: %s" % name_value)
-		return
+		if name_value in ["Jump", "Wave"] and _animation_player.has_animation("Idle"):
+			full_name = "Idle"
+		else:
+			push_warning("Missing animation: %s" % name_value)
+			return
 	_current_state = name_value
 	var animation := _animation_player.get_animation(full_name)
 	if animation != null:
