@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "pipeline": "Aetherfall shared male/female gear fitting",
+  "character_rig": {
+    "type": "Mixamo-style humanoid",
+    "joint_count": 65,
+    "male": {
+      "source": "anime+male+character+3d+model (1).glb",
+      "bounds": {"size": [0.879883, 0.979858, 0.179382], "center": [0.0, 0.489929, 0.0]},
+      "animations": ["walk", "run", "standing_relax"]
+    },
+    "female": {
+      "source": "anime-style+female+character+3d+model.glb",
+      "bounds": {"size": [0.837097, 0.980041, 0.195580], "center": [0.0, 0.490021, -0.000004]},
+      "animations": ["idle", "walk", "run"]
+    }
+  },
+  "gear": {
+    "peasant": {
+      "source": "medieval+peasant+outfit+3d+model (1).glb",
+      "mesh_parts": 39,
+      "rigged": false,
+      "bounds": {"size": [0.979936, 0.925871, 0.314422], "center": [0.001005, 0.462936, 0.000225]},
+      "fit": {"normalize_height": true, "clearance": 0.010, "priority": 1}
+    },
+    "ranger": {
+      "source": "fantasy+ranger+outfit+3d+model.glb",
+      "mesh_parts": 68,
+      "rigged": false,
+      "bounds": {"size": [0.964934, 0.979320, 0.288882], "center": [-0.000103, 0.489660, -0.001045]},
+      "fit": {"normalize_height": true, "clearance": 0.012, "priority": 2}
+    },
+    "knight": {
+      "source": "medieval+knight+armor+3d+model.glb",
+      "mesh_parts": 109,
+      "rigged": false,
+      "bounds": {"size": [0.981530, 0.956155, 0.206523], "center": [0.001330, 0.478077, -0.000366]},
+      "fit": {"normalize_height": true, "clearance": 0.014, "priority": 3}
+    }
+  },
+  "rules": {
+    "preserve_character_armature": true,
+    "preserve_character_animations": true,
+    "fit_both_sexes": true,
+    "transfer_weights_by_nearest_face": true,
+    "apply_armature_modifier": true,
+    "hide_body_under_opaque_gear_in_engine": true,
+    "stress_poses": ["idle", "walk", "run"],
+    "export_format": "GLB"
+  }
+}
