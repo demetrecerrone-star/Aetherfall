@@ -2118,8 +2118,9 @@ func _active_model_path() -> String:
 
 
 func _load_runtime_glb() -> void:
-    # Both files must be installed together to keep gender switching stable.
-    _tripo_active = FileAccess.file_exists(TRIPO_MALE_PATH) and FileAccess.file_exists(TRIPO_FEMALE_PATH)
+    # Male clothing QA build can use the corrected Tripo male independently.
+    # Female keeps the last-tested Universal character until her corrected fitted model is staged.
+    _tripo_active = FileAccess.file_exists(TRIPO_MALE_PATH) if _character_variant == "male" else FileAccess.file_exists(TRIPO_FEMALE_PATH)
     var model_path := _active_model_path()
     _universal_active = not _tripo_active
     _diag_stage("AF-MODEL-301", "Checking embedded " + _character_variant + " character model.")
@@ -2192,7 +2193,15 @@ func _load_runtime_glb() -> void:
     # The original fitted Tripo preview garments were visibly loose at sleeves,
     # hands and seams. Hide those draft meshes and rebuild starter clothing from
     # each character's own skinned body surfaces so cloth shares the exact rig.
-    var starter_gear := PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant) if _tripo_active else PeasantGear.equip_default(_model, _skeleton, _character_variant)
+    var starter_gear: Dictionary
+    if _tripo_active and _character_variant == "male":
+        # v21 already contains the corrected, skinned tunic, belt, trousers and boots.
+        # Do not replace them with the older body-derived preview shells.
+        starter_gear = {"ok": true, "parts": 14}
+        _model.set_meta("equipped_outfit", "peasant_clothes_v21")
+        _model.set_meta("starter_clothing_embedded", true)
+    else:
+        starter_gear = PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant) if _tripo_active else PeasantGear.equip_default(_model, _skeleton, _character_variant)
     if not bool(starter_gear.get("ok", false)):
         _fail("Could not equip starting peasant clothes: " + String(starter_gear.get("reason", "unknown")))
         return
@@ -2402,6 +2411,8 @@ func _clip_for(mode: String) -> String:
             needle = "walk"
         elif input_name in ["run", "jog_fwd_loop", "sprint_loop"]:
             needle = "run"
+        elif input_name in ["jump", "jump_loop"]:
+            needle = "jump"
     for entry in _animation.get_animation_list():
         var raw := String(entry)
         var label := raw.to_lower()
