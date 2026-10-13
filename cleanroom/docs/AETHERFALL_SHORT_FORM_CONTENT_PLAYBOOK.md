@@ -86,3 +86,43 @@ For marketing shots, Blender is a presentation tool:
 - build loops that can restart seamlessly
 
 Final in-game credibility shots should still come from Godot/Android when the claim is about gameplay.
+
+
+## Knowledge-backed idea generation
+
+Use a repeatable creative brief rather than asking for random ideas every time.
+
+For each Aetherfall short, generate:
+- concept/title
+- opening visual hook
+- 15–25 second script
+- scene-by-scene shot plan
+- Blender/Godot asset requirements
+- final payoff/reveal
+- optional seamless-loop idea
+- truth label: real development footage, dramatized concept, or fictional scenario
+
+Before proposing ideas, consult the Aetherfall production docs and any legitimately licensed/reference materials we have permission to use. Do not rely on pirated books or unauthorized copies.
+
+### Prompting rules
+
+- Ask for multiple concepts at once, then rank them by hook strength, production difficulty, novelty, and relevance to current Aetherfall work.
+- Require a complete ending; avoid unresolved hooks that frustrate the viewer.
+- Prefer third-person narration for documentary-style development stories unless first-person fits the clip.
+- Distinguish clearly between real events and fictional/imagined stories.
+- If a concept requires a new Blender technique (water, destruction, cloth, particles, crowds, etc.), flag it as a learning opportunity and estimate the extra production work.
+- Reuse strong formats instead of reinventing the entire structure for every post.
+
+### Aetherfall-specific creative agent behavior
+
+The idea system should know the current production state:
+- male/female character pipeline
+- modular gear
+- starter town and future interiors
+- NPC/social spaces
+- quests and quest boards
+- blacksmith/inn/guild/player hub plans
+- Android performance constraints
+- goal of creating our own assets
+
+It should prioritize ideas that simultaneously market the game and showcase meaningful development progress.
