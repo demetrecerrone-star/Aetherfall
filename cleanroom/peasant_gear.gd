@@ -50,15 +50,16 @@ static func equip_default(character: Node3D, rig: Skeleton3D, variant: String) -
     return {"ok": true, "parts": generated, "starter_items": STARTER_ITEMS.duplicate(true)}
 
 static func equip_tripo_default(character: Node3D, rig: Skeleton3D, variant: String) -> Dictionary:
-    # The first Tripo preview carried a set of pre-fitted garment objects that
-    # were technically skinned but visibly sat away from the body at sleeves,
-    # hands and seams. Keep those source meshes for reference but never render
-    # them in gameplay. Build the starter clothes from the character's OWN
-    # skinned body surfaces so every vertex inherits the exact same deformation.
+    # The embedded preview garments are useful as source reference, but the
+    # open tunic back and detached sleeve silhouette are not acceptable for the
+    # playable male. Hide those pieces and rebuild the entire starter set from
+    # the character's own skinned body so every cloth vertex follows the exact
+    # same Mixamo deformation as the body underneath.
     if character == null or rig == null:
         return {"ok": false, "reason": "Missing Tripo character or animation skeleton"}
 
-    var source_meshes: Array[MeshInstance3D] = []
+    var body: MeshInstance3D = null
+    var fallback_body: MeshInstance3D = null
     var queue: Array[Node] = [character]
     var legacy_hidden := 0
     while not queue.is_empty():
@@ -66,43 +67,46 @@ static func equip_tripo_default(character: Node3D, rig: Skeleton3D, variant: Str
         if node is MeshInstance3D:
             var visual := node as MeshInstance3D
             var lowered := String(visual.name).to_lower()
-            if lowered.begins_with("af_gear_peasant_"):
+            if lowered.begins_with("af_peasant_") or lowered.begins_with("af_gear_peasant_"):
                 visual.visible = false
                 legacy_hidden += 1
-            elif lowered.begins_with("af_") and visual.mesh != null and visual.skin != null:
-                source_meshes.append(visual)
+            elif visual.mesh != null and visual.skin != null:
+                if fallback_body == null:
+                    fallback_body = visual
+                if lowered.begins_with("tripo_node_") or lowered.contains("body"):
+                    body = visual
         for child in node.get_children():
             queue.append(child)
 
-    if source_meshes.is_empty():
-        return {"ok": false, "reason": "No skinned modular Tripo body regions were found"}
+    if body == null:
+        body = fallback_body
+    if body == null or body.mesh == null or body.skin == null:
+        return {"ok": false, "reason": "No skinned Tripo body surface was found"}
+
+    var bind_names: Array[String] = []
+    for i in range(body.skin.get_bind_count()):
+        var bone_index := body.skin.get_bind_bone(i)
+        bind_names.append(String(rig.get_bone_name(bone_index)) if bone_index >= 0 and bone_index < rig.get_bone_count() else "")
+    if bind_names.is_empty():
+        return {"ok": false, "reason": "Tripo body has no skin binds"}
 
     var generated := 0
-    for source in source_meshes:
-        var lowered := String(source.name).to_lower()
-        # Torso + pelvis + upper arms form a close, deforming tunic. The
-        # narrower belt strip is cut directly from the lower torso surface.
-        if lowered.contains("torso"):
-            generated += _spawn_tripo_shell(source, "Tunic", variant, 0.0, 1.0, 0.006)
-            generated += _spawn_tripo_shell(source, "Belt", variant, 0.0, 0.14, 0.009)
-        elif lowered.contains("pelvis"):
-            generated += _spawn_tripo_shell(source, "Tunic", variant, 0.55, 1.0, 0.006)
-        elif lowered.contains("upperarm") or (lowered.contains("arm") and not lowered.contains("forearm") and not lowered.contains("lowerarm")):
-            generated += _spawn_tripo_shell(source, "Tunic", variant, 0.10, 1.0, 0.006)
-        # Trousers are derived from the thigh/calf skin itself. A small lower
-        # calf section also becomes the boot cuff, preventing a visible gap.
-        elif lowered.contains("thigh"):
-            generated += _spawn_tripo_shell(source, "Trousers", variant, 0.0, 1.0, 0.006)
-        elif lowered.contains("calf") or lowered.contains("shin") or lowered.contains("lowerleg"):
-            generated += _spawn_tripo_shell(source, "Trousers", variant, 0.18, 1.0, 0.006)
-            generated += _spawn_tripo_shell(source, "Boots", variant, 0.0, 0.30, 0.008)
-        elif lowered.contains("foot"):
-            generated += _spawn_tripo_shell(source, "Boots", variant, 0.0, 1.0, 0.008)
+    for part in PARTS:
+        var garment_mesh := _make_tripo_garment(body.mesh, part, bind_names)
+        if garment_mesh == null or garment_mesh.get_surface_count() == 0:
+            return {"ok": false, "reason": "Missing fitted Tripo triangles for " + part}
+        var cloth := MeshInstance3D.new()
+        cloth.name = "AF_Gear_fitted_peasant_" + part
+        body.get_parent().add_child(cloth)
+        cloth.transform = body.transform
+        cloth.skin = body.skin
+        cloth.skeleton = body.skeleton
+        cloth.mesh = garment_mesh
+        cloth.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+        cloth.material_override = _fabric_material(part, variant)
+        generated += 1
 
-    if generated < 10:
-        return {"ok": false, "reason": "Expected fitted body-derived garments; generated only %d pieces" % generated}
-
-    character.set_meta("equipped_outfit", "peasant_clothes")
+    character.set_meta("equipped_outfit", "peasant_clothes_v22")
     character.set_meta("starting_equipment", STARTER_ITEMS.duplicate(true))
     character.set_meta("equipment_slots", EQUIPMENT_SLOTS.duplicate())
     character.set_meta("tutorial_armor_unlocked", false)
@@ -111,6 +115,121 @@ static func equip_tripo_default(character: Node3D, rig: Skeleton3D, variant: Str
     character.set_meta("tripo_body_derived_clothes", true)
     return {"ok": true, "parts": generated, "legacy_hidden": legacy_hidden}
 
+
+static func _mixamo_leaf(name: String) -> String:
+    var clean := name.to_lower()
+    var colon := clean.rfind(":")
+    if colon >= 0:
+        clean = clean.substr(colon + 1)
+    return clean.replace("_", "").replace(" ", "")
+
+
+static func _tripo_region(name: String, normalized_y: float) -> String:
+    var bone := _mixamo_leaf(name)
+    if bone in ["hips", "spine", "spine1", "spine2", "leftshoulder", "rightshoulder"]:
+        if normalized_y >= 0.42 and normalized_y <= 0.85:
+            return "Tunic"
+    if bone in ["leftarm", "rightarm"]:
+        if normalized_y >= 0.53 and normalized_y <= 0.82:
+            return "Tunic"
+    if bone in ["leftupleg", "rightupleg", "leftleg", "rightleg"]:
+        if normalized_y > 0.14 and normalized_y <= 0.50:
+            return "Trousers"
+    if bone in ["leftfoot", "rightfoot", "lefttoebase", "righttoebase", "lefttoeend", "righttoeend"]:
+        return "Boots"
+    if bone in ["leftleg", "rightleg"] and normalized_y <= 0.23:
+        return "Boots"
+    return ""
+
+
+static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array[String]) -> ArrayMesh:
+    var result := ArrayMesh.new()
+    if body_mesh == null:
+        return result
+
+    for surface in range(body_mesh.get_surface_count()):
+        var arrays := body_mesh.surface_get_arrays(surface)
+        var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+        var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+        var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+        var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+        var original_indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+        if verts.is_empty() or normals.size() != verts.size() or original_indices.is_empty() or bones.is_empty() or weights.is_empty():
+            continue
+        var stride := int(bones.size() / verts.size())
+        if stride != 4 and stride != 8:
+            continue
+
+        var low_y := verts[0].y
+        var high_y := verts[0].y
+        for vertex in verts:
+            low_y = minf(low_y, vertex.y)
+            high_y = maxf(high_y, vertex.y)
+        var height := maxf(high_y - low_y, 0.00001)
+
+        var zones := PackedStringArray()
+        var normalized_heights := PackedFloat32Array()
+        var dominant_bones := PackedStringArray()
+        for v in range(verts.size()):
+            var winner := 0
+            var highest := -1.0
+            for j in range(stride):
+                var score := float(weights[v * stride + j])
+                if score > highest:
+                    highest = score
+                    winner = int(bones[v * stride + j])
+            var bind_name := bind_names[winner] if winner >= 0 and winner < bind_names.size() else ""
+            var ny := (verts[v].y - low_y) / height
+            dominant_bones.append(_mixamo_leaf(bind_name))
+            normalized_heights.append(ny)
+            zones.append(_tripo_region(bind_name, ny))
+
+        var garment_indices := PackedInt32Array()
+        for i in range(0, original_indices.size() - 2, 3):
+            var i0 := int(original_indices[i])
+            var i1 := int(original_indices[i + 1])
+            var i2 := int(original_indices[i + 2])
+            if part == "Belt":
+                var avg_y := (normalized_heights[i0] + normalized_heights[i1] + normalized_heights[i2]) / 3.0
+                if avg_y < 0.455 or avg_y > 0.505:
+                    continue
+                var waist_count := int(dominant_bones[i0] in ["hips", "spine"]) + int(dominant_bones[i1] in ["hips", "spine"]) + int(dominant_bones[i2] in ["hips", "spine"])
+                if waist_count < 2:
+                    continue
+            else:
+                var same := int(zones[i0] == part) + int(zones[i1] == part) + int(zones[i2] == part)
+                if same < 2:
+                    continue
+            garment_indices.append_array(PackedInt32Array([i0, i1, i2]))
+
+        if garment_indices.size() < 24:
+            continue
+
+        var expanded: PackedVector3Array = verts.duplicate()
+        for v in range(expanded.size()):
+            var ny := normalized_heights[v]
+            var offset := 0.013
+            if part == "Tunic":
+                # Slightly fuller at the waist/hem while staying close at the
+                # shoulders. This reads as cloth instead of painted-on anatomy.
+                offset = 0.016 + clampf((0.58 - ny) * 0.020, 0.0, 0.006)
+            elif part == "Belt":
+                offset = 0.024
+            elif part == "Boots":
+                offset = 0.017
+            elif part == "Trousers":
+                offset = 0.014
+            expanded[v] = expanded[v] + normals[v] * offset
+
+        var output := arrays.duplicate(true)
+        output[Mesh.ARRAY_VERTEX] = expanded
+        output[Mesh.ARRAY_INDEX] = garment_indices
+        for channel in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
+            output[channel] = null
+        var flags: int = int(body_mesh.surface_get_format(surface)) & int(Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+        result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, output, [], {}, flags)
+
+    return result
 
 static func _spawn_tripo_shell(source: MeshInstance3D, part: String, variant: String, slice_min: float, slice_max: float, offset: float) -> int:
     var shell_mesh := _make_surface_shell(source.mesh, slice_min, slice_max, offset)
