@@ -2190,25 +2190,14 @@ func _load_runtime_glb() -> void:
             _fail("Missing authored pose %s in: %s" % [idle_option, str(_animation.get_animation_list())])
             return
 
-    # The original fitted Tripo preview garments were visibly loose at sleeves,
-    # hands and seams. Hide those draft meshes and rebuild starter clothing from
-    # each character's own skinned body surfaces so cloth shares the exact rig.
+    # Build the playable starter outfit from the character's own skinned body.
+    # This replaces the old open-back embedded tunic and detached-looking sleeves
+    # while preserving the exact Mixamo skeleton, animation clips and base model.
     var starter_gear: Dictionary
-    if _tripo_active and _character_variant == "male":
-        # v21 already contains the corrected, skinned tunic, belt, trousers and boots.
-        # Do not replace them with the older body-derived preview shells.
-        starter_gear = {"ok": true, "parts": 14}
-        _model.set_meta("equipped_outfit", "peasant_clothes_v21")
-        _model.set_meta("starter_clothing_embedded", true)
-        _model.set_meta("starting_equipment", {
-            "chest": "worn_linen_tunic",
-            "legs": "patched_wool_trousers",
-            "feet": "scuffed_leather_boots",
-            "waist": "simple_leather_belt"
-        })
-        _model.set_meta("tutorial_armor_unlocked", false)
+    if _tripo_active:
+        starter_gear = PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant)
     else:
-        starter_gear = PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant) if _tripo_active else PeasantGear.equip_default(_model, _skeleton, _character_variant)
+        starter_gear = PeasantGear.equip_default(_model, _skeleton, _character_variant)
     if not bool(starter_gear.get("ok", false)):
         _fail("Could not equip starting peasant clothes: " + String(starter_gear.get("reason", "unknown")))
         return
