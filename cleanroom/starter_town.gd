@@ -2200,6 +2200,13 @@ func _load_runtime_glb() -> void:
         starter_gear = {"ok": true, "parts": 14}
         _model.set_meta("equipped_outfit", "peasant_clothes_v21")
         _model.set_meta("starter_clothing_embedded", true)
+        _model.set_meta("starting_equipment", {
+            "chest": "worn_linen_tunic",
+            "legs": "patched_wool_trousers",
+            "feet": "scuffed_leather_boots",
+            "waist": "simple_leather_belt"
+        })
+        _model.set_meta("tutorial_armor_unlocked", false)
     else:
         starter_gear = PeasantGear.equip_tripo_default(_model, _skeleton, _character_variant) if _tripo_active else PeasantGear.equip_default(_model, _skeleton, _character_variant)
     if not bool(starter_gear.get("ok", false)):
