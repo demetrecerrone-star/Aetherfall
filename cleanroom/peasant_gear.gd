@@ -166,6 +166,21 @@ static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array
     if body_mesh == null:
         return result
 
+    # Use one height frame for the entire body. Imported Tripo bodies can be
+    # split into surfaces, and per-surface normalization makes torso ranges
+    # meaningless (a torso-only surface would become 0..1 by itself).
+    var global_low_y := INF
+    var global_high_y := -INF
+    for scan_surface in range(body_mesh.get_surface_count()):
+        var scan_arrays := body_mesh.surface_get_arrays(scan_surface)
+        var scan_verts: PackedVector3Array = scan_arrays[Mesh.ARRAY_VERTEX]
+        for vertex in scan_verts:
+            global_low_y = minf(global_low_y, vertex.y)
+            global_high_y = maxf(global_high_y, vertex.y)
+    if not is_finite(global_low_y) or not is_finite(global_high_y):
+        return result
+    var global_height := maxf(global_high_y - global_low_y, 0.00001)
+
     for surface in range(body_mesh.get_surface_count()):
         var arrays := body_mesh.surface_get_arrays(surface)
         var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -178,13 +193,6 @@ static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array
         var stride := int(bones.size() / verts.size())
         if stride != 4 and stride != 8:
             continue
-
-        var low_y := verts[0].y
-        var high_y := verts[0].y
-        for vertex in verts:
-            low_y = minf(low_y, vertex.y)
-            high_y = maxf(high_y, vertex.y)
-        var height := maxf(high_y - low_y, 0.00001)
 
         var zones := PackedStringArray()
         var normalized_heights := PackedFloat32Array()
@@ -199,7 +207,7 @@ static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array
                     highest = score
                     winner = int(bones[v * stride + j])
             var bind_name := bind_names[winner] if winner >= 0 and winner < bind_names.size() else ""
-            var ny := (verts[v].y - low_y) / height
+            var ny := (verts[v].y - global_low_y) / global_height
             dominant_bones.append(_mixamo_leaf(bind_name))
             dominant_weights.append(maxf(highest, 0.0))
             normalized_heights.append(ny)
@@ -223,6 +231,35 @@ static func _make_tripo_garment(body_mesh: Mesh, part: String, bind_names: Array
                     continue
             garment_indices.append_array(PackedInt32Array([i0, i1, i2]))
 
+        # Some imported GLBs expose joint names differently after Godot's
+        # runtime parser. If bone-name classification produces too few faces,
+        # fall back to stable body-height bands rather than failing startup.
+        # The exact original skin weights are still preserved on the selected
+        # body triangles, so animation deformation remains correct.
+        if garment_indices.size() < 24:
+            garment_indices = PackedInt32Array()
+            var band_min := 0.0
+            var band_max := 1.0
+            match part:
+                "Tunic":
+                    band_min = 0.40
+                    band_max = 0.84
+                "Trousers":
+                    band_min = 0.13
+                    band_max = 0.50
+                "Boots":
+                    band_min = 0.0
+                    band_max = 0.24
+                "Belt":
+                    band_min = 0.455
+                    band_max = 0.505
+            for fallback_i in range(0, original_indices.size() - 2, 3):
+                var f0 := int(original_indices[fallback_i])
+                var f1 := int(original_indices[fallback_i + 1])
+                var f2 := int(original_indices[fallback_i + 2])
+                var fallback_y := (normalized_heights[f0] + normalized_heights[f1] + normalized_heights[f2]) / 3.0
+                if fallback_y >= band_min and fallback_y <= band_max:
+                    garment_indices.append_array(PackedInt32Array([f0, f1, f2]))
         if garment_indices.size() < 24:
             continue
 
