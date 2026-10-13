@@ -67,3 +67,60 @@ This is the project-wide quality bar for assets created for Aetherfall. The goal
 ## Production principle
 
 Use multiple references and tutorials to solve each problem, but convert successful techniques into repeatable Aetherfall scripts, checklists, and tests. We are building a content factory, not a collection of one-off fixes.
+
+
+## SouthernShotty study notes adopted into Aetherfall
+
+These rules come from reviewing the available public lesson transcripts and course outlines for SouthernShotty's stylized character, rigging, modeling, texturing, and walk-cycle classes.
+
+### Deformation topology
+
+- Put geometry where deformation actually happens instead of adding uniform density everywhere.
+- Maintain clean edge loops around elbows, wrists, shoulders, hips, knees, ankles, eyes, and mouth.
+- Add extra supporting loops on the compressed side of major bends (especially the back of knees/elbows) when needed.
+- Prefer quad-based authoring topology and triangulate only at the game/export stage when practical.
+- Use poles deliberately to redirect edge flow away from high-deformation areas.
+
+### Weighting strategy for stylized characters and gear
+
+- Do not assume Blender automatic weights are correct for stylized or intersecting meshes.
+- Rigid or nearly rigid accessories (buckles, pouches, hard plates, simple straps) should use explicit/limited bone assignments rather than soft full-body weighting.
+- Soft garments should inherit the character's body weights as a starting point, then be hand-corrected around shoulders, hips, elbows, knees, and ankles.
+- Validate weighting by posing immediately; never judge weights only in rest pose.
+- Keep the underlying character skeleton unchanged so all gear remains compatible with the shared Aetherfall animation library.
+
+### Corrective deformation
+
+- Use corrective shape keys only when topology and weights cannot solve an extreme-pose deformation cleanly.
+- Correctives should target repeatable problem poses, not compensate for generally bad topology.
+- Bendy Bones are useful for secondary flexible elements in Blender authoring (tails, tentacles, some hair/cape controls), but are not part of the core 65-bone gameplay skeleton unless explicitly baked/exported.
+
+### Modeling discipline
+
+- Build from aligned front/side references when accuracy matters.
+- Use Mirror during symmetrical modeling and keep references grouped/toggleable.
+- Add subdivision/supporting loops only where silhouette or deformation needs them.
+- Avoid solving smoothness by brute-force polygon count; use clean shading and efficient topology.
+- Preserve the accepted silhouette first; technical changes do not justify making the character visually worse.
+
+### UV and stylized texturing
+
+- Production assets require saved UVs and saved external texture files; never rely on unsaved Blender paint state.
+- Use paint masking/material separation to keep cloth, leather, skin, and accessories controllable.
+- For mobile assets, use procedural nodes mainly as authoring/baking tools; export portable PBR textures for Godot.
+- Stylized texturing depends heavily on deliberate painting, not only realistic procedural materials.
+- PBR remains the shared transport standard for roughness/metalness/normal information.
+
+### Animation QA poses
+
+For locomotion QA, inspect the four core walk-cycle positions:
+1. Contact
+2. Down
+3. Passing
+4. Up
+
+Garments must be checked at each pose because these expose different knee, hip, ankle, hem, and shoulder compression states. Also test the stylized/anime run separately, since exaggerated poses can reveal failures a normal walk does not.
+
+### Aetherfall implementation consequence
+
+The male peasant baseline is not approved from a single rest render. A pass must preserve or improve the accepted front/3/4/side/back silhouette, then survive the locomotion pose set. Only after that do UV/material improvements become the new baseline.
