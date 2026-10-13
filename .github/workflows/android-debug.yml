@@ -3,6 +3,11 @@ name: Aetherfall Android Debug APK
 on:
   push:
     branches: [main, "fix/**", "feature/**"]
+    paths-ignore:
+      - "cleanroom/**"
+      - "Aetherfall-*-Assets-For-GitHub.zip"
+      - ".github/workflows/starter-town-android.yml"
+      - ".github/workflows/android-debug.yml"
   workflow_dispatch:
 
 permissions:
