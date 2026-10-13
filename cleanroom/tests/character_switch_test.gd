@@ -51,7 +51,7 @@ func _run() -> void:
     if not _check_corrected_male(town):
         return
 
-    print("AETHERFALL_CHARACTER_SWITCH_OK: corrected 65-bone Tripo male with embedded peasant clothes; Universal female fallback; idle/walk/run; two-way switching")
+    print("AETHERFALL_CHARACTER_SWITCH_OK: corrected 65-bone Tripo male with continuous fitted peasant clothes; Universal female fallback; idle/walk/run; two-way switching")
     town.queue_free()
     quit(0)
 
@@ -79,8 +79,14 @@ func _check_corrected_male(town: Node3D) -> bool:
     if absf(model.scale.y - 0.97) > 0.001:
         _fail("Corrected male visual scale changed")
         return false
-    if String(model.get_meta("equipped_outfit", "")) != "peasant_clothes_v21" or not bool(model.get_meta("starter_clothing_embedded", false)):
-        _fail("Corrected embedded peasant outfit metadata missing")
+    if String(model.get_meta("equipped_outfit", "")) != "peasant_clothes_v22":
+        _fail("Corrected fitted peasant outfit metadata missing")
+        return false
+    if not bool(model.get_meta("tripo_body_derived_clothes", false)):
+        _fail("Corrected male is not using the fitted body-weight clothing path")
+        return false
+    if not bool(model.get_meta("peasant_adaptive_joint_clearance", false)):
+        _fail("Adaptive shoulder/hip/knee/ankle clearance is missing")
         return false
     if bool(model.get_meta("tutorial_armor_unlocked", true)):
         _fail("Tutorial armor must remain locked")
@@ -90,18 +96,22 @@ func _check_corrected_male(town: Node3D) -> bool:
         _fail("Corrected male starter loadout metadata is wrong")
         return false
 
-    # These are the actual fitted Blender garments, not the old generated shells.
+    # The current production test path rebuilds four continuous garments from
+    # the male's own skinned body. That guarantees the same 65-bone weights
+    # through idle/walk/run while the Blender-authored silhouette is refined.
     for prefix in [
-        "AF_Peasant_Tunic_Upper", "AF_Peasant_Tunic_Lower",
-        "AF_Peasant_Sleeve_L", "AF_Peasant_Sleeve_R",
-        "AF_Peasant_Belt", "AF_Peasant_Trousers_L",
-        "AF_Peasant_Trousers_R", "AF_Peasant_BootFoot_L",
-        "AF_Peasant_BootFoot_R"
+        "AF_Gear_fitted_peasant_Tunic",
+        "AF_Gear_fitted_peasant_Trousers",
+        "AF_Gear_fitted_peasant_Boots",
+        "AF_Gear_fitted_peasant_Belt"
     ]:
         var garment := _find_mesh_prefix(model, prefix)
-        if garment == null or garment.mesh == null or garment.skin == null:
-            _fail("Missing corrected skinned garment: " + prefix)
+        if garment == null or garment.mesh == null or garment.skin == null or not garment.visible:
+            _fail("Missing corrected continuous skinned garment: " + prefix)
             return false
+    if int(model.get_meta("peasant_skinned_parts", 0)) != 4:
+        _fail("Corrected male should expose exactly four fitted starter garment parts")
+        return false
 
     var rig := town.get("_skeleton") as Skeleton3D
     var player := town.get("_animation") as AnimationPlayer
@@ -120,7 +130,7 @@ func _check_corrected_male(town: Node3D) -> bool:
     if actor == null or absf(actor.scale.y - 1.62) > 0.001:
         _fail("Gameplay actor scale changed for corrected male")
         return false
-    print("AETHERFALL_CORRECTED_MALE_OK: embedded fitted tunic/belt/trousers/boots; 65 bones; idle/walk/run/jump QA")
+    print("AETHERFALL_CORRECTED_MALE_OK: continuous fitted tunic/belt/trousers/boots; adaptive joint clearance; 65 bones; idle/walk/run/jump QA")
     return true
 
 func _check_universal_female(town: Node3D) -> bool:
