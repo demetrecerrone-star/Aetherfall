@@ -3,11 +3,17 @@ extends SceneTree
 ## godot --headless --path cleanroom --script res://tests/tripo_peasant_preview_test.gd
 const MALE := "res://models/tripo/male_peasant_runtime.bin"
 const FEMALE := "res://models/tripo/female_peasant_runtime.bin"
+const PeasantGear = preload("res://peasant_gear.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
+    var blended_tunic_clearance: float = PeasantGear._adaptive_joint_clearance("Tunic", 0.55)
+    var rigid_tunic_clearance: float = PeasantGear._adaptive_joint_clearance("Tunic", 1.0)
+    if blended_tunic_clearance <= 0.0 or blended_tunic_clearance > 0.0071 or rigid_tunic_clearance != 0.0:
+        _fail("Adaptive joint-clearance profile is invalid")
+        return
     if not FileAccess.file_exists(MALE) or not FileAccess.file_exists(FEMALE):
         _fail("Add both fitted Tripo .bin models from the installation ZIP first.")
         return
@@ -76,6 +82,9 @@ func _run() -> void:
         if not bool(model.get_meta("tripo_body_derived_clothes", false)):
             _fail("Tripo clothing path did not use body-derived skin weights: " + gender)
             return
+        if not bool(model.get_meta("peasant_adaptive_joint_clearance", false)):
+            _fail("Adaptive joint clearance was not enabled: " + gender)
+            return
         for mode in ["IDLE","WALK","RUN"]:
             town.call("_set_motion",mode)
             if String(player.current_animation).is_empty():
@@ -96,7 +105,7 @@ func _run() -> void:
             for frame in range(18):
                 await process_frame
     town.queue_free()
-    print("AETHERFALL_TRIPO_PREVIEW_OK: both sexes, four continuous body-derived garment shells, legacy open-back gear hidden, idle/walk/run, clothing camera fade")
+    print("AETHERFALL_TRIPO_PREVIEW_OK: both sexes, four continuous body-derived garment shells, adaptive joint clearance, legacy open-back gear hidden, idle/walk/run, clothing camera fade")
     quit(0)
 
 func _fail(message: String) -> void:
