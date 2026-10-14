@@ -27,4 +27,8 @@ jobs:
           UNITY_CLOUD_PROJECT_ID: '92204c56-3bcf-41b8-8eec-43d1069287a1'
           UNITY_CLOUD_TARGET_ID: 'aetherfall-android'
         run: |
-          python3 tools/unity_cloud_report.py --build 1
+          if python3 tools/unity_cloud_report.py --build 1; then
+            echo 'Reporter must fail when Unity secrets are absent'
+            exit 1
+          fi
+          echo 'PASS: missing Unity secrets are detected and block the API check'
