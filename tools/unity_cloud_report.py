@@ -24,8 +24,8 @@ DASHBOARD = (
 MAX_BYTES = 2_000_000
 ALLOWED_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 CODE_PATTERN = re.compile(
-    r"\\b(?:CS[0-9]{4}|IL2CPP|Gradle|IOException|BuildFailedException|"
-    r"Unauthorized|PackageManager|NullReferenceException)\\b",
+    r"\b(?:CS[0-9]{4}|IL2CPP|Gradle|IOException|BuildFailedException|"
+    r"Unauthorized|PackageManager|NullReferenceException)\b",
     re.IGNORECASE,
 )
 
@@ -108,7 +108,7 @@ def make_summary(build, chosen, org, project, target):
         "",
         "**Build #" + str(chosen) + ": " + status + "**",
         "",
-        "- Target: \`" + short_text(target) + "\`",
+        "- Target: `" + short_text(target) + "`",
         "- Platform: " + platform,
         "- API version: Build Automation v2 (read-only)",
         "- Checked: " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -140,7 +140,7 @@ def make_summary(build, chosen, org, project, target):
         "Full Unity logs and authenticated APK download links stay inside Unity Cloud.",
         "This report intentionally excludes raw logs, secret values, and signed URLs.",
     ]
-    return "\\n".join(result).replace("\\n", "\n") + "\n"
+    return "\n".join(result) + "\n"
 
 
 def report(message):
@@ -184,8 +184,8 @@ def main():
         report(
             "## Aetherfall Unity Cloud reporting needs authorization\n\n"
             "Add the repository Actions secrets "
-            "\`UNITY_SERVICE_ACCOUNT_KEY_ID\` and "
-            "\`UNITY_SERVICE_ACCOUNT_SECRET_KEY\`, then rerun this workflow.\n\n"
+            "`UNITY_SERVICE_ACCOUNT_KEY_ID` and "
+            "`UNITY_SERVICE_ACCOUNT_SECRET_KEY`, then rerun this workflow.\n\n"
             "No Unity build was started or modified.\n"
         )
         print("::notice::Unity service-account secrets are not configured")
