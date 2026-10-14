@@ -196,8 +196,10 @@ namespace Aetherfall.Editor
 
         private static Material Surface(string label, string hex)
         {
-            if (Materials.TryGetValue(label, out Material existing)) return existing;
-            Material persisted = AssetDatabase.LoadAssetAtPath<Material>(MaterialsPath + "/" + label + ".mat");
+            // Distinct palettes per building need distinct persisted materials.
+            string key = label + "_" + hex.TrimStart('#');
+            if (Materials.TryGetValue(key, out Material existing)) return existing;
+            Material persisted = AssetDatabase.LoadAssetAtPath<Material>(MaterialsPath + "/" + key + ".mat");
             if (persisted == null)
             {
                 if (!AssetDatabase.IsValidFolder(MaterialsPath))
@@ -209,7 +211,7 @@ namespace Aetherfall.Editor
                 var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
                 if (shader == null) throw new InvalidOperationException("No compatible Unity material shader found.");
                 persisted = new Material(shader);
-                AssetDatabase.CreateAsset(persisted, MaterialsPath + "/" + label + ".mat");
+                AssetDatabase.CreateAsset(persisted, MaterialsPath + "/" + key + ".mat");
             }
             if (ColorUtility.TryParseHtmlString(hex, out Color color))
             {
@@ -217,7 +219,7 @@ namespace Aetherfall.Editor
                 if (persisted.HasProperty("_BaseColor")) persisted.SetColor("_BaseColor", color);
                 EditorUtility.SetDirty(persisted);
             }
-            Materials[label] = persisted;
+            Materials[key] = persisted;
             return persisted;
         }
 
