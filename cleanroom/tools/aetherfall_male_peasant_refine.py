@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v70"
+    obj["aetherfall_qa_version"] = "v71"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -322,6 +322,8 @@ def _material(name, color, roughness):
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     mat.diffuse_color = (*color, 1.0)
     mat.use_nodes = True
+    if hasattr(mat, "use_backface_culling"):
+        mat.use_backface_culling = False
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
     if bsdf:
         bsdf.inputs["Base Color"].default_value = (*color, 1.0)
@@ -368,7 +370,7 @@ def _elliptic_tube(name, rings, segments=24):
         nxt = (r + 1) * segments
         for i in range(segments):
             j = (i + 1) % segments
-            faces.append((base + i, base + j, nxt + j, nxt + i))
+            faces.append((base + i, nxt + i, nxt + j, base + j))
     mesh = bpy.data.meshes.new(name + "_Mesh")
     mesh.from_pydata(verts, [], faces)
     mesh.update()
@@ -459,7 +461,7 @@ def _styled_tube(name, rings, segments=28, fold_strength=0.018, hem_wobble=0.0):
         b0 = (r + 1) * segments
         for i in range(segments):
             j = (i + 1) % segments
-            faces.append((a0 + i, a0 + j, b0 + j, b0 + i))
+            faces.append((a0 + i, b0 + i, b0 + j, a0 + j))
     mesh = bpy.data.meshes.new(name + "_Mesh")
     mesh.from_pydata(verts, [], faces)
     mesh.update()
@@ -490,16 +492,18 @@ def _build_primary_cloth(body, rig, part_objects):
         hy = (mx.y - mn.y) * 0.5
         h = mx.z - mn.z
         rings = [
-            (mx.z - h*0.015, cx, cy, hx*0.34, hy*0.31, 0.00), # neck
-            (mx.z - h*0.115, cx, cy, hx*0.86, hy*0.79, 0.35), # shoulders
-            (mx.z - h*0.285, cx, cy, hx*0.83, hy*0.78, 0.75), # chest
-            (mx.z - h*0.465, cx, cy, hx*0.78, hy*0.75, 1.10), # ribs
-            (mx.z - h*0.625, cx, cy, hx*0.70, hy*0.69, 1.55), # waist
-            (mx.z - h*0.735, cx, cy, hx*0.69, hy*0.68, 2.05), # belt gather
-            (mx.z - h*0.865, cx, cy, hx*0.77, hy*0.72, 2.45), # lower flare
-            (mn.z + h*0.010, cx, cy, hx*0.82, hy*0.74, 2.90), # hem
+            (mx.z - h*0.018, cx, cy, hx*0.30, hy*0.27, 0.00), # neck opening
+            (mx.z - h*0.070, cx, cy, hx*0.66, hy*0.60, 0.20), # collar/shoulder slope
+            (mx.z - h*0.135, cx, cy, hx*0.94, hy*0.82, 0.42), # shoulder seam
+            (mx.z - h*0.260, cx, cy, hx*0.87, hy*0.79, 0.72), # upper chest
+            (mx.z - h*0.410, cx, cy, hx*0.81, hy*0.76, 1.08), # lower chest
+            (mx.z - h*0.565, cx, cy, hx*0.74, hy*0.70, 1.42), # ribs
+            (mx.z - h*0.690, cx, cy, hx*0.68, hy*0.65, 1.82), # waist gather
+            (mx.z - h*0.770, cx, cy, hx*0.67, hy*0.64, 2.08), # under belt
+            (mx.z - h*0.885, cx, cy, hx*0.74, hy*0.69, 2.46), # skirt flare
+            (mn.z + h*0.012, cx, cy, hx*0.79, hy*0.72, 2.86), # hem
         ]
-        tunic = _styled_tube("AF_Tunic_Primary", rings, 32, fold_strength=0.055, hem_wobble=-h*0.030)
+        tunic = _styled_tube("AF_Tunic_Primary", rings, 32, fold_strength=0.075, hem_wobble=-h*0.018)
         tunic.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.205, 0.175, 0.135), 0.93))
         tunic["aetherfall_subpart"] = "primary_tunic"
         created.append((tunic, "Tunic", "primary_tunic", body))
@@ -520,10 +524,11 @@ def _build_primary_cloth(body, rig, part_objects):
         thy = (tmx.y - tmn.y) * 0.5
         th = tmx.z - tmn.z
         pelvis_rings = [
-            (tmx.z + th*0.015, tcx, tcy, thx*0.88, thy*0.83, 0.2),
-            (tmx.z - th*0.17,  tcx, tcy, thx*0.82, thy*0.76, 0.8),
+            (tmx.z + th*0.010, tcx, tcy, thx*0.68, thy*0.63, 0.2),
+            (tmx.z - th*0.13,  tcx, tcy, thx*0.66, thy*0.60, 0.8),
+            (tmx.z - th*0.22,  tcx, tcy, thx*0.62, thy*0.57, 1.2),
         ]
-        pelvis = _styled_tube("AF_Trousers_Pelvis", pelvis_rings, 28, fold_strength=0.025)
+        pelvis = _styled_tube("AF_Trousers_Pelvis", pelvis_rings, 28, fold_strength=0.018)
         pelvis.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
         pelvis["aetherfall_subpart"] = "trouser_pelvis"
         created.append((pelvis, "Trousers", "trouser_pelvis", body))
@@ -537,17 +542,18 @@ def _build_primary_cloth(body, rig, part_objects):
             h = mx.z - mn.z
             side_phase = 0.45 if cx >= tcx else 1.25
             rings = [
-                (mx.z - h*0.01, cx, cy, hx*0.90, hy*0.84, side_phase),
-                (mx.z - h*0.18, cx, cy, hx*0.98, hy*0.91, side_phase+0.5),
-                (mx.z - h*0.39, cx, cy, hx*1.04, hy*0.96, side_phase+1.0),
-                (mx.z - h*0.55, cx, cy, hx*1.10, hy*1.00, side_phase+1.6), # knee bunch
-                (mx.z - h*0.68, cx, cy, hx*0.99, hy*0.92, side_phase+2.0),
-                (mx.z - h*0.82, cx, cy, hx*0.82, hy*0.78, side_phase+2.5),
-                (mn.z + h*0.01, cx, cy, hx*0.67, hy*0.65, side_phase+3.0),
+                (mx.z - h*0.01, cx, cy, hx*0.66, hy*0.60, side_phase),
+                (mx.z - h*0.15, cx, cy, hx*0.72, hy*0.65, side_phase+0.45),
+                (mx.z - h*0.34, cx, cy, hx*0.76, hy*0.69, side_phase+0.95),
+                (mx.z - h*0.50, cx, cy, hx*0.82, hy*0.74, side_phase+1.50), # knee bunch
+                (mx.z - h*0.61, cx, cy, hx*0.78, hy*0.70, side_phase+1.95),
+                (mx.z - h*0.73, cx, cy, hx*0.72, hy*0.66, side_phase+2.35),
+                (mx.z - h*0.85, cx, cy, hx*0.64, hy*0.60, side_phase+2.75),
+                (mn.z + h*0.01, cx, cy, hx*0.56, hy*0.54, side_phase+3.05),
             ]
             leg = _styled_tube(
                 "AF_Trouser_Primary_%s" % ("L" if cx >= tcx else "R"),
-                rings, 22, fold_strength=0.060, hem_wobble=h*0.010
+                rings, 22, fold_strength=0.045, hem_wobble=h*0.006
             )
             leg.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
             leg["aetherfall_subpart"] = "primary_trouser_leg"
@@ -695,11 +701,72 @@ def _continuity_pieces(body, rig, part_objects):
     return created
 
 
+
+def _build_boot_layers(body, rig, part_objects):
+    created = []
+    boots = part_objects.get("Boots", [])
+    shafts = [o for o in boots if "bootshaft" in str(o.get("aetherfall_source_name", "")).lower()]
+    for shaft in shafts:
+        mn, mx = world_bounds(shaft)
+        cx = (mn.x + mx.x) * 0.5
+        cy = (mn.y + mx.y) * 0.5
+        rx = (mx.x - mn.x) * 0.50
+        ry = (mx.y - mn.y) * 0.50
+        h = mx.z - mn.z
+        side = "L" if cx >= 0 else "R"
+        bone = "mixamorig:LeftLeg" if cx >= 0 else "mixamorig:RightLeg"
+        # Closed shaft underlay prevents calf/heel holes while the original
+        # source leather remains visible as the outer sculpt.
+        shaft_rings = [
+            (mx.z - h*0.04, cx, cy, rx*0.80, ry*0.76),
+            (mn.z + h*0.05, cx, cy, rx*0.72, ry*0.69),
+        ]
+        under = _elliptic_tube("AF_Boot_ShaftFill_" + side, shaft_rings, 20)
+        under.data.materials.append(_material("AF_Scuffed_Leather_Boots", (0.050,0.024,0.012), 0.84))
+        under["aetherfall_subpart"] = "boot_shaft_fill"
+        under["aetherfall_rigid_bone"] = bone
+        created.append((under, "Boots", "boot_shaft_fill"))
+        for idx, frac in enumerate((0.28, 0.56, 0.80), start=1):
+            zc = mn.z + h*frac
+            thick = max(0.006, h*0.055)
+            band = _elliptic_tube("AF_Boot_Wrap_%s_%d" % (side, idx), [
+                (zc-thick*0.5, cx, cy, rx*0.99, ry*0.98),
+                (zc+thick*0.5, cx, cy, rx*1.04, ry*1.02),
+            ], 18)
+            band.data.materials.append(_material("AF_Boot_Wrap_Leather", (0.037,0.017,0.009), 0.87))
+            band["aetherfall_subpart"] = "boot_wrap"
+            band["aetherfall_rigid_bone"] = bone
+            created.append((band, "Boots", "boot_wrap"))
+
+    feet = [o for o in boots if "bootfoot" in str(o.get("aetherfall_source_name", "")).lower()]
+    for foot in feet:
+        mn, mx = world_bounds(foot)
+        center = (mn + mx) * 0.5
+        side = "L" if center.x >= 0 else "R"
+        bone = "mixamorig:LeftFoot" if center.x >= 0 else "mixamorig:RightFoot"
+        # Slightly inset rounded leather fill closes exposed toes/heels.
+        fill = _ellipsoid(
+            "AF_Boot_FootFill_" + side,
+            center + Vector((0.0, (mn.y-mx.y)*0.015, 0.0)),
+            (
+                max(0.012, (mx.x-mn.x)*0.34),
+                max(0.018, (mx.y-mn.y)*0.39),
+                max(0.012, (mx.z-mn.z)*0.31),
+            ),
+            18, 8
+        )
+        fill.data.materials.append(_material("AF_Scuffed_Leather_Boots", (0.050,0.024,0.012), 0.84))
+        fill["aetherfall_subpart"] = "boot_foot_fill"
+        fill["aetherfall_rigid_bone"] = bone
+        created.append((fill, "Boots", "boot_foot_fill"))
+    return created
+
+
 def look_at(obj, target):
     direction = Vector(target) - obj.location
     obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
-def setup_render(body, garments, out_dir):
+def setup_render(body, garments, rig, out_dir):
     scene = bpy.context.scene
     scene.render.resolution_x = 720
     scene.render.resolution_y = 900
@@ -763,6 +830,35 @@ def setup_render(body, garments, out_dir):
         look_at(cam, target)
         scene.render.filepath = str(out_dir / (name + ".png"))
         bpy.ops.render.render(write_still=True)
+
+    # Deformation stress checkpoints: use the imported actions directly so
+    # shoulder, hip, knee and ankle failures are visible before Godot import.
+    previous_action = rig.animation_data.action if rig.animation_data else None
+    previous_frame = scene.frame_current
+    stress_views = {
+        "walk_front": ("walk", views["front"]),
+        "walk_34": ("walk", views["front34"]),
+        "run_front": ("run", views["front"]),
+        "run_34": ("run", views["front34"]),
+    }
+    actions = list(bpy.data.actions)
+    for filename, (needle, pos) in stress_views.items():
+        action = next((a for a in actions if needle in a.name.lower()), None)
+        if action is None:
+            continue
+        rig.animation_data_create()
+        rig.animation_data.action = action
+        start, end = action.frame_range
+        frame = int(round(start + (end-start) * (0.44 if needle == "walk" else 0.38)))
+        scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        cam.location = pos
+        look_at(cam, target)
+        scene.render.filepath = str(out_dir / (filename + ".png"))
+        bpy.ops.render.render(write_still=True)
+    if rig.animation_data:
+        rig.animation_data.action = previous_action
+    scene.frame_set(previous_frame)
 
 def main():
     a = parse_args()
@@ -829,12 +925,37 @@ def main():
             "subpart": subpart,
         })
 
+    boot_layer_count = 0
+    for extra, part, subpart in _build_boot_layers(body, rig, part_objects):
+        rigid_bone = str(extra.get("aetherfall_rigid_bone", ""))
+        if rigid_bone:
+            _assign_rigid_weight(extra, rig, rigid_bone)
+        else:
+            transfer_weights(body, extra, rig)
+            clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio = matching_weight_ratio(extra, rig)
+        garment_candidates.append(extra)
+        boot_layer_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall authored " + subpart,
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
+        })
+
     # Keep metadata on the character as well for Godot import tooling.
     body["aetherfall_body_profile"] = "male_anime_v1"
     body["aetherfall_body_regions"] = "Head,Neck,Torso,Pelvis,UpperArm.L,UpperArm.R,Forearm.L,Forearm.R,Hand.L,Hand.R,Thigh.L,Thigh.R,Calf.L,Calf.R,Foot.L,Foot.R"
     body["aetherfall_skeleton_profile"] = "AF_65"
 
-    setup_render(body, garment_candidates, Path(a.render_dir).resolve())
+    setup_render(body, garment_candidates, rig, Path(a.render_dir).resolve())
 
     # The broken source torso/trouser panels were useful fit/weight donors only.
     # Remove them from the shipping GLB after QA rendering.
@@ -856,13 +977,14 @@ def main():
     )
 
     data = {
-        "version": "v70",
+        "version": "v71",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
         "body": body.name,
         "authored_garment_objects": len(garment_candidates),
         "replacement_cloth_pieces": continuity_count,
+        "boot_layer_pieces": boot_layer_count,
         "parts": counters,
         "garments": report_items,
         "uses_body_derived_shells": False,
@@ -872,7 +994,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V70_OK")
+    print("AETHERFALL_MALE_PEASANT_V71_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
