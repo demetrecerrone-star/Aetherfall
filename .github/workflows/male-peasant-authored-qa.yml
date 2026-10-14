@@ -24,7 +24,7 @@ jobs:
       - name: Install Blender
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender python3-numpy
           blender --version
 
       - name: Prepare runtime GLB
@@ -35,11 +35,15 @@ jobs:
 
       - name: Refine authored garments and render QA
         run: |
+          set -o pipefail
           blender -b --python cleanroom/tools/aetherfall_male_peasant_refine.py -- \
             --input builds/male_peasant_v64/source.glb \
             --output builds/male_peasant_v64/AF_Male_Peasant_Authored_v64.glb \
             --report builds/male_peasant_v64/report.json \
-            --render-dir builds/male_peasant_v64/renders
+            --render-dir builds/male_peasant_v64/renders \
+            2>&1 | tee builds/male_peasant_v64/blender.log
+          grep -q "AETHERFALL_MALE_PEASANT_V64_OK" builds/male_peasant_v64/blender.log
+          test -s builds/male_peasant_v64/report.json
 
       - name: Validate authored pass
         run: |
@@ -65,3 +69,4 @@ jobs:
           path: builds/male_peasant_v64/
           retention-days: 21
           if-no-files-found: error
+        if: always()
