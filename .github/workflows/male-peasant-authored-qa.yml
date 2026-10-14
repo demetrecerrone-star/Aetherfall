@@ -1,0 +1,67 @@
+name: Male Peasant Authored Blender QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/male-peasant-v19-apk-test
+    paths:
+      - "cleanroom/tools/aetherfall_male_peasant_refine.py"
+      - "cleanroom/models/tripo/male_peasant_runtime.bin"
+      - ".github/workflows/male-peasant-authored-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  refine-and-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Aetherfall
+        uses: actions/checkout@v4
+
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender
+          blender --version
+
+      - name: Prepare runtime GLB
+        run: |
+          mkdir -p builds/male_peasant_v64
+          cp cleanroom/models/tripo/male_peasant_runtime.bin builds/male_peasant_v64/source.glb
+          test -s builds/male_peasant_v64/source.glb
+
+      - name: Refine authored garments and render QA
+        run: |
+          blender -b --python cleanroom/tools/aetherfall_male_peasant_refine.py -- \
+            --input builds/male_peasant_v64/source.glb \
+            --output builds/male_peasant_v64/AF_Male_Peasant_Authored_v64.glb \
+            --report builds/male_peasant_v64/report.json \
+            --render-dir builds/male_peasant_v64/renders
+
+      - name: Validate authored pass
+        run: |
+          python3 - <<'PY'
+          import json
+          p="builds/male_peasant_v64/report.json"
+          d=json.load(open(p))
+          assert d["armature_bones"] == 65, d
+          assert d["authored_garment_objects"] > 0, d
+          assert d["uses_body_derived_shells"] is False, d
+          assert all(x["weight_ratio_after"] >= 0.98 for x in d["garments"]), d
+          print("AETHERFALL_AUTHORED_GARMENT_QA_OK", d["parts"])
+          PY
+          test -s builds/male_peasant_v64/renders/front.png
+          test -s builds/male_peasant_v64/renders/front34.png
+          test -s builds/male_peasant_v64/renders/side.png
+          test -s builds/male_peasant_v64/AF_Male_Peasant_Authored_v64.glb
+
+      - name: Upload authored male peasant checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-Male-Peasant-Authored-v64
+          path: builds/male_peasant_v64/
+          retention-days: 21
+          if-no-files-found: error
