@@ -101,7 +101,7 @@ namespace Aetherfall.Editor
             House(landmarks, "Healing Shrine", new Vector3(67, 0, 52), 21, 19, 11, "#C7CFDC", "#6C79A1");
             House(landmarks, "Bakery", new Vector3(-37, 0, -64), 18, 13, 8, "#C4A67B", "#755C57");
             House(landmarks, "Apothecary", new Vector3(38, 0, -63), 18, 13, 8, "#C3B7A3", "#5D8176");
-            Market(landmarks, new Vector3(75, 0, 9));
+            Market(landmarks, new Vector3(75, 0, 22));
             TrainingYard(landmarks, new Vector3(80, 0, -70));
 
             // Repeatable residential blockout. These are editable individual objects.
