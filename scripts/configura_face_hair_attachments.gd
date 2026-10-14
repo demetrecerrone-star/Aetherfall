@@ -16,14 +16,22 @@ static func mount(model: Node3D, variant: String) -> Dictionary:
     if skeletons.size() != 1:
         return {}
     var rig := skeletons[0] as Skeleton3D
-    var head_index := rig.find_bone(HEAD_BONE)
+    # Godot sanitizes glTF bone names because ':' is forbidden in Skeleton3D.
+    # Recognize the actual imported bone name. Never rename the source GLB.
+    var head_index := rig.find_bone("Head")
+    if head_index < 0:
+        for i in range(rig.get_bone_count()):
+            var label := str(rig.get_bone_name(i)).to_lower().replace("_", "").replace(":", "")
+            if label in ["head", "mixamorighead"]:
+                head_index = i
+                break
     if head_index < 0:
         return {}
     # BoneAttachment follows actual animated head pose; frame below uses a
     # fixed inverse of the initial head transform. Source model is untouched.
     var attachment := BoneAttachment3D.new()
     attachment.name = "AetherfallHeadOptions"
-    attachment.bone_name = HEAD_BONE
+    attachment.bone_name = rig.get_bone_name(head_index)
     rig.add_child(attachment)
     var frame := Node3D.new()
     frame.name = "OriginalModelCoordinateFrame"
@@ -67,7 +75,7 @@ static func mount(model: Node3D, variant: String) -> Dictionary:
         "irises": irises,
         "hair_color": HAIR_COLOR_DEFAULT,
         "iris_color": IRIS_COLOR_DEFAULT,
-        "head_bone": HEAD_BONE,
+        "head_bone": rig.get_bone_name(head_index),
     }
 
 
