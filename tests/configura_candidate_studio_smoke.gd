@@ -6,6 +6,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+    print("CONFIGURA_STAGE_1_LOADING_SCENE")
     var candidate_scene := load("res://scenes/configura_candidate_studio.tscn") as PackedScene
     if candidate_scene == null:
         _fail("Candidate studio scene does not parse")
@@ -14,9 +15,12 @@ func _run() -> void:
     if node == null:
         _fail("Candidate studio is not a Node3D")
         return
+    print("CONFIGURA_STAGE_2_SCENE_INSTANCE")
     root.add_child(node)
     await process_frame
+    print("CONFIGURA_STAGE_3_FIRST_FRAME")
 
+    print("CONFIGURA_STAGE_4_CHECKING_CONFIG")
     var config := node.get("character_config") as CharacterConfig
     var state := node.get("character_state") as CharacterState
     if config == null or state == null:
@@ -34,6 +38,7 @@ func _run() -> void:
     if screen == null:
         _fail("Candidate selection interface is missing")
         return
+    print("CONFIGURA_STAGE_5_CHECKING_COLORS")
     node.call("_choose_tint", 2)
     if state.values.get("prototype_base_tint") != Color("#bb886a"):
         _fail("Configura ColorOption not recorded in CharacterState")
@@ -53,6 +58,7 @@ func _run() -> void:
         return
 
     # Missing private GLBs should give a useful UI explanation, not crash.
+    print("CONFIGURA_STAGE_6_CHECKING_MISSING_MODEL_UI")
     node.call("_load_character", "female")
     var message := node.find_child("CandidateStatus", true, false) as Label
     if message == null or message.text.is_empty():
@@ -61,6 +67,7 @@ func _run() -> void:
     if str(node.get("current_character")) not in ["male", "female"]:
         _fail("Studio accepted an unknown character type")
         return
+    print("CONFIGURA_STAGE_7_COMPLETE")
     print("AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_OK: model, three appearance options, isolated color state, UI initialized")
     node.queue_free()
     quit(0)
