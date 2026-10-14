@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v68"
+    obj["aetherfall_qa_version"] = "v69"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -281,22 +281,26 @@ def _reshape_authored_garment(obj, original_name):
         elif "trousers" in name:
             # Baggy thigh/knee volume with a deliberate taper into the boot.
             bulge = math.sin(math.pi * t)
-            radial = 0.82 + 0.19 * t + 0.13 * bulge
+            knee_bunch = math.exp(-((t - 0.34) / 0.17) ** 2)
+            radial = 0.82 + 0.19 * t + 0.13 * bulge + 0.075 * knee_bunch
             p.x = center.x + (p.x - center.x) * radial
             p.y = center.y + (p.y - center.y) * (radial * 0.98)
             # Tiny asymmetrical cloth undulation; this is silhouette, not a fake
             # high-frequency wrinkle substitute for the later normal bake.
-            p.x += side * 0.0025 * math.sin(t * math.pi * 5.0)
-            p.y += 0.0020 * math.sin(t * math.pi * 6.0 + side)
+            p.x += side * (0.0025 + 0.0025 * knee_bunch) * math.sin(t * math.pi * 5.0)
+            p.y += (0.0020 + 0.0028 * knee_bunch) * math.sin(t * math.pi * 6.0 + side)
 
         elif "bootshaft" in name:
             p.x = center.x + (p.x - center.x) * 0.94
             p.y = center.y + (p.y - center.y) * 0.92
 
         elif "bootfoot" in name:
-            p.x = center.x + (p.x - center.x) * 0.92
+            half_y = max(1e-6, (mx.y - mn.y) * 0.5)
+            toe = max(0.0, min(1.0, (center.y - p.y) / half_y))
+            toe_width = 0.92 - 0.12 * toe
+            p.x = center.x + (p.x - center.x) * toe_width
             p.y = center.y + (p.y - center.y) * 0.90
-            p.z = center.z + (p.z - center.z) * 0.96
+            p.z = center.z + (p.z - center.z) * (0.96 - 0.05 * toe)
 
         elif "cuff" in name:
             p.x = center.x + (p.x - center.x) * 0.96
@@ -374,6 +378,52 @@ def _elliptic_tube(name, rings, segments=24):
         p.use_smooth = True
     return obj
 
+
+def _assign_rigid_weight(obj, rig, bone_name):
+    for vg in list(obj.vertex_groups):
+        obj.vertex_groups.remove(vg)
+    if rig.data.bones.get(bone_name) is None:
+        raise RuntimeError("Rigid garment bone not found: " + bone_name)
+    vg = obj.vertex_groups.new(name=bone_name)
+    vg.add(list(range(len(obj.data.vertices))), 1.0, "REPLACE")
+
+def _back_panel(name, rows, cols=7):
+    """Create a cloth back panel. Each row is (z, cx, y, half_width, neck_dip)."""
+    verts = []
+    faces = []
+    for row_index, (z, cx, y, halfw, dip) in enumerate(rows):
+        for col in range(cols):
+            nx = -1.0 + 2.0 * col / (cols - 1)
+            local_z = z
+            if row_index == 0:
+                local_z -= dip * max(0.0, 1.0 - abs(nx) * 1.75)
+            verts.append((cx + halfw * nx, y, local_z))
+    for r in range(len(rows)-1):
+        for col in range(cols-1):
+            a = r * cols + col
+            b = a + 1
+            c2 = (r + 1) * cols + col + 1
+            d = (r + 1) * cols + col
+            # Winding points toward +Y (the character's back).
+            faces.append((a, b, c2, d))
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for p in mesh.polygons:
+        p.use_smooth = True
+    return obj
+
+def _ellipsoid(name, center, scale, segments=20, rings=10):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=segments, ring_count=rings, radius=1.0, location=center)
+    obj = bpy.context.object
+    obj.name = name
+    obj.scale = scale
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    return obj
+
+
 def _continuity_pieces(body, rig, part_objects):
     """Add authored cloth underlays only where the source garment is physically open.
 
@@ -403,6 +453,22 @@ def _continuity_pieces(body, rig, part_objects):
         under["aetherfall_subpart"] = "continuity_underlay"
         created.append((under, "Tunic", "continuity_underlay"))
 
+        # The imported source tunic has a deliberately unusable open back.
+        # Build one lightweight authored back panel with a shallow neckline,
+        # shoulder width, waist suppression and lower-hem flare.
+        back_y = cy + hy * 0.96
+        rows = [
+            (mx.z - h * 0.035, cx, cy + hy * 0.84, hx * 0.78, h * 0.050),
+            (mx.z - h * 0.17,  cx, back_y,          hx * 0.84, 0.0),
+            (mx.z - h * 0.45,  cx, back_y,          hx * 0.76, 0.0),
+            (mx.z - h * 0.70,  cx, cy + hy * 0.91, hx * 0.68, 0.0),
+            (mn.z + h * 0.02,  cx, cy + hy * 0.87, hx * 0.79, 0.0),
+        ]
+        back = _back_panel("AF_Tunic_BackPanel", rows, 7)
+        back.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.205, 0.175, 0.135), 0.93))
+        back["aetherfall_subpart"] = "back_panel"
+        created.append((back, "Tunic", "back_panel"))
+
     trousers = part_objects.get("Trousers", [])
     if trousers:
         mn, mx = _combined_bounds(trousers)
@@ -422,6 +488,26 @@ def _continuity_pieces(body, rig, part_objects):
         bridge.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
         bridge["aetherfall_subpart"] = "pelvis_underlay"
         created.append((bridge, "Trousers", "pelvis_underlay"))
+
+        # Each source trouser leg is also incomplete at the rear. A smaller
+        # full tube underneath preserves the authored outer folds while
+        # guaranteeing cloth coverage through knee/ankle poses.
+        for leg_index, leg in enumerate(trousers, start=1):
+            lmn, lmx = world_bounds(leg)
+            lcx = (lmn.x + lmx.x) * 0.5
+            lcy = (lmn.y + lmx.y) * 0.5
+            lhx = (lmx.x - lmn.x) * 0.5
+            lhy = (lmx.y - lmn.y) * 0.5
+            lh = lmx.z - lmn.z
+            leg_rings = [
+                (lmx.z - lh * 0.02, lcx, lcy, lhx * 0.76, lhy * 0.66),
+                (lmn.z + lh * 0.48, lcx, lcy, lhx * 0.74, lhy * 0.64),
+                (lmn.z + lh * 0.02, lcx, lcy, lhx * 0.62, lhy * 0.56),
+            ]
+            leg_under = _elliptic_tube("AF_Trouser_LegUnderlay_%d" % leg_index, leg_rings, 20)
+            leg_under.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
+            leg_under["aetherfall_subpart"] = "leg_underlay"
+            created.append((leg_under, "Trousers", "leg_underlay"))
 
     # Add two thin irregular-looking wrap bands per boot shaft. They give the
     # otherwise simple mobile boot silhouette a layered peasant construction.
@@ -444,7 +530,32 @@ def _continuity_pieces(body, rig, part_objects):
             band = _elliptic_tube("AF_Boot_Wrap_%s_%d" % ("L" if cx >= 0 else "R", band_index), rings, 18)
             band.data.materials.append(_material("AF_Scuffed_Leather_Boots", (0.048, 0.023, 0.012), 0.84))
             band["aetherfall_subpart"] = "boot_wrap"
+            band["aetherfall_rigid_bone"] = "mixamorig:LeftLeg" if cx >= 0 else "mixamorig:RightLeg"
             created.append((band, "Boots", "boot_wrap"))
+
+        # Fill the source shaft's open rear with a smaller rigid leather tube.
+        shaft_rings = [
+            (mx.z - h * 0.02, cx, cy, rx * 0.79, ry * 0.74),
+            (mn.z + h * 0.02, cx, cy, rx * 0.72, ry * 0.70),
+        ]
+        shaft_under = _elliptic_tube("AF_Boot_ShaftUnderlay_%s" % ("L" if cx >= 0 else "R"), shaft_rings, 18)
+        shaft_under.data.materials.append(_material("AF_Scuffed_Leather_Boots", (0.055, 0.028, 0.014), 0.82))
+        shaft_under["aetherfall_subpart"] = "boot_shaft_underlay"
+        shaft_under["aetherfall_rigid_bone"] = "mixamorig:LeftLeg" if cx >= 0 else "mixamorig:RightLeg"
+        created.append((shaft_under, "Boots", "boot_shaft_underlay"))
+
+    feet = [o for o in boots if "bootfoot" in str(o.get("aetherfall_source_name", "")).lower()]
+    for foot in feet:
+        mn, mx = world_bounds(foot)
+        center = (mn + mx) * 0.5
+        sx = max(0.01, (mx.x - mn.x) * 0.38)
+        sy = max(0.01, (mx.y - mn.y) * 0.40)
+        sz = max(0.01, (mx.z - mn.z) * 0.34)
+        fill = _ellipsoid("AF_Boot_FootUnderlay_%s" % ("L" if center.x >= 0 else "R"), center, (sx, sy, sz), 18, 8)
+        fill.data.materials.append(_material("AF_Scuffed_Leather_Boots", (0.055, 0.028, 0.014), 0.82))
+        fill["aetherfall_subpart"] = "boot_foot_underlay"
+        fill["aetherfall_rigid_bone"] = "mixamorig:LeftFoot" if center.x >= 0 else "mixamorig:RightFoot"
+        created.append((fill, "Boots", "boot_foot_underlay"))
 
     return created
 
@@ -564,8 +675,12 @@ def main():
 
     continuity_count = 0
     for extra, part, subpart in _continuity_pieces(body, rig, part_objects):
-        transfer_weights(body, extra, rig)
-        clean_weights(extra)
+        rigid_bone = str(extra.get("aetherfall_rigid_bone", ""))
+        if rigid_bone:
+            _assign_rigid_weight(extra, rig, rigid_bone)
+        else:
+            transfer_weights(body, extra, rig)
+            clean_weights(extra)
         ensure_armature(extra, rig)
         counters[part] += 1
         tag_garment(extra, part, counters[part])
@@ -604,7 +719,7 @@ def main():
     )
 
     data = {
-        "version": "v68",
+        "version": "v69",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -620,7 +735,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V68_OK")
+    print("AETHERFALL_MALE_PEASANT_V69_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
