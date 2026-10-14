@@ -29,27 +29,27 @@ jobs:
 
       - name: Prepare runtime GLB
         run: |
-          mkdir -p builds/male_peasant_v92
-          cp cleanroom/models/tripo/male_peasant_runtime.bin builds/male_peasant_v92/source.glb
-          test -s builds/male_peasant_v92/source.glb
+          mkdir -p builds/male_peasant_v93
+          cp cleanroom/models/tripo/male_peasant_runtime.bin builds/male_peasant_v93/source.glb
+          test -s builds/male_peasant_v93/source.glb
 
       - name: Refine authored garments and render QA
         run: |
           set -o pipefail
           blender -b --python cleanroom/tools/aetherfall_male_peasant_refine.py -- \
-            --input builds/male_peasant_v92/source.glb \
-            --output builds/male_peasant_v92/AF_Male_Peasant_Authored_v92.glb \
-            --report builds/male_peasant_v92/report.json \
-            --render-dir builds/male_peasant_v92/renders \
-            2>&1 | tee builds/male_peasant_v92/blender.log
-          grep -q "AETHERFALL_MALE_PEASANT_V92_OK" builds/male_peasant_v92/blender.log
-          test -s builds/male_peasant_v92/report.json
+            --input builds/male_peasant_v93/source.glb \
+            --output builds/male_peasant_v93/AF_Male_Peasant_Authored_v93.glb \
+            --report builds/male_peasant_v93/report.json \
+            --render-dir builds/male_peasant_v93/renders \
+            2>&1 | tee builds/male_peasant_v93/blender.log
+          grep -q "AETHERFALL_MALE_PEASANT_V93_OK" builds/male_peasant_v93/blender.log
+          test -s builds/male_peasant_v93/report.json
 
       - name: Validate authored pass
         run: |
           python3 - <<'PY'
           import json
-          p="builds/male_peasant_v92/report.json"
+          p="builds/male_peasant_v93/report.json"
           d=json.load(open(p))
           assert d["armature_bones"] == 65, d
           assert d["authored_garment_objects"] > 0, d
@@ -57,19 +57,19 @@ jobs:
           assert all(x["weight_ratio_after"] >= 0.98 for x in d["garments"]), d
           print("AETHERFALL_AUTHORED_GARMENT_QA_OK", d["parts"])
           PY
-          test -s builds/male_peasant_v92/renders/front.png
-          test -s builds/male_peasant_v92/renders/front34.png
-          test -s builds/male_peasant_v92/renders/side.png
-          test -s builds/male_peasant_v92/renders/back.png
-          test -s builds/male_peasant_v92/renders/walk_front.png
-          test -s builds/male_peasant_v92/renders/run_front.png
-          test -s builds/male_peasant_v92/AF_Male_Peasant_Authored_v92.glb
+          test -s builds/male_peasant_v93/renders/front.png
+          test -s builds/male_peasant_v93/renders/front34.png
+          test -s builds/male_peasant_v93/renders/side.png
+          test -s builds/male_peasant_v93/renders/back.png
+          test -s builds/male_peasant_v93/renders/walk_front.png
+          test -s builds/male_peasant_v93/renders/run_front.png
+          test -s builds/male_peasant_v93/AF_Male_Peasant_Authored_v93.glb
 
       - name: Upload authored male peasant checkpoint
         uses: actions/upload-artifact@v4
         with:
-          name: Aetherfall-Male-Peasant-Authored-v92
-          path: builds/male_peasant_v92/
+          name: Aetherfall-Male-Peasant-Authored-v93
+          path: builds/male_peasant_v93/
           retention-days: 21
           if-no-files-found: error
         if: always()
