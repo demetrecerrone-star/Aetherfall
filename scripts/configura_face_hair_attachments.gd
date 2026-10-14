@@ -47,18 +47,18 @@ static func mount(model: Node3D, variant: String) -> Dictionary:
     for side in [-1.0, 1.0]:
         var eye_x: float = side * (0.025 if variant == "male" else 0.024)
         _ellipsoid(eyes, "Sclera" + str(side),
-            Vector3(eye_x, eye_y, front_z), Vector3(0.014, 0.009, 0.0025),
+            Vector3(eye_x, eye_y, front_z), Vector3(0.010, 0.006, 0.0010),
             Color("#f5eff0"))
         var iris := _ellipsoid(eyes, "Iris" + str(side),
             Vector3(eye_x, eye_y, front_z + 0.0029),
-            Vector3(0.0064, 0.0075, 0.0015), IRIS_COLOR_DEFAULT)
+            Vector3(0.0046, 0.0056, 0.0008), IRIS_COLOR_DEFAULT)
         irises.append(iris)
         _ellipsoid(eyes, "Pupil" + str(side),
             Vector3(eye_x, eye_y, front_z + 0.0046),
-            Vector3(0.0025, 0.0038, 0.0010), Color("#161c30"))
+            Vector3(0.0020, 0.0028, 0.0006), Color("#161c30"))
         _ellipsoid(eyes, "Catchlight" + str(side),
             Vector3(eye_x - 0.0016, eye_y + 0.0024, front_z + 0.0059),
-            Vector3(0.0011, 0.0012, 0.0006), Color("#ffffff"))
+            Vector3(0.0006, 0.0007, 0.0004), Color("#ffffff"))
 
     return {
         "attachment": attachment,
@@ -108,8 +108,8 @@ static func _make_hairstyle(variant: String, style: int) -> Node3D:
             for n in range(7):
                 var x: float = -0.046 + float(n) * 0.015
                 _strand(hair, "Spike" + str(n),
-                    Vector3(x, 0.967, 0.002), Vector3(x + 0.018, 1.021 + 0.008 * (n % 2), 0.018),
-                    0.015, color)
+                    Vector3(x, 0.967, 0.002), Vector3(x + 0.018, 1.003 + 0.006 * (n % 2), 0.018),
+                    0.011, color)
             for n in range(4):
                 var x: float = -0.038 + float(n) * 0.026
                 _strand(hair, "Fringe" + str(n),
