@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v78"
+    obj["aetherfall_qa_version"] = "v79"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -712,6 +712,58 @@ def _continuity_pieces(body, rig, part_objects):
 
 
 
+
+def _boundary_edges(obj):
+    counts = {}
+    for poly in obj.data.polygons:
+        vs = list(poly.vertices)
+        for i in range(len(vs)):
+            a, b = vs[i], vs[(i+1) % len(vs)]
+            key = (min(a,b), max(a,b))
+            counts[key] = counts.get(key, 0) + 1
+    return [edge for edge, count in counts.items() if count == 1]
+
+def _build_side_seam_strip(source, body_center_y, back_offset, name, part):
+    mn, mx = world_bounds(source)
+    center_x = (mn.x + mx.x) * 0.5
+    half_x = max(1e-6, (mx.x - mn.x) * 0.5)
+    height = max(1e-6, mx.z - mn.z)
+    verts, faces = [], []
+    for a_idx, b_idx in _boundary_edges(source):
+        pa = source.matrix_world @ source.data.vertices[a_idx].co
+        pb = source.matrix_world @ source.data.vertices[b_idx].co
+        mid = (pa + pb) * 0.5
+        zt = (mid.z - mn.z) / height
+        xt = abs(mid.x - center_x) / half_x
+        # Side seams only: reject hem/neck openings and central cutouts.
+        if xt < 0.60 or zt < 0.06 or zt > 0.96:
+            continue
+        qa = pa.copy(); qb = pb.copy()
+        qa.y = 2.0 * body_center_y - pa.y
+        qb.y = 2.0 * body_center_y - pb.y
+        if qa.y > body_center_y: qa.y += back_offset
+        if qb.y > body_center_y: qb.y += back_offset
+        base = len(verts)
+        verts.extend([tuple(pa), tuple(pb), tuple(qb), tuple(qa)])
+        faces.append((base, base+1, base+2, base+3))
+    if not faces:
+        return None
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    if part == "Tunic":
+        obj.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.205,0.175,0.135), 0.93))
+    elif part == "Trousers":
+        obj.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095,0.060,0.038), 0.96))
+    else:
+        obj.data.materials.append(_material("AF_Scuffed_Leather_Boots", (0.055,0.028,0.014), 0.82))
+    obj["aetherfall_subpart"] = "side_seam_bridge"
+    return obj
+
 def _mirror_back_copy(source, body_center_y, back_offset, label):
     dup = source.copy()
     dup.data = source.data.copy()
@@ -752,6 +804,10 @@ def _build_mirrored_back_panels(body, part_objects):
         back["aetherfall_subpart"] = "mirrored_tunic_back"
         back["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
         created.append((back, "Tunic", "mirrored_tunic_back"))
+        seam = _build_side_seam_strip(src, body_cy, 0.0065, src.name + "_SideSeam", "Tunic")
+        if seam is not None:
+            seam["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
+            created.append((seam, "Tunic", "side_seam_bridge"))
 
     for src in part_objects.get("Trousers", []):
         source_name = str(src.get("aetherfall_source_name", "")).lower()
@@ -761,6 +817,10 @@ def _build_mirrored_back_panels(body, part_objects):
         back["aetherfall_subpart"] = "mirrored_trouser_back"
         back["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
         created.append((back, "Trousers", "mirrored_trouser_back"))
+        seam = _build_side_seam_strip(src, body_cy, 0.0045, src.name + "_SideSeam", "Trousers")
+        if seam is not None:
+            seam["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
+            created.append((seam, "Trousers", "side_seam_bridge"))
 
     for src in part_objects.get("Boots", []):
         source_name = str(src.get("aetherfall_source_name", "")).lower()
@@ -769,6 +829,10 @@ def _build_mirrored_back_panels(body, part_objects):
             back["aetherfall_subpart"] = "mirrored_bootshaft_back"
             back["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
             created.append((back, "Boots", "mirrored_bootshaft_back"))
+            seam = _build_side_seam_strip(src, body_cy, 0.0025, src.name + "_SideSeam", "Boots")
+            if seam is not None:
+                seam["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
+                created.append((seam, "Boots", "side_seam_bridge"))
         elif "bootfoot" in source_name:
             heel = _mirror_back_copy(src, body_cy, 0.0020, "Heel")
             heel["aetherfall_subpart"] = "mirrored_bootfoot_heel"
@@ -1150,25 +1214,6 @@ def main():
         })
 
     rear_patch_count = 0
-    for extra, part, subpart, weight_source in _build_rear_coverage_patches(body, part_objects):
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio = matching_weight_ratio(extra, rig)
-        garment_candidates.append(extra)
-        rear_patch_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall targeted " + subpart,
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
 
     boot_layer_count = 0
 
@@ -1195,7 +1240,7 @@ def main():
     )
 
     data = {
-        "version": "v78",
+        "version": "v79",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -1214,7 +1259,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V78_OK")
+    print("AETHERFALL_MALE_PEASANT_V79_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
