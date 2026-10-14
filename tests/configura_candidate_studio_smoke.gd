@@ -33,7 +33,7 @@ func _run() -> void:
     for i in range(expected.size()):
         if config.options[i].resource_name != expected[i]:
             _fail("Configura option missing: " + expected[i])
-        return
+            return
     var screen := node.find_child("ConfiguraCandidateControls", true, false)
     if screen == null:
         _fail("Candidate selection interface is missing")
