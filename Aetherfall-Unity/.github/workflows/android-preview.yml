@@ -1,0 +1,74 @@
+name: Aetherfall Unity Android Preview APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, unity-reboot, 'unity/**']
+    paths:
+      - 'Assets/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+      - 'tests/**'
+      - '.github/workflows/android-preview.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-project:
+    name: Verify Unity source and artwork
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install source-check dependencies
+        run: python3 -m pip install --user pillow
+      - name: Verify project assets and UI contract
+        run: python3 tests/test_project_contract.py
+
+  build-android:
+    name: Build Android APK with Unity 6.3
+    needs: verify-project
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Unity Personal CI activation
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$UNITY_LICENSE" || -z "$UNITY_EMAIL" || -z "$UNITY_PASSWORD" ]]; then
+            echo '::error::Unity CI is not activated. Add UNITY_LICENSE, UNITY_EMAIL, and UNITY_PASSWORD as GitHub Actions repository secrets. See Documentation/BUILD_APK.md.'
+            exit 1
+          fi
+
+      - name: Unity build (Android APK)
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: Android
+          buildMethod: Aetherfall.Editor.AetherfallProjectSetup.BuildAndroidPreview
+          versioning: None
+
+      - name: Verify APK exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s Builds/Aetherfall-Unity-Login-Preview.apk
+          file Builds/Aetherfall-Unity-Login-Preview.apk
+          unzip -t Builds/Aetherfall-Unity-Login-Preview.apk | tail -n 1
+
+      - name: Upload APK to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-Unity-Login-Preview-Android
+          path: Builds/Aetherfall-Unity-Login-Preview.apk
+          if-no-files-found: error
+          retention-days: 30
