@@ -1,6 +1,10 @@
 name: Aetherfall Unity Build Report
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/unity-cloud-build-report.yml'
   workflow_dispatch:
     inputs:
       build_number:
