@@ -1,4 +1,4 @@
-# Aetherfall World Builder - prototype 0.1
+# Aetherfall World Builder - organic districts prototype 0.2
 
 This tool implements the approved **procedurally generated, then permanently saved** town.
 It does not run during gameplay and does **not** alter the game's title/login startup scene.
@@ -15,11 +15,12 @@ world-builder-prototype (isolated from unity-reboot while Unity Cloud APK debugg
 6. **Do not add the prototype scene to Android build profiles yet**. First review appearance
    and replace simple geometry with modular assets. All players will use the same saved scene.
 
-## First blockout
-- 220 x 190 m town inside a walled frontier settlement.
-- 18 m southern gateway, defensive towers, central paved fountain square.
-- Guild, inn, blacksmith, general shop, healing shrine, bakery, apothecary, market, training yard.
-- 8 residential plot slots, outer woodland and waist-high shrubs.
+## Organic starter town plan
+- Nominal 250 x 240 m town footprint, with an irregular perimeter of 16 angled wall sections rather than rectangular walls.
+- 18 m south gate enters a lively market neighborhood: fountain plaza, market stalls, supply shop, bakery, blacksmith, apothecary, and inn.
+- A winding, winding street leaves the market ring and travels past cottage plots to a **separate guild quarter** in the north: guild hall, training yard, and shrine.
+- A second residential lane loops around houses and connects back to the guild approach; short footpaths lead to services.
+- 8 residential plots, woodland beyond the irregular walls and waist-high shrubs.
 - Default reproducible seed 77421, daytime directional light, elevated preview camera.
 - Collision only on solid geometry; decorative leaves, bushes, water and paths do not block players.
 - Editable materials saved under Assets/WorldBuilder/Materials.
@@ -34,4 +35,4 @@ Furniture and props should use separately licensed modular assets later.
 ## Validation
 Use Python standard library to run
   python3 Assets/WorldBuilder/tests/test_town_preset.py
-Then generate in Unity Editor and review a screenshot before integrating.
+Then generate in Unity Editor and review a screenshot before integrating. Width/depth in the current preset describe the nominal prototype bounds; the 0.2 wall/road points are authored for this footprint, not rescaled on editing those values.
