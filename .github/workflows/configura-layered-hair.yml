@@ -1,0 +1,63 @@
+name: Aetherfall Modular Hair / Configura Logic (no APK)
+on:
+  push:
+    branches:
+      - experiment/configura-character-studio-v94
+    paths:
+      - 'scripts/configura_layered_hair_controller.gd'
+      - 'tests/configura_layered_hair_smoke.gd'
+      - '.github/workflows/configura-layered-hair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  modular-hair-logic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: Verify pinned Configura submodule
+        run: |
+          set -euo pipefail
+          test "$(git -C third_party/configura rev-parse HEAD)" = "0a7b08b74a5a7e684d3242cf3f1140cffed023cb"
+      - name: Install addon
+        run: python3 tools/install_configura_experiment.py
+      - name: Install Godot 4.6.3
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Create generated avatar and import assets
+        run: |
+          python3 tools/generate_avatar_v033.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("project.godot")
+          s=p.read_text()
+          enabled='enabled=PackedStringArray("res://addons/Configura/plugin.cfg")'
+          assert enabled in s
+          p.write_text(s.replace(enabled,'enabled=PackedStringArray()'))
+          PY
+          godot --headless --editor --path . --quit
+          git show HEAD:project.godot > project.godot
+          godot --headless --editor --path . --quit
+      - name: Test Configura bangs, sides, bald and missing-private-asset fallback
+        run: |
+          set -o pipefail
+          mkdir -p builds
+          timeout 45s godot --headless --path . --script res://tests/configura_layered_hair_smoke.gd 2>&1 | tee builds/layered_hair_smoke.log
+          grep -F AETHERFALL_CONFIGURA_LAYERED_HAIR_OK builds/layered_hair_smoke.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|AETHERFALL_CONFIGURA_LAYERED_HAIR_FAIL' builds/layered_hair_smoke.log; then exit 1; fi
+      - name: Publish logs only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-Modular-Hair-Test
+          path: builds/layered_hair_smoke.log
+          if-no-files-found: warn
