@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v77"
+    obj["aetherfall_qa_version"] = "v78"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -852,6 +852,53 @@ def evaluated_world_bounds(obj):
     finally:
         eo.to_mesh_clear()
 
+
+def _build_rear_coverage_patches(body, part_objects):
+    """Small rear-only cloth patches for source meshes that are open at the back."""
+    created = []
+    bmn, bmx = world_bounds(body)
+    cx = (bmn.x + bmx.x) * 0.5
+    back_y = bmx.y + 0.004
+    body_hx = (bmx.x - bmn.x) * 0.5
+
+    uppers = [o for o in part_objects.get("Tunic", [])
+              if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()]
+    if uppers:
+        umn, umx = _combined_bounds(uppers)
+        h = umx.z - umn.z
+        rows = [
+            (umx.z - h*0.075, cx, back_y, body_hx*0.66, h*0.010),
+            (umx.z - h*0.20,  cx, back_y+0.002, body_hx*0.78, 0.0),
+            (umx.z - h*0.42,  cx, back_y+0.001, body_hx*0.72, 0.0),
+            (umn.z + h*0.22,  cx, back_y, body_hx*0.58, 0.0),
+        ]
+        patch = _back_panel("AF_Tunic_ShoulderBackPatch", rows, 9)
+        patch.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.188,0.160,0.122), 0.94))
+        patch["aetherfall_subpart"] = "shoulder_back_patch"
+        created.append((patch, "Tunic", "shoulder_back_patch", body))
+
+    for src in part_objects.get("Trousers", []):
+        source_name = str(src.get("aetherfall_source_name","")).lower()
+        if "trousers" not in source_name:
+            continue
+        mn, mx = world_bounds(src)
+        h = mx.z - mn.z
+        cx_leg = (mn.x + mx.x) * 0.5
+        cy_leg = (mn.y + mx.y) * 0.5
+        hx = (mx.x - mn.x) * 0.5
+        hy = (mx.y - mn.y) * 0.5
+        rear = _back_half_tube("AF_Trouser_LowerRearFill", [
+            (mn.z + h*0.56, cx_leg, cy_leg, hx*0.88, hy*1.02),
+            (mn.z + h*0.36, cx_leg, cy_leg, hx*0.84, hy*1.03),
+            (mn.z + h*0.18, cx_leg, cy_leg, hx*0.78, hy*1.02),
+            (mn.z + h*0.04, cx_leg, cy_leg, hx*0.68, hy*1.00),
+        ], 14)
+        rear.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.086,0.052,0.032), 0.97))
+        rear["aetherfall_subpart"] = "lower_rear_fill"
+        created.append((rear, "Trousers", "lower_rear_fill", src))
+
+    return created
+
 def _build_boot_layers(body, rig, part_objects):
     created = []
     boots = part_objects.get("Boots", [])
@@ -1102,6 +1149,27 @@ def main():
             "subpart": subpart,
         })
 
+    rear_patch_count = 0
+    for extra, part, subpart, weight_source in _build_rear_coverage_patches(body, part_objects):
+        transfer_weights(weight_source, extra, rig)
+        clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio = matching_weight_ratio(extra, rig)
+        garment_candidates.append(extra)
+        rear_patch_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall targeted " + subpart,
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
+        })
+
     boot_layer_count = 0
 
     # Keep metadata on the character as well for Godot import tooling.
@@ -1127,7 +1195,7 @@ def main():
     )
 
     data = {
-        "version": "v77",
+        "version": "v78",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -1135,6 +1203,7 @@ def main():
         "authored_garment_objects": len(garment_candidates),
         "mirrored_back_panels": continuity_count,
         "targeted_gap_fillers": filler_count,
+        "rear_coverage_patches": rear_patch_count,
         "boot_layer_pieces": boot_layer_count,
         "parts": counters,
         "garments": report_items,
@@ -1145,7 +1214,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V77_OK")
+    print("AETHERFALL_MALE_PEASANT_V78_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
