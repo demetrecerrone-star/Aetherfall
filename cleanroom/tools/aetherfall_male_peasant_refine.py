@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v72"
+    obj["aetherfall_qa_version"] = "v73"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -707,6 +707,59 @@ def _continuity_pieces(body, rig, part_objects):
 
 
 
+
+def _mirror_back_copy(source, body_center_y, back_offset, label):
+    dup = source.copy()
+    dup.data = source.data.copy()
+    bpy.context.collection.objects.link(dup)
+    dup.name = source.name + "_" + label
+    inv = dup.matrix_world.inverted()
+    for v in dup.data.vertices:
+        p = dup.matrix_world @ v.co
+        p.y = 2.0 * body_center_y - p.y
+        if p.y > body_center_y:
+            p.y += back_offset
+        v.co = inv @ p
+    try:
+        dup.data.flip_normals()
+    except Exception:
+        pass
+    dup.data.update()
+    for poly in dup.data.polygons:
+        poly.use_smooth = True
+    return dup
+
+def _build_mirrored_back_panels(body, part_objects):
+    """Complete the source outfit by reflecting its authored front/detail panels.
+
+    This preserves the source folds and exact skin weights instead of replacing
+    them with smooth body shells. The mirrored pieces overlap at the side seams
+    and sit a few millimeters farther behind the body to avoid z-fighting.
+    """
+    bmn, bmx = world_bounds(body)
+    body_cy = (bmn.y + bmx.y) * 0.5
+    created = []
+
+    for src in part_objects.get("Tunic", []):
+        source_name = str(src.get("aetherfall_source_name", "")).lower()
+        if "tunic_upper" not in source_name and "tunic_lower" not in source_name:
+            continue
+        back = _mirror_back_copy(src, body_cy, 0.0065, "Back")
+        back["aetherfall_subpart"] = "mirrored_tunic_back"
+        back["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
+        created.append((back, "Tunic", "mirrored_tunic_back"))
+
+    for src in part_objects.get("Trousers", []):
+        source_name = str(src.get("aetherfall_source_name", "")).lower()
+        if "trousers" not in source_name:
+            continue
+        back = _mirror_back_copy(src, body_cy, 0.0045, "Back")
+        back["aetherfall_subpart"] = "mirrored_trouser_back"
+        back["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
+        created.append((back, "Trousers", "mirrored_trouser_back"))
+
+    return created
+
 def _build_boot_layers(body, rig, part_objects):
     created = []
     boots = part_objects.get("Boots", [])
@@ -910,8 +963,7 @@ def main():
         })
 
     continuity_count = 0
-    for extra, part, subpart, weight_source in _build_primary_cloth(body, rig, part_objects):
-        transfer_weights(weight_source, extra, rig)
+    for extra, part, subpart in _build_mirrored_back_panels(body, part_objects):
         clean_weights(extra)
         ensure_armature(extra, rig)
         counters[part] += 1
@@ -922,10 +974,10 @@ def main():
         continuity_count += 1
         report_items.append({
             "name": extra.name,
-            "source_name": "Aetherfall authored replacement " + subpart,
+            "source_name": "Mirrored from " + str(extra.get("aetherfall_mirror_source", "")),
             "part": part,
             "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
+            "weight_ratio_before": ratio,
             "weight_ratio_after": ratio,
             "subpart": subpart,
         })
@@ -939,8 +991,8 @@ def main():
 
     setup_render(body, garment_candidates, rig, Path(a.render_dir).resolve())
 
-    # Source panels remain as the outer fold/detail layer. The generated full
-    # garments are continuity underlays, not replacements.
+    # Source panels remain the authored outer layer. Mirrored copies complete
+    # the back using the exact same topology and skin-weight language.
     output = Path(a.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.export_scene.gltf(
@@ -955,13 +1007,13 @@ def main():
     )
 
     data = {
-        "version": "v72",
+        "version": "v73",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
         "body": body.name,
         "authored_garment_objects": len(garment_candidates),
-        "replacement_cloth_pieces": continuity_count,
+        "mirrored_back_panels": continuity_count,
         "boot_layer_pieces": boot_layer_count,
         "parts": counters,
         "garments": report_items,
@@ -972,7 +1024,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V72_OK")
+    print("AETHERFALL_MALE_PEASANT_V73_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
