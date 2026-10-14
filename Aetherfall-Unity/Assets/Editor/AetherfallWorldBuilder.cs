@@ -138,7 +138,7 @@ namespace Aetherfall.Editor
             // town, registers newcomers, coordinates guards and posts town quests.
             House(landmarks, "Town Guild Hall - Civic Government", GroundPosition(-22, 96),
                 29, 19, 12, "#C9B59B", "#475C7D");
-            GuildNoticeBoards(landmarks, GroundPosition(-22, 81));
+            GuildNoticeBoards(landmarks, GroundPosition(5, 83));
             TrainingYard(landmarks, GroundPosition(-77, 76));
             House(landmarks, "Healing Shrine", GroundPosition(72, 82),
                 21, 19, 11, "#C7CFDC", "#6C79A1");
