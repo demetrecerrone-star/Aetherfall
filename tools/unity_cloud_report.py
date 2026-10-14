@@ -188,8 +188,8 @@ def main():
             "`UNITY_SERVICE_ACCOUNT_SECRET_KEY`, then rerun this workflow.\n\n"
             "No Unity build was started or modified.\n"
         )
-        print("::notice::Unity service-account secrets are not configured")
-        return 0
+        print("::error::Unity service-account secrets are not configured")
+        return 1
 
     org = safe_id(os.getenv("UNITY_CLOUD_ORG_ID", ""))
     project = safe_id(os.getenv("UNITY_CLOUD_PROJECT_ID", ""))
