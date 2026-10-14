@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v80"
+    obj["aetherfall_qa_version"] = "v81"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -889,17 +889,18 @@ def _build_gap_fillers(body, part_objects):
         waist["aetherfall_subpart"] = "waist_bridge"
         created.append((waist, "Tunic", "waist_bridge", body))
 
-        top = umx.z - (umx.z-umn.z)*0.055
-        bottom = umn.z + (umx.z-umn.z)*0.20
-        rear = _back_half_tube("AF_Tunic_UpperBackFill", [
-            (top, cx, cy, bhx*0.70, bhy*1.04),
-            (top-(top-bottom)*0.20, cx, cy, bhx*0.82, bhy*1.06),
-            (top-(top-bottom)*0.52, cx, cy, bhx*0.80, bhy*1.07),
-            (bottom, cx, cy, bhx*0.66, bhy*1.04),
-        ], 24)
+        uh = umx.z - umn.z
+        back_y = bmx.y + 0.005
+        rows = [
+            (umx.z - uh*0.055, cx, back_y, bhx*0.30, uh*0.018),
+            (umx.z - uh*0.135, cx, back_y+0.002, bhx*0.62, 0.0),
+            (umx.z - uh*0.235, cx, back_y+0.003, bhx*0.72, 0.0),
+            (umx.z - uh*0.330, cx, back_y+0.002, bhx*0.64, 0.0),
+        ]
+        rear = _back_panel("AF_Tunic_BackYoke", rows, 11)
         rear.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.190,0.162,0.124), 0.94))
-        rear["aetherfall_subpart"] = "upper_back_fill"
-        created.append((rear, "Tunic", "upper_back_fill", body))
+        rear["aetherfall_subpart"] = "back_yoke"
+        created.append((rear, "Tunic", "back_yoke", body))
     return created
 
 def evaluated_world_bounds(obj):
@@ -961,6 +962,73 @@ def _build_rear_coverage_patches(body, part_objects):
         rear["aetherfall_subpart"] = "lower_rear_fill"
         created.append((rear, "Trousers", "lower_rear_fill", src))
 
+    return created
+
+
+def _side_panel(name, x, y_front, y_back, z_top, z_bottom, rows=5, cols=5):
+    verts, faces = [], []
+    for r in range(rows):
+        tz = r / max(1, rows-1)
+        z = z_top + (z_bottom-z_top)*tz
+        # Slight inward taper toward waist/hem.
+        xoff = 0.004 * math.sin(math.pi * tz)
+        for col in range(cols):
+            ty = col / max(1, cols-1)
+            y = y_front + (y_back-y_front)*ty
+            verts.append((x + xoff*(1 if x >= 0 else -1), y, z))
+    for r in range(rows-1):
+        for col in range(cols-1):
+            a = r*cols+col
+            b = a+1
+            c2 = (r+1)*cols+col+1
+            d = (r+1)*cols+col
+            faces.append((a,d,c2,b))
+    mesh=bpy.data.meshes.new(name+"_Mesh")
+    mesh.from_pydata(verts,[],faces)
+    mesh.update()
+    obj=bpy.data.objects.new(name,mesh)
+    bpy.context.collection.objects.link(obj)
+    for p in mesh.polygons:
+        p.use_smooth=True
+    return obj
+
+def _build_gussets(body, part_objects):
+    """Traditional-style side/rear gussets close large panel openings cleanly."""
+    created=[]
+    bmn,bmx=world_bounds(body)
+
+    tunics=part_objects.get("Tunic",[])
+    if tunics:
+        mn,mx=_combined_bounds(tunics)
+        height=mx.z-mn.z
+        y_front=min(mn.y, bmn.y)-0.004
+        y_back=max(2.0*((bmn.y+bmx.y)*0.5)-mn.y, bmx.y)+0.006
+        z_top=mx.z-height*0.30
+        z_bottom=mn.z+height*0.06
+        for side, x in (("L", mx.x+0.004), ("R", mn.x-0.004)):
+            panel=_side_panel("AF_Tunic_SideGusset_"+side,x,y_front,y_back,z_top,z_bottom,6,6)
+            panel.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.188,0.160,0.122),0.94))
+            panel["aetherfall_subpart"]="side_gusset"
+            created.append((panel,"Tunic","side_gusset",body))
+
+    for src in part_objects.get("Trousers",[]):
+        source_name=str(src.get("aetherfall_source_name","")).lower()
+        if "trousers" not in source_name:
+            continue
+        mn,mx=world_bounds(src)
+        h=mx.z-mn.z
+        cx=(mn.x+mx.x)*0.5
+        back_y=max(mx.y, bmx.y*0.55)+0.004
+        rows=[
+            (mn.z+h*0.58,cx,back_y,(mx.x-mn.x)*0.34,0.0),
+            (mn.z+h*0.38,cx,back_y+0.002,(mx.x-mn.x)*0.33,0.0),
+            (mn.z+h*0.18,cx,back_y+0.001,(mx.x-mn.x)*0.30,0.0),
+            (mn.z+h*0.05,cx,back_y,(mx.x-mn.x)*0.26,0.0),
+        ]
+        patch=_back_panel("AF_Trouser_RearGusset",rows,7)
+        patch.data.materials.append(_material("AF_Patched_Wool_Trousers",(0.090,0.055,0.034),0.97))
+        patch["aetherfall_subpart"]="rear_leg_gusset"
+        created.append((patch,"Trousers","rear_leg_gusset",src))
     return created
 
 def _build_boot_layers(body, rig, part_objects):
@@ -1217,6 +1285,27 @@ def main():
 
     rear_patch_count = 0
 
+    gusset_count = 0
+    for extra, part, subpart, weight_source in _build_gussets(body, part_objects):
+        transfer_weights(weight_source, extra, rig)
+        clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio = matching_weight_ratio(extra, rig)
+        garment_candidates.append(extra)
+        gusset_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall authored " + subpart,
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
+        })
+
     boot_layer_count = 0
 
     # Keep metadata on the character as well for Godot import tooling.
@@ -1242,7 +1331,7 @@ def main():
     )
 
     data = {
-        "version": "v80",
+        "version": "v81",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -1251,6 +1340,7 @@ def main():
         "mirrored_back_panels": continuity_count,
         "targeted_gap_fillers": filler_count,
         "rear_coverage_patches": rear_patch_count,
+        "gusset_pieces": gusset_count,
         "boot_layer_pieces": boot_layer_count,
         "parts": counters,
         "garments": report_items,
@@ -1261,7 +1351,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V80_OK")
+    print("AETHERFALL_MALE_PEASANT_V81_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
