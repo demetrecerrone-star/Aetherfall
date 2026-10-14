@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v76"
+    obj["aetherfall_qa_version"] = "v77"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -291,18 +291,20 @@ def _reshape_authored_garment(obj, original_name):
             p.y += (0.0020 + 0.0028 * knee_bunch) * math.sin(t * math.pi * 6.0 + side)
 
         elif "bootshaft" in name:
-            p.x = center.x + (p.x - center.x) * 0.94
-            p.y = center.y + (p.y - center.y) * 0.92
+            # Broader cuff, narrower ankle for a less blocky medieval boot.
+            shaft_scale = 0.86 + 0.10 * t
+            p.x = center.x + (p.x - center.x) * shaft_scale
+            p.y = center.y + (p.y - center.y) * (shaft_scale * 0.97)
 
         elif "bootfoot" in name:
             half_y = max(1e-6, (mx.y - mn.y) * 0.5)
             toe = max(0.0, min(1.0, (center.y - p.y) / half_y))
-            toe_width = 1.02 - 0.03 * toe
+            toe_width = 1.04 - 0.02 * toe
             p.x = center.x + (p.x - center.x) * toe_width
-            p.y = center.y + (p.y - center.y) * (1.06 + 0.06 * toe)
-            p.z = center.z + (p.z - center.z) * (1.01 + 0.035 * toe)
+            p.y = center.y + (p.y - center.y) * (1.03 + 0.015 * toe)
+            p.z = center.z + (p.z - center.z) * 1.02
             if toe > 0.35:
-                p.z -= 0.006 * toe
+                p.z -= 0.004 * toe
 
         elif "cuff" in name:
             p.x = center.x + (p.x - center.x) * 0.96
@@ -762,12 +764,16 @@ def _build_mirrored_back_panels(body, part_objects):
 
     for src in part_objects.get("Boots", []):
         source_name = str(src.get("aetherfall_source_name", "")).lower()
-        if "bootshaft" not in source_name:
-            continue
-        back = _mirror_back_copy(src, body_cy, 0.0025, "Back")
-        back["aetherfall_subpart"] = "mirrored_bootshaft_back"
-        back["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
-        created.append((back, "Boots", "mirrored_bootshaft_back"))
+        if "bootshaft" in source_name:
+            back = _mirror_back_copy(src, body_cy, 0.0025, "Back")
+            back["aetherfall_subpart"] = "mirrored_bootshaft_back"
+            back["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
+            created.append((back, "Boots", "mirrored_bootshaft_back"))
+        elif "bootfoot" in source_name:
+            heel = _mirror_back_copy(src, body_cy, 0.0020, "Heel")
+            heel["aetherfall_subpart"] = "mirrored_bootfoot_heel"
+            heel["aetherfall_mirror_source"] = str(src.get("aetherfall_source_name", src.name))
+            created.append((heel, "Boots", "mirrored_bootfoot_heel"))
 
     return created
 
@@ -822,11 +828,11 @@ def _build_gap_fillers(body, part_objects):
         top = umx.z - (umx.z-umn.z)*0.055
         bottom = umn.z + (umx.z-umn.z)*0.20
         rear = _back_half_tube("AF_Tunic_UpperBackFill", [
-            (top, cx, cy, bhx*0.52, bhy*1.03),
-            (top-(top-bottom)*0.20, cx, cy, bhx*0.70, bhy*1.05),
-            (top-(top-bottom)*0.52, cx, cy, bhx*0.76, bhy*1.06),
-            (bottom, cx, cy, bhx*0.64, bhy*1.03),
-        ], 22)
+            (top, cx, cy, bhx*0.70, bhy*1.04),
+            (top-(top-bottom)*0.20, cx, cy, bhx*0.82, bhy*1.06),
+            (top-(top-bottom)*0.52, cx, cy, bhx*0.80, bhy*1.07),
+            (bottom, cx, cy, bhx*0.66, bhy*1.04),
+        ], 24)
         rear.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.190,0.162,0.124), 0.94))
         rear["aetherfall_subpart"] = "upper_back_fill"
         created.append((rear, "Tunic", "upper_back_fill", body))
@@ -1121,7 +1127,7 @@ def main():
     )
 
     data = {
-        "version": "v76",
+        "version": "v77",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -1139,7 +1145,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V76_OK")
+    print("AETHERFALL_MALE_PEASANT_V77_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
