@@ -2,6 +2,7 @@
 using System.IO;
 using UnityEditor;
 using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
@@ -34,10 +35,24 @@ namespace Aetherfall.Editor
             PlayerSettings.productName = "Aetherfall";
             PlayerSettings.companyName = "Dabsky";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.demetrecerrone.aetherfall.unitydev");
-            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            ConfigureLandscape();
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
             EditorSettings.serializationMode = SerializationMode.ForceText;
+        }
+
+        /// <summary>
+        /// Keep Android's launch Activity fixed in landscape, including the native
+        /// splash screen (before any MonoBehaviour or video script can execute).
+        /// Called during initial editor import and immediately before building.
+        /// </summary>
+        public static void ConfigureLandscape()
+        {
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            PlayerSettings.allowedAutorotateToPortrait = false;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
         }
 
         [MenuItem("Aetherfall/Build Android Preview APK")]
@@ -59,6 +74,22 @@ namespace Aetherfall.Editor
             if (result.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
                 throw new System.Exception("Aetherfall Android preview build failed: " + result.summary.result);
             Debug.Log("Aetherfall preview APK: Builds/Aetherfall-Unity-Login-Preview.apk");
+        }
+    }
+
+    /// <summary>
+    /// Unity Cloud Build may use BuildPipeline directly, bypassing our
+    /// custom editor menu. Re-apply PlayerSettings for every Android build.
+    /// </summary>
+    public sealed class AetherfallLandscapePrebuild : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => -10000;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            if (report.summary.platform != BuildTarget.Android) return;
+            AetherfallProjectSetup.ConfigureLandscape();
+            Debug.Log("Aetherfall Android orientation: locked to LandscapeLeft.");
         }
     }
 }
