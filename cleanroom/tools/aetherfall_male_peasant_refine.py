@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v100"
+    obj["aetherfall_qa_version"] = "v101"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -1177,7 +1177,7 @@ def _simple_quad(name, pts):
         p.use_smooth = True
     return obj
 
-def _build_v100_rear_repairs(body, part_objects):
+def _build_v101_rear_repairs(body, part_objects):
     """Repair only the openings visible in the v83 diagnostic render.
 
     The approved front pieces remain untouched.  These pieces add a shaped back
@@ -1207,7 +1207,7 @@ def _build_v100_rear_repairs(body, part_objects):
             (mx.z - h*0.900, cx, back_y-0.001, hx*0.82, 0.015),
             (mn.z + h*0.015, cx, back_y-0.002, hx*0.87, 0.014),
         ]
-        back = _curved_back_panel("AF_Tunic_BackComplete_v100", rows, 15)
+        back = _curved_back_panel("AF_Tunic_BackComplete_v101", rows, 15)
         back.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.300,0.270,0.215), 0.94))
         back["aetherfall_subpart"] = "complete_back_panel"
         created.append((back, "Tunic", "complete_back_panel", body))
@@ -1225,7 +1225,7 @@ def _build_v100_rear_repairs(body, part_objects):
                 (cx + side*hx*0.92,        back_y-0.012, join_z),
                 (cx + side*hx*0.10,        back_y+0.002, join_z),
             ]
-            yoke = _simple_quad("AF_Tunic_BackShoulder_%s_v100" % ("L" if side < 0 else "R"), pts)
+            yoke = _simple_quad("AF_Tunic_BackShoulder_%s_v101" % ("L" if side < 0 else "R"), pts)
             yoke.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.300,0.270,0.215), 0.94))
             yoke["aetherfall_subpart"] = "back_shoulder_yoke"
             created.append((yoke, "Tunic", "back_shoulder_yoke", body))
@@ -1241,7 +1241,7 @@ def _build_v100_rear_repairs(body, part_objects):
             rx=(mx.x-mn.x)*0.38
             ry=(mx.y-mn.y)*0.43
             h=mx.z-mn.z
-            rear = _back_half_tube("AF_Boot_RearFill_v100", [
+            rear = _back_half_tube("AF_Boot_RearFill_v101", [
                 (mx.z-h*0.03, center.x, center.y, rx, ry),
                 (mn.z+h*0.05, center.x, center.y, rx*0.92, ry*0.95),
             ], 16)
@@ -1251,7 +1251,7 @@ def _build_v100_rear_repairs(body, part_objects):
             created.append((rear,"Boots","rear_boot_fill",None))
         elif "bootfoot" in source_name:
             fill = _ellipsoid(
-                "AF_Boot_FootInset_v100",
+                "AF_Boot_FootInset_v101",
                 center,
                 (
                     max(0.010,(mx.x-mn.x)*0.36),
@@ -1302,7 +1302,7 @@ def _half_back_tunic_panel(name, side, rows, cols=8):
         p.use_smooth=True
     return obj
 
-def _build_v100_rear_tunic(body, part_objects):
+def _build_v101_rear_tunic(body, part_objects):
     """Complete only the tunic back while preserving the accepted v83 front."""
     tunics=part_objects.get("Tunic",[])
     uppers=[o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()]
@@ -1334,7 +1334,7 @@ def _build_v100_rear_tunic(body, part_objects):
     rows=[(z,cx,back_y,inner,outer,curve,hem) for z,inner,outer,curve,hem in levels]
     created=[]
     for side,label in ((-1.0,"L"),(1.0,"R")):
-        panel=_half_back_tunic_panel("AF_Tunic_BackHalf_%s_v100"%label,side,rows,9)
+        panel=_half_back_tunic_panel("AF_Tunic_BackHalf_%s_v101"%label,side,rows,9)
         panel.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
         panel["aetherfall_subpart"]="shaped_back_half"
         created.append((panel,"Tunic","shaped_back_half",body))
@@ -1399,7 +1399,7 @@ def _wrapped_back_tunic_half(name, body, side, specs, source_cx, source_hx, h, c
         p.use_smooth=True
     return obj
 
-def _build_v100_rear_tunic(body, part_objects):
+def _build_v101_rear_tunic(body, part_objects):
     tunics=part_objects.get("Tunic",[])
     uppers=[o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()]
     lowers=[o for o in tunics if "tunic_lower" in str(o.get("aetherfall_source_name","")).lower()]
@@ -1423,14 +1423,14 @@ def _build_v100_rear_tunic(body, part_objects):
     ]
     made=[]
     for side,label in ((-1.0,"L"),(1.0,"R")):
-        panel=_wrapped_back_tunic_half("AF_Tunic_WrappedBack_%s_v100"%label,body,side,specs,source_cx,source_hx,h,11)
+        panel=_wrapped_back_tunic_half("AF_Tunic_WrappedBack_%s_v101"%label,body,side,specs,source_cx,source_hx,h,11)
         panel.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
         panel["aetherfall_subpart"]="wrapped_back_half"
         made.append((panel,"Tunic","wrapped_back_half",body))
     return made
 
 
-def _build_v100_full_tunic_underlay(body, part_objects):
+def _build_v101_full_tunic_underlay(body, part_objects):
     """Low-poly sewn-volume tunic fitted from body envelopes, not body topology.
 
     It sits just inside the imported authored front pieces, so those keep their
@@ -1498,10 +1498,10 @@ def _build_v100_full_tunic_underlay(body, part_objects):
         for i in range(seg):
             j=(i+1)%seg
             faces.append((rings[r][i],rings[r+1][i],rings[r+1][j],rings[r][j]))
-    mesh=bpy.data.meshes.new("AF_Tunic_FittedUnderlay_v100_Mesh")
+    mesh=bpy.data.meshes.new("AF_Tunic_FittedUnderlay_v101_Mesh")
     mesh.from_pydata(verts,[],faces)
     mesh.update()
-    obj=bpy.data.objects.new("AF_Tunic_FittedUnderlay_v100",mesh)
+    obj=bpy.data.objects.new("AF_Tunic_FittedUnderlay_v101",mesh)
     bpy.context.collection.objects.link(obj)
     for p in mesh.polygons:
         p.use_smooth=True
@@ -1530,7 +1530,7 @@ def _torso_y_envelope(body, z, cx, x_limit, band):
         return mn.y,mx.y
     return min(p.y for p in pts), max(p.y for p in pts)
 
-def _v100_back_half(name, body, side, rows, cx, source_hx, h, cols=10):
+def _v101_back_half(name, body, side, rows, cx, source_hx, h, cols=10):
     verts,faces=[],[]
     for r,(z,innerf,outerf,hem_wave) in enumerate(rows):
         outer=source_hx*outerf
@@ -1570,7 +1570,7 @@ def _v100_back_half(name, body, side, rows, cx, source_hx, h, cols=10):
         p.use_smooth=True
     return obj
 
-def _build_v100_tunic_back(body, part_objects):
+def _build_v101_tunic_back(body, part_objects):
     tunics=part_objects.get("Tunic",[])
     uppers=[o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()]
     lowers=[o for o in tunics if "tunic_lower" in str(o.get("aetherfall_source_name","")).lower()]
@@ -1594,14 +1594,14 @@ def _build_v100_tunic_back(body, part_objects):
     ]
     made=[]
     for side,label in ((-1.0,"L"),(1.0,"R")):
-        panel=_v100_back_half("AF_Tunic_Back_%s_v100"%label,body,side,rows,cx,hx,h,11)
+        panel=_v101_back_half("AF_Tunic_Back_%s_v101"%label,body,side,rows,cx,hx,h,11)
         panel.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
         panel["aetherfall_subpart"]="fitted_back_half"
         made.append((panel,"Tunic","fitted_back_half",body))
     return made
 
 
-def _build_v100_side_gussets(body, part_objects):
+def _build_v101_side_gussets(body, part_objects):
     """Small underarm/side-seam cloth panels; they do not alter front silhouette."""
     tunics=part_objects.get("Tunic",[])
     sources=[o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()
@@ -1630,9 +1630,9 @@ def _build_v100_side_gussets(body, part_objects):
             for col in range(cols-1):
                 a=r*cols+col; b=a+1; c2=(r+1)*cols+col+1; d=(r+1)*cols+col
                 faces.append((a,d,c2,b))
-        mesh=bpy.data.meshes.new("AF_Tunic_SideGusset_%s_v100_Mesh"%label)
+        mesh=bpy.data.meshes.new("AF_Tunic_SideGusset_%s_v101_Mesh"%label)
         mesh.from_pydata(verts,[],faces); mesh.update()
-        obj=bpy.data.objects.new("AF_Tunic_SideGusset_%s_v100"%label,mesh)
+        obj=bpy.data.objects.new("AF_Tunic_SideGusset_%s_v101"%label,mesh)
         bpy.context.collection.objects.link(obj)
         for p in mesh.polygons: p.use_smooth=True
         obj.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
@@ -1640,7 +1640,7 @@ def _build_v100_side_gussets(body, part_objects):
         made.append((obj,"Tunic","underarm_side_gusset",body))
     return made
 
-def _build_v100_boot_insets(part_objects):
+def _build_v101_boot_insets(part_objects):
     """Weight-transferred inner leather closes heel/sole holes without floating."""
     made=[]
     for src in part_objects.get("Boots",[]):
@@ -1651,7 +1651,7 @@ def _build_v100_boot_insets(part_objects):
         center=(mn+mx)*0.5
         sy=(mx.y-mn.y)
         fill=_ellipsoid(
-            "AF_Boot_FootInset_v100",
+            "AF_Boot_FootInset_v101",
             center+Vector((0.0,sy*0.035,0.0)),
             (
                 max(0.010,(mx.x-mn.x)*0.35),
@@ -1666,7 +1666,7 @@ def _build_v100_boot_insets(part_objects):
     return made
 
 
-def _build_v100_shoulder_yokes(body, part_objects):
+def _build_v101_shoulder_yokes(body, part_objects):
     """Rear shoulder cloth closes the last exposed shoulder-blade wedges."""
     tunics=part_objects.get("Tunic",[])
     sources=[o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()
@@ -1690,9 +1690,9 @@ def _build_v100_shoulder_yokes(body, part_objects):
             (cx+side*hx*0.025,bot_back+0.009,zbot),
         ]
         face=(0,1,2,3) if side>0 else (0,3,2,1)
-        mesh=bpy.data.meshes.new("AF_Tunic_ShoulderYoke_%s_v100_Mesh"%label)
+        mesh=bpy.data.meshes.new("AF_Tunic_ShoulderYoke_%s_v101_Mesh"%label)
         mesh.from_pydata(pts,[],[face]); mesh.update()
-        obj=bpy.data.objects.new("AF_Tunic_ShoulderYoke_%s_v100"%label,mesh)
+        obj=bpy.data.objects.new("AF_Tunic_ShoulderYoke_%s_v101"%label,mesh)
         bpy.context.collection.objects.link(obj)
         for p in mesh.polygons: p.use_smooth=True
         obj.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
@@ -1783,7 +1783,7 @@ def _build_axis_sleeve(name, rig, arm_bone, shoulder_bone, side_label, material)
     obj["aetherfall_side"]=side_label
     return obj
 
-def _build_v100_bone_sleeves(rig, part_objects):
+def _build_v101_bone_sleeves(rig, part_objects):
     made=[]
     for src in part_objects.get("Tunic",[]):
         source_name=str(src.get("aetherfall_source_name","")).lower()
@@ -1793,10 +1793,10 @@ def _build_v100_bone_sleeves(rig, part_objects):
         arm=_resolve_bone(rig,side,"arm")
         shoulder=_resolve_bone(rig,side,"shoulder")
         if arm is None:
-            raise RuntimeError("Missing %s upper arm bone for v100 sleeve" % side)
+            raise RuntimeError("Missing %s upper arm bone for v101 sleeve" % side)
         mat=_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94)
         sleeve=_build_axis_sleeve(
-            "AF_Peasant_Sleeve_v100_%s"%("L" if side=="left" else "R"),
+            "AF_Peasant_Sleeve_v101_%s"%("L" if side=="left" else "R"),
             rig,arm,shoulder,side,mat
         )
         src.hide_viewport=True
@@ -1806,60 +1806,116 @@ def _build_v100_bone_sleeves(rig, part_objects):
     return made
 
 
-def _build_v100_rear_shoulder_seams(body, rig, part_objects):
-    """Small body-hugging cloth patches between tunic back and sleeve root."""
+def _torso_xy_envelope(body, z, cx, x_limit, band):
+    mw=body.matrix_world
+    pts=[]
+    nearest=[]
+    for v in body.data.vertices:
+        p=mw @ v.co
+        if abs(p.x-cx) > x_limit:
+            continue
+        dz=abs(p.z-z)
+        nearest.append((dz,p))
+        if dz <= band:
+            pts.append(p)
+    if len(pts)<10:
+        nearest.sort(key=lambda item:item[0])
+        pts=[p for _,p in nearest[:max(30,min(100,len(nearest)))]]
+    if not pts:
+        mn,mx=world_bounds(body)
+        return mn.x,mx.x,mn.y,mx.y
+    return min(p.x for p in pts),max(p.x for p in pts),min(p.y for p in pts),max(p.y for p in pts)
+
+def _build_v101_complete_tunic(body, part_objects):
+    """Build one continuous low-poly peasant tunic from torso envelopes."""
     tunics=part_objects.get("Tunic",[])
     sources=[o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()
              or "tunic_lower" in str(o.get("aetherfall_source_name","")).lower()]
     if not sources:
         return []
     mn,mx=_combined_bounds(sources)
-    cx=(mn.x+mx.x)*0.5
-    hx=(mx.x-mn.x)*0.5
-    h=max(0.05,mx.z-mn.z)
-    made=[]
-    for side,label in ((-1.0,"L"),(1.0,"R")):
-        arm=_resolve_bone(rig,"left" if side<0 else "right","arm")
-        if arm is None:
-            continue
-        arm_head=rig.matrix_world @ arm.head_local
-        rows=[]
-        for row_index,(zoff,innerf,outer_inset) in enumerate((
-            (0.010,0.18,0.010),
-            (-0.030,0.10,0.004),
-            (-0.070,0.06,-0.002),
-        )):
-            z=arm_head.z+zoff
-            _,back_y=_torso_y_envelope(body,z,cx,hx*0.72,max(0.012,h*0.035))
-            inner_x=cx+side*hx*innerf
-            outer_x=arm_head.x-side*outer_inset
-            rows.append((z,back_y,inner_x,outer_x))
-        cols=7
-        verts=[]; faces=[]
-        for r,(z,back_y,inner_x,outer_x) in enumerate(rows):
-            for col in range(cols):
-                t=col/(cols-1)
-                x=inner_x+(outer_x-inner_x)*t
-                y=back_y+0.005-0.004*(t**1.6)+0.0015*math.sin(math.pi*t)
-                zz=z-0.003*math.sin(math.pi*t)*(r/2.0)
-                verts.append((x,y,zz))
-        for r in range(len(rows)-1):
-            for col in range(cols-1):
-                a=r*cols+col; b=a+1; c2=(r+1)*cols+col+1; d=(r+1)*cols+col
-                if side<0:
-                    faces.append((a,d,c2,b))
-                else:
-                    faces.append((a,b,c2,d))
-        mesh=bpy.data.meshes.new("AF_Tunic_RearShoulderSeam_%s_v100_Mesh"%label)
-        mesh.from_pydata(verts,[],faces); mesh.update()
-        obj=bpy.data.objects.new("AF_Tunic_RearShoulderSeam_%s_v100"%label,mesh)
-        bpy.context.collection.objects.link(obj)
-        for p in mesh.polygons:
-            p.use_smooth=True
-        obj.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
-        obj["aetherfall_subpart"]="rear_shoulder_seam"
-        made.append((obj,"Tunic","rear_shoulder_seam",body))
-    return made
+    source_cx=(mn.x+mx.x)*0.5
+    source_hx=(mx.x-mn.x)*0.5
+    h=max(0.10,mx.z-mn.z)
+
+    # z fraction from top, body-width multiplier, body-depth multiplier,
+    # minimum source-width fraction, fold strength, shoulder drop
+    specs=[
+        (0.018,0.34,0.48,0.30,0.000,0.000), # neckline
+        (0.070,1.04,1.01,0.72,0.000,0.022), # shoulder slope
+        (0.145,1.07,1.05,0.86,0.006,0.010), # upper chest
+        (0.270,1.09,1.07,0.84,0.010,0.000), # chest
+        (0.410,1.08,1.06,0.80,0.012,0.000), # ribs
+        (0.555,1.05,1.04,0.74,0.014,0.000), # waist
+        (0.675,1.04,1.03,0.70,0.016,0.000), # belt gather
+        (0.775,1.07,1.05,0.72,0.018,0.000), # below belt
+        (0.885,1.11,1.07,0.78,0.020,0.000), # flare
+        (0.982,1.14,1.09,0.82,0.018,0.000), # hem
+    ]
+    seg=36
+    verts=[]; rings=[]
+    for ri,(frac,xmul,ymul,minwidth,fold_strength,shoulder_drop) in enumerate(specs):
+        z=mx.z-h*frac
+        minx,maxx,miny,maxy=_torso_xy_envelope(
+            body,z,source_cx,source_hx*0.64,max(0.012,h*0.030)
+        )
+        body_cx=(minx+maxx)*0.5
+        cy=(miny+maxy)*0.5
+        brx=max(0.020,(maxx-minx)*0.5)
+        bry=max(0.018,(maxy-miny)*0.5)
+        cx=source_cx*0.78+body_cx*0.22
+        if ri==0:
+            rx=max(0.060,source_hx*minwidth)
+            ry=max(0.045,bry*ymul)
+        else:
+            rx=max(brx*xmul,source_hx*minwidth)
+            rx=min(rx,source_hx*0.94)
+            ry=bry*ymul+0.010
+        ring=[]
+        for i in range(seg):
+            a=(i/seg)*math.tau
+            ca,sa=math.cos(a),math.sin(a)
+            gather=0.35+0.65*math.sin(math.pi*(ri/max(1,len(specs)-1)))
+            wave=fold_strength*gather*(
+                0.65*math.sin(a*3.0+ri*0.47)+
+                0.35*math.sin(a*5.0-ri*0.31)
+            )
+            # Front is -Y. Give chest a little extra cloth ease, but keep it
+            # well clear of body anatomy so the tunic never reads painted-on.
+            front_bias=1.025 if sa<0.0 and ri in (2,3,4) else 1.0
+            px=cx+ca*rx*(1.0+wave)
+            py=cy+sa*ry*(1.0+wave*0.55)*front_bias
+            pz=z
+            if shoulder_drop:
+                pz-=shoulder_drop*(abs(ca)**1.35)
+            if ri==0 and sa<0.0:
+                # Shallow front scoop neckline.
+                pz-=0.018*max(0.0,-sa)*(0.45+0.55*(1.0-abs(ca)))
+            if ri==len(specs)-1:
+                pz-=h*0.012*(
+                    0.55*math.sin(a*2.0+0.45)+0.25*math.sin(a*5.0-0.2)
+                )
+            ring.append(len(verts))
+            verts.append((px,py,pz))
+        rings.append(ring)
+    faces=[]
+    for r in range(len(rings)-1):
+        for i in range(seg):
+            j=(i+1)%seg
+            faces.append((rings[r][i],rings[r+1][i],rings[r+1][j],rings[r][j]))
+    mesh=bpy.data.meshes.new("AF_Tunic_Complete_v101_Mesh")
+    mesh.from_pydata(verts,[],faces); mesh.update()
+    obj=bpy.data.objects.new("AF_Tunic_Complete_v101",mesh)
+    bpy.context.collection.objects.link(obj)
+    for p in mesh.polygons:
+        p.use_smooth=True
+    obj.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
+    obj["aetherfall_subpart"]="complete_peasant_tunic"
+    for src in sources:
+        src.hide_viewport=True
+        src.hide_render=True
+        src["aetherfall_replaced_source"]=True
+    return [(obj,"Tunic","complete_peasant_tunic",body)]
 
 def look_at(obj, target):
     direction = Vector(target) - obj.location
@@ -2014,61 +2070,36 @@ def main():
             "weight_ratio_after": after,
         })
 
-    # v100 keeps the clean authored front and adds only a torso-limited,
-    # fitted rear tunic. Arm vertices are explicitly excluded from fit sampling,
-    # preventing the cape/sleeve spill seen in v86-v87.
+    # v101 stops patching the fragmented source tunic. It builds one complete,
+    # deformation-friendly tunic, then uses the successful bone-aligned sleeves.
     continuity_count = 0
     filler_count = 0
     rear_patch_count = 0
     gusset_count = 0
     boot_layer_count = 0
-
-    for extra, part, subpart, weight_source in _build_v100_tunic_back(body, part_objects):
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio = matching_weight_ratio(extra, rig)
-        garment_candidates.append(extra)
-        rear_patch_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall v100 torso-limited fitted rear tunic",
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
-
-    for extra, part, subpart, weight_source in _build_v100_side_gussets(body, part_objects):
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio = matching_weight_ratio(extra, rig)
-        garment_candidates.append(extra)
-        gusset_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall v100 underarm side gusset",
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
-
-    # Replace the rounded Tripo sleeve caps with short cloth sleeves aligned
-    # to the actual upper-arm bones. This gives the sleeve a real cylindrical
-    # garment volume and makes run deformation follow the arm instead of
-    # ballooning around the shoulder.
     sleeve_replacement_count = 0
-    for extra, part, subpart, replaced_source in _build_v100_bone_sleeves(rig, part_objects):
+
+    for extra, part, subpart, weight_source in _build_v101_complete_tunic(body, part_objects):
+        transfer_weights(weight_source, extra, rig)
+        clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio=matching_weight_ratio(extra,rig)
+        garment_candidates.append(extra)
+        continuity_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall v101 complete peasant tunic",
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
+        })
+
+    for extra, part, subpart, replaced_source in _build_v101_bone_sleeves(rig, part_objects):
         ensure_armature(extra, rig)
         clean_weights(extra)
         counters[part] += 1
@@ -2079,60 +2110,10 @@ def main():
         sleeve_replacement_count += 1
         report_items.append({
             "name": extra.name,
-            "source_name": "Aetherfall v100 bone-aligned short sleeve",
+            "source_name": "Aetherfall v101 bone-aligned short sleeve",
             "part": part,
             "vertices": len(extra.data.vertices),
             "weight_ratio_before": ratio,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
-
-    # Fill only the exposed rear shoulder wedges between the fitted back
-    # panel and the new bone-aligned sleeves. These follow the body surface and
-    # inherit body weights, so they behave like cloth instead of armor plates.
-    shoulder_seam_count = 0
-    for extra, part, subpart, weight_source in _build_v100_rear_shoulder_seams(body, rig, part_objects):
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio=matching_weight_ratio(extra,rig)
-        garment_candidates.append(extra)
-        shoulder_seam_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall v100 rear shoulder seam",
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
-
-    # Close only the narrow torso/waist strip that is still visible between
-    # Tunic_Upper and Tunic_Lower. The older broad back-yoke helper is discarded
-    # because it creates plate-like geometry across the shoulders.
-    for extra, part, subpart, weight_source in _build_gap_fillers(body, part_objects):
-        if subpart != "waist_bridge":
-            bpy.data.objects.remove(extra, do_unlink=True)
-            continue
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio = matching_weight_ratio(extra, rig)
-        garment_candidates.append(extra)
-        filler_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall v100 narrow waist bridge",
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
             "weight_ratio_after": ratio,
             "subpart": subpart,
         })
@@ -2162,7 +2143,7 @@ def main():
     )
 
     data = {
-        "version": "v100",
+        "version": "v101",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -2174,7 +2155,7 @@ def main():
         "gusset_pieces": gusset_count,
         "boot_layer_pieces": boot_layer_count,
         "sleeve_replacement_pieces": sleeve_replacement_count,
-        "rear_shoulder_seam_pieces": shoulder_seam_count,
+        "complete_tunic_pieces": continuity_count,
         "parts": counters,
         "garments": report_items,
         "uses_body_derived_shells": False,
@@ -2184,7 +2165,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V100_OK")
+    print("AETHERFALL_MALE_PEASANT_V101_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
