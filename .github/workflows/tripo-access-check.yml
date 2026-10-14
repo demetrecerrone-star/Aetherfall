@@ -1,0 +1,57 @@
+name: Aetherfall Tripo API Access Check (no credits spent)
+
+on:
+  push:
+    branches:
+      - experiment/configura-character-studio-v94
+    paths:
+      - .github/workflows/tripo-access-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tripo-key-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
+    steps:
+      - name: Check Tripo secret availability without printing it
+        id: secret
+        shell: bash
+        run: |
+          if [ -z "$TRIPO_API_KEY" ]; then
+            echo "TRIPO_API_KEY_NOT_CONFIGURED: add the key in Settings > Secrets and variables > Actions."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify Tripo API authentication via read-only credit balance endpoint
+        if: steps.secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # HTTP GET /v3/account/balance is read-only and consumes no generation credits.
+          http_code=$(curl --silent --show-error --max-time 25 \
+             --output /tmp/tripo_balance_response.json \
+             --write-out '%{http_code}' \
+             --header "Authorization: Bearer ${TRIPO_API_KEY}" \
+             https://openapi.tripo3d.ai/v3/account/balance)
+          export TRIPO_HTTP_CODE="$http_code"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          raw=Path('/tmp/tripo_balance_response.json').read_text()
+          try:
+              data=json.loads(raw)
+          except ValueError:
+              raise SystemExit("TRIPO_AUTH_TEST_FAILED: non-JSON API response")
+          if os.environ["TRIPO_HTTP_CODE"] != "200" or data.get("code") != 0:
+              raise SystemExit("TRIPO_AUTH_TEST_FAILED: HTTP/API status rejected credentials")
+          balance=data.get("data", {}).get("balance")
+          print("TRIPO_API_AUTH_OK: authenticated read-only balance query.")
+          print("TRIPO_CREDITS_AVAILABLE:", balance if isinstance(balance, (int,float)) else "not returned")
+          print("No model generation or paid action requested.")
+          PY
