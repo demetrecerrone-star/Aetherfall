@@ -1,0 +1,29 @@
+name: Aetherfall World Builder Source Checks
+
+on:
+  push:
+    branches:
+      - world-builder-prototype
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-town-builder:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate deterministic town preset and Unity source
+        run: |
+          python3 Aetherfall-Unity/Assets/WorldBuilder/tests/test_town_preset.py
+      - name: Verify existing title/login scene has not regressed
+        run: |
+          python3 -m pip install --disable-pip-version-check pillow
+          python3 Aetherfall-Unity/tests/test_project_contract.py
+      - name: Note build scope
+        run: echo "Source checks only - Unity scene generation and Android runtime remain untested."
