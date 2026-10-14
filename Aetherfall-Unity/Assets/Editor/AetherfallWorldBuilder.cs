@@ -18,6 +18,8 @@ namespace Aetherfall.Editor
         private const string PresetPath = "Assets/WorldBuilder/starter-town.json";
         private const string ScenePath = "Assets/Scenes/StarterTown.unity";
         private const string MaterialsPath = "Assets/WorldBuilder/Materials";
+        private const string TerrainAssetPath = "Assets/WorldBuilder/Generated/StarterTownTerrain.asset";
+        private static float guildHillHeight = 6f;
         private static readonly Dictionary<string, Material> Materials = new Dictionary<string, Material>();
 
         [Serializable]
@@ -31,6 +33,7 @@ namespace Aetherfall.Editor
             public int woodlandTrees = 130;
             public int bushes = 90;
             public float foliageOuterRadius = 195f;
+            public float guildHillHeight = 6f;
         }
 
         [MenuItem("Aetherfall/World Builder/Generate Starter Town")]
@@ -39,6 +42,7 @@ namespace Aetherfall.Editor
             TownPreset preset = LoadPreset();
             var random = new System.Random(preset.seed);
             Materials.Clear();
+            guildHillHeight = Mathf.Clamp(preset.guildHillHeight, 0f, 12f);
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var root = new GameObject("Aetherfall World - " + preset.townName);
@@ -56,6 +60,10 @@ namespace Aetherfall.Editor
             Box(terrain, "Outer Meadow Ground", Vector3.down * .7f,
                 new Vector3(preset.foliageOuterRadius * 2.5f, 1.3f,
                     preset.foliageOuterRadius * 2.5f), "MossGrass", "#648257", true);
+
+            // A gently elevated northern guild terrace overlooks the gate district.
+            // Save the terrain mesh as an asset so the baked town scene works on Android.
+            BuildLandscapeMesh(terrain, preset.foliageOuterRadius * 1.25f);
 
             // South gate (-Z) -> market district -> winding guild road.
             // Circular market loop deliberately leaves the fountain clear.
@@ -113,38 +121,41 @@ namespace Aetherfall.Editor
                 new Vector3(8f, 2.8f, 6.2f), "RoofSlate", "#55566C", true);
 
             // Bustling gate-side market district (southern half).
-            Fountain(landmarks, new Vector3(0, 0, -64));
-            Market(landmarks, new Vector3(-45, 0, -84));
-            House(landmarks, "General Supply Shop", new Vector3(-77, 0, -52),
+            Fountain(landmarks, GroundPosition(0, -64));
+            Market(landmarks, GroundPosition(-45, -84));
+            House(landmarks, "General Supply Shop", GroundPosition(-77, -52),
                 19, 16, 9, "#DCC6A4", "#627A67");
-            House(landmarks, "Bakery", new Vector3(39, 0, -82),
+            House(landmarks, "Bakery", GroundPosition(39, -82),
                 17, 13, 8, "#C4A67B", "#755C57");
-            House(landmarks, "Blacksmith and Forge", new Vector3(90, 0, -54),
+            House(landmarks, "Blacksmith and Forge", GroundPosition(90, -54),
                 23, 17, 9.5f, "#99968C", "#4F505B");
-            House(landmarks, "Apothecary", new Vector3(74, 0, -10),
+            House(landmarks, "Apothecary", GroundPosition(74, -10),
                 19, 14, 8, "#C3B7A3", "#5D8176");
-            House(landmarks, "The Hearth Inn", new Vector3(-69, 0, -19),
+            House(landmarks, "The Hearth Inn", GroundPosition(-69, -19),
                 23, 17, 10.5f, "#D6C5A7", "#78604E");
 
-            // Guild quarter is deliberately separate: the road winds past homes.
-            House(landmarks, "Adventurers Guild", new Vector3(-22, 0, 96),
+            // Guild Hall serves as Town Hall. The guildmaster governs the starter
+            // town, registers newcomers, coordinates guards and posts town quests.
+            House(landmarks, "Town Guild Hall - Civic Government", GroundPosition(-22, 96),
                 29, 19, 12, "#C9B59B", "#475C7D");
-            TrainingYard(landmarks, new Vector3(-77, 0, 76));
-            House(landmarks, "Healing Shrine", new Vector3(72, 0, 82),
+            GuildNoticeBoards(landmarks, GroundPosition(-22, 81));
+            TrainingYard(landmarks, GroundPosition(-77, 76));
+            House(landmarks, "Healing Shrine", GroundPosition(72, 82),
                 21, 19, 11, "#C7CFDC", "#6C79A1");
 
             // Repeatable residential blockout. These are editable individual objects.
             var residentialSlots = new []
             {
-                new Vector3(-90, 0, 14), new Vector3(-78, 0, 42),
-                new Vector3(-54, 0, 55), new Vector3(7, 0, 4),
-                new Vector3(83, 0, 25), new Vector3(75, 0, 47),
-                new Vector3(18, 0, 27), new Vector3(-75, 0, -81)
+                GroundPosition(-90, 14), GroundPosition(-78, 42),
+                GroundPosition(-54, 55), GroundPosition(7, 4),
+                GroundPosition(83, 25), GroundPosition(75, 47),
+                GroundPosition(18, 27), GroundPosition(-75, -81)
             };
             int houseCount = Mathf.Clamp(preset.residentialHouses, 0, residentialSlots.Length);
             for (int i = 0; i < houseCount; i++)
             {
                 var pos = residentialSlots[i];
+                pos.y = GroundHeight(pos.x, pos.z);
                 float w = 11f + (float)random.NextDouble() * 3.5f;
                 float d = 10f + (float)random.NextDouble() * 2.5f;
                 House(residences, "Residence " + (i + 1), pos, w, d, 6.7f, "#C5B6A0", "#6E6255");
@@ -157,7 +168,7 @@ namespace Aetherfall.Editor
                 float z = (float)(random.NextDouble() * 2 - 1) * preset.foliageOuterRadius;
                 if (Mathf.Abs(x) < 141f && Mathf.Abs(z) < 136f) continue;
                 if (Mathf.Abs(x) < 14 && z < -103) continue;
-                Tree(greenery, "Tree " + i, new Vector3(x, 0, z),
+                Tree(greenery, "Tree " + i, GroundPosition(x, z),
                     7 + (float)random.NextDouble() * 6,
                     (float)random.NextDouble() > .42f);
             }
@@ -167,7 +178,7 @@ namespace Aetherfall.Editor
                 float z = (float)(random.NextDouble() * 2 - 1) * preset.foliageOuterRadius;
                 if (Mathf.Abs(x) < 136f && Mathf.Abs(z) < 130f) continue;
                 if (Mathf.Abs(x) < 20f && z < -90) continue;
-                Sphere(greenery, "Shrub " + i, new Vector3(x, 1, z),
+                Sphere(greenery, "Shrub " + i, GroundPosition(x, z) + Vector3.up,
                     new Vector3(2.6f, 2.1f, 2.7f), "DarkLeaves", "#486945", false);
             }
 
@@ -177,7 +188,7 @@ namespace Aetherfall.Editor
                 new Vector2(-35, -39), new Vector2(-43, 8),
                 new Vector2(-39, 46), new Vector2(-33, 76),
                 new Vector2(39, -37), new Vector2(45, 13) })
-                Lamp(lights, new Vector3(lamp.x, 0, lamp.y));
+                Lamp(lights, GroundPosition(lamp.x, lamp.y));
             var sun = new GameObject("Sun (Baked-light candidate)");
             sun.transform.SetParent(lights, false);
             sun.transform.rotation = Quaternion.Euler(43, -35, 0);
@@ -190,7 +201,7 @@ namespace Aetherfall.Editor
             var cameraObject = new GameObject("Preview Camera (replace with player camera)");
             cameraObject.transform.SetParent(root.transform, false);
             cameraObject.transform.position = new Vector3(0, 185, -204);
-            cameraObject.transform.LookAt(new Vector3(0, 0, -4));
+            cameraObject.transform.LookAt(GroundPosition(0, -4));
             var camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(.66f, .79f, .9f);
@@ -213,7 +224,8 @@ namespace Aetherfall.Editor
                 throw new FileNotFoundException("Missing Aetherfall World Builder preset", PresetPath);
             TownPreset settings = JsonUtility.FromJson<TownPreset>(File.ReadAllText(PresetPath));
             if (settings == null || settings.width < 180 || settings.depth < 150 ||
-                settings.foliageOuterRadius < settings.width * .65f)
+                settings.foliageOuterRadius < settings.width * .65f ||
+                settings.guildHillHeight < 0 || settings.guildHillHeight > 12f)
                 throw new ArgumentException("Town dimensions are incompatible with landmark positions.");
             return settings;
         }
@@ -286,13 +298,23 @@ namespace Aetherfall.Editor
         private static void WallSegment(Transform parent, string label,
             Vector2 from, Vector2 to, float height, float thickness)
         {
-            Vector3 a = new Vector3(from.x, 0, from.y);
-            Vector3 b = new Vector3(to.x, 0, to.y);
-            Vector3 delta = b - a;
-            var block = Box(parent, label, (a + b) * .5f + Vector3.up * (height * .5f),
-                new Vector3(thickness, height, delta.magnitude + .25f),
-                "TownStone", "#898F95", true);
-            block.transform.rotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
+            // Follow changes in ground elevation by using short level wall blocks.
+            float length = Vector2.Distance(from, to);
+            int pieces = Mathf.Max(1, Mathf.CeilToInt(length / 8f));
+            for (int i = 0; i < pieces; i++)
+            {
+                Vector2 a = Vector2.Lerp(from, to, i / (float)pieces);
+                Vector2 b = Vector2.Lerp(from, to, (i + 1f) / pieces);
+                Vector3 start = GroundPosition(a.x, a.y);
+                Vector3 end = GroundPosition(b.x, b.y);
+                Vector3 heading = new Vector3(end.x - start.x, 0f, end.z - start.z);
+                Vector3 mid = (start + end) * .5f;
+                var block = Box(parent, label + " / " + i,
+                    mid + Vector3.up * (height * .5f),
+                    new Vector3(thickness, height + .5f, heading.magnitude + .25f),
+                    "TownStone", "#898F95", true);
+                block.transform.rotation = Quaternion.LookRotation(heading.normalized, Vector3.up);
+            }
         }
 
         private static void RingRoad(Transform parent, string name,
@@ -342,14 +364,97 @@ namespace Aetherfall.Editor
             Transform road = Group(parent, name);
             for (int i = 0; i < points.Length - 1; i++)
             {
-                Vector3 a = new Vector3(points[i].x, .055f, points[i].y);
-                Vector3 b = new Vector3(points[i + 1].x, .055f, points[i + 1].y);
+                Vector3 a = GroundPosition(points[i].x, points[i].y) + Vector3.up * .14f;
+                Vector3 b = GroundPosition(points[i + 1].x, points[i + 1].y) + Vector3.up * .14f;
                 Vector3 direction = b - a;
                 if (direction.sqrMagnitude < .0001f) continue;
                 GameObject segment = Box(road, "Road Surface " + i, (a + b) / 2f,
                     new Vector3(width, .12f, direction.magnitude + .22f),
                     "PackedEarth", "#B2A18A", false);
-                segment.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+                segment.transform.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            }
+        }
+
+
+        private static float GroundHeight(float x, float z)
+        {
+            // Smooth 0-6 m climb from the market to the administrative guild
+            // hill, with a wide, near-level plateau around the guild building.
+            float north = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-10f, 88f, z));
+            float lateral = 1f - Mathf.SmoothStep(0f, 1f,
+                Mathf.InverseLerp(24f, 89f, Mathf.Abs(x + 22f)));
+            return guildHillHeight * north * (.13f + .87f * lateral);
+        }
+
+        private static Vector3 GroundPosition(float x, float z)
+        {
+            return new Vector3(x, GroundHeight(x, z), z);
+        }
+
+        private static void BuildLandscapeMesh(Transform parent, float halfSpan)
+        {
+            // An actual saved, collidable terrain mesh; flat outer meadow sits
+            // below its surface. Does not require a per-player terrain generator.
+            const int divisions = 96;
+            int width = divisions + 1;
+            Vector3[] vertices = new Vector3[width * width];
+            Vector2[] uv = new Vector2[vertices.Length];
+            int[] tris = new int[divisions * divisions * 6];
+            for (int z = 0; z < width; z++)
+            for (int x = 0; x < width; x++)
+            {
+                float px = Mathf.Lerp(-halfSpan, halfSpan, x / (float)divisions);
+                float pz = Mathf.Lerp(-halfSpan, halfSpan, z / (float)divisions);
+                int index = z * width + x;
+                vertices[index] = GroundPosition(px, pz);
+                uv[index] = new Vector2(x / (float)divisions, z / (float)divisions);
+                if (x == divisions || z == divisions) continue;
+                int t = (z * divisions + x) * 6;
+                int a = index, b = index + 1, c = index + width, d = c + 1;
+                tris[t] = a; tris[t + 1] = c; tris[t + 2] = b;
+                tris[t + 3] = b; tris[t + 4] = c; tris[t + 5] = d;
+            }
+            Mesh mesh = new Mesh();
+            mesh.name = "Aetherfall Starter Town Rolling Terrain";
+            mesh.vertices = vertices;
+            mesh.uv = uv;
+            mesh.triangles = tris;
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            if (!AssetDatabase.IsValidFolder("Assets/WorldBuilder/Generated"))
+                AssetDatabase.CreateFolder("Assets/WorldBuilder", "Generated");
+            if (AssetDatabase.LoadAssetAtPath<Mesh>(TerrainAssetPath) != null)
+                AssetDatabase.DeleteAsset(TerrainAssetPath);
+            AssetDatabase.CreateAsset(mesh, TerrainAssetPath);
+
+            var terrain = new GameObject("Walkable North Guild Hill",
+                typeof(MeshFilter), typeof(MeshRenderer), typeof(MeshCollider));
+            terrain.transform.SetParent(parent, false);
+            terrain.GetComponent<MeshFilter>().sharedMesh = mesh;
+            terrain.GetComponent<MeshCollider>().sharedMesh = mesh;
+            terrain.GetComponent<MeshRenderer>().sharedMaterial =
+                Surface("TownGrass", "#819962");
+        }
+
+        private static void GuildNoticeBoards(Transform parent, Vector3 position)
+        {
+            Transform civic = Group(parent, "Guild Civic Services and Notice Boards");
+            civic.position = position;
+            // Signposts are blockout placeholders; later replace with readable
+            // guild charter, quest/contracts board and public announcements.
+            foreach (var section in new[] {
+                new { name = "Quest and Contract Board", x = -6f },
+                new { name = "Public Notices and Town Orders", x = 0f },
+                new { name = "New Adventurer Registration", x = 6f }
+            })
+            {
+                Box(civic, section.name + " Board", new Vector3(section.x, 2.6f, 0f),
+                    new Vector3(4.4f, 3.2f, .35f), "Timber", "#77543B", true);
+                Box(civic, section.name + " Parchment", new Vector3(section.x, 2.6f, -.22f),
+                    new Vector3(3.8f, 2.6f, .06f), "CivicParchment", "#DAC59C", false);
+                Box(civic, section.name + " Support", new Vector3(section.x, 1.25f, .2f),
+                    new Vector3(.3f, 2.5f, .3f), "Timber", "#77543B", true);
             }
         }
 
@@ -379,7 +484,7 @@ namespace Aetherfall.Editor
         private static void Tower(Transform parent, string name, float x, float z)
         {
             var t = Group(parent, name);
-            t.localPosition = new Vector3(x, 0, z);
+            t.localPosition = GroundPosition(x, z);
             Cylinder(t, "Stone Base", new Vector3(0, 6, 0),
                 new Vector3(5.5f, 6, 5.5f), "TownStone", "#898F95");
             Cylinder(t, "Battlement Top", new Vector3(0, 13, 0),
