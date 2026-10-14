@@ -30,6 +30,20 @@ namespace Aetherfall.Frontend
         private readonly List<float> moteOffsets = new List<float>();
         private Sprite decorativeMote;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
+        private static void LockLandscape()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            // Native Android orientation comes from PlayerSettings at build time.
+            // Reassert it before the Unity splash and prevent sensor autorotation.
+            Screen.autorotateToPortrait = false;
+            Screen.autorotateToPortraitUpsideDown = false;
+            Screen.autorotateToLandscapeLeft = true;
+            Screen.autorotateToLandscapeRight = false;
+            Screen.orientation = ScreenOrientation.LandscapeLeft;
+#endif
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Launch()
         {
@@ -40,6 +54,7 @@ namespace Aetherfall.Frontend
 
         private void Awake()
         {
+            LockLandscape();
             Application.targetFrameRate = 60;
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
             uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
