@@ -89,23 +89,42 @@ def choose_body(meshes, garment_candidates, rig):
     return candidates[0]
 
 def transfer_weights(body, garment, rig):
-    # Generate destination groups by name before transfer.
-    for vg in list(garment.vertex_groups):
-        garment.vertex_groups.remove(vg)
-    for source in body.vertex_groups:
-        garment.vertex_groups.new(name=source.name)
-    dt = garment.modifiers.new("AF_WeightTransfer", "DATA_TRANSFER")
-    dt.object = body
-    dt.use_vert_data = True
-    dt.data_types_verts = {"VGROUP_WEIGHTS"}
-    dt.vert_mapping = "POLYINTERP_NEAREST"
-    dt.layers_vgroup_select_src = "ALL"
-    dt.layers_vgroup_select_dst = "NAME"
-    dt.mix_mode = "REPLACE"
-    bpy.context.view_layer.objects.active = garment
-    garment.select_set(True)
-    bpy.ops.object.modifier_apply(modifier=dt.name)
-    garment.select_set(False)
+    # Weight transfer must happen in bind/rest space. If the imported GLB has
+    # an active action, evaluating the source through its Armature modifier and
+    # then adding another Armature to the new garment effectively double-poses
+    # the generated mesh.
+    previous_pose_position = getattr(rig.data, "pose_position", "POSE")
+    rig.data.pose_position = "REST"
+    source_armatures = [m for m in body.modifiers if m.type == "ARMATURE"]
+    source_visibility = [(m, m.show_viewport, m.show_render) for m in source_armatures]
+    for m, _, _ in source_visibility:
+        m.show_viewport = False
+        m.show_render = False
+    bpy.context.view_layer.update()
+    try:
+        for vg in list(garment.vertex_groups):
+            garment.vertex_groups.remove(vg)
+        for source in body.vertex_groups:
+            garment.vertex_groups.new(name=source.name)
+        dt = garment.modifiers.new("AF_WeightTransfer", "DATA_TRANSFER")
+        dt.object = body
+        dt.use_vert_data = True
+        dt.data_types_verts = {"VGROUP_WEIGHTS"}
+        dt.vert_mapping = "POLYINTERP_NEAREST"
+        dt.layers_vgroup_select_src = "ALL"
+        dt.layers_vgroup_select_dst = "NAME"
+        dt.mix_mode = "REPLACE"
+        bpy.ops.object.select_all(action="DESELECT")
+        bpy.context.view_layer.objects.active = garment
+        garment.select_set(True)
+        bpy.ops.object.modifier_apply(modifier=dt.name)
+        garment.select_set(False)
+    finally:
+        for m, vp, rd in source_visibility:
+            m.show_viewport = vp
+            m.show_render = rd
+        rig.data.pose_position = previous_pose_position
+        bpy.context.view_layer.update()
 
 def clean_weights(obj):
     bpy.ops.object.select_all(action="DESELECT")
@@ -197,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v67"
+    obj["aetherfall_qa_version"] = "v68"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -374,10 +393,10 @@ def _continuity_pieces(body, rig, part_objects):
         h = mx.z - mn.z
         rings = [
             (mx.z - h * 0.015, cx, cy, hx * 0.40, hy * 0.34),  # neck opening
-            (mx.z - h * 0.14,  cx, cy, hx * 0.83, hy * 0.78),  # shoulder/chest
-            (mx.z - h * 0.43,  cx, cy, hx * 0.80, hy * 0.76),  # chest
-            (mx.z - h * 0.70,  cx, cy, hx * 0.73, hy * 0.70),  # waist
-            (mn.z + h * 0.02,  cx, cy, hx * 0.82, hy * 0.74),  # loose hem
+            (mx.z - h * 0.14,  cx, cy, hx * 0.73, hy * 0.64),  # shoulder/chest
+            (mx.z - h * 0.43,  cx, cy, hx * 0.71, hy * 0.62),  # chest
+            (mx.z - h * 0.70,  cx, cy, hx * 0.66, hy * 0.58),  # waist
+            (mn.z + h * 0.02,  cx, cy, hx * 0.73, hy * 0.62),  # loose hem
         ]
         under = _elliptic_tube("AF_Tunic_ContinuityUnderlay", rings, 28)
         under.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.205, 0.175, 0.135), 0.93))
@@ -396,8 +415,8 @@ def _continuity_pieces(body, rig, part_objects):
         top = mx.z + 0.004
         bottom = mx.z - max(0.075, (mx.z - mn.z) * 0.28)
         rings = [
-            (top, cx, cy, hx * 0.88, hy * 0.80),
-            (bottom, cx, cy, hx * 0.72, hy * 0.68),
+            (top, cx, cy, hx * 0.76, hy * 0.68),
+            (bottom, cx, cy, hx * 0.62, hy * 0.58),
         ]
         bridge = _elliptic_tube("AF_Trouser_PelvisUnderlay", rings, 24)
         bridge.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
@@ -585,7 +604,7 @@ def main():
     )
 
     data = {
-        "version": "v67",
+        "version": "v68",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -601,7 +620,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V67_OK")
+    print("AETHERFALL_MALE_PEASANT_V68_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
