@@ -1,0 +1,72 @@
+name: Tripo Bald Bases - ONE TIME Review Generation
+
+# Runs only when this workflow is first added/edited on the experiment branch.
+# Re-runs are blocked in the Python script to avoid repeating billable API tasks.
+# No workflow_dispatch, no scheduled trigger, no production branch changes.
+on:
+  push:
+    branches:
+      - experiment/configura-character-studio-v94
+    paths:
+      - .github/workflows/tripo-bald-bases-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aetherfall-tripo-bald-bases-once
+  cancel-in-progress: false
+
+jobs:
+  prototype:
+    name: Generate two untextured Aetherfall base meshes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
+      GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+    steps:
+      - name: Check out experiment branch
+        uses: actions/checkout@v4
+        with:
+          ref: experiment/configura-character-studio-v94
+      - name: Safety check for first attempt and authorized branch
+        run: |
+          test "$GITHUB_RUN_ATTEMPT" = "1" || { echo 'Refusing rerun to prevent duplicate charges'; exit 1; }
+          test "$GITHUB_REF_NAME" = "experiment/configura-character-studio-v94"
+          test -n "$TRIPO_API_KEY" || { echo "Tripo API secret is missing"; exit 1; }
+      - name: Generate exactly two standard untextured candidates
+        run: python3 tools/tripo_generate_bald_bases.py
+      - name: Install tools for 3D screenshots
+        run: |
+          python3 -m pip install --quiet trimesh vtk pillow numpy
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq xvfb
+          fi
+      - name: Render actual GLB screenshots (front, angled, side)
+        run: |
+          xvfb-run -a python3 tools/render_tripo_review.py \
+            builds/tripo-bald-bases-20261014/aetherfall_male_bald_candidate.glb \
+            --gender male --out builds/tripo-bald-bases-20261014/aetherfall_male_review.png
+          xvfb-run -a python3 tools/render_tripo_review.py \
+            builds/tripo-bald-bases-20261014/aetherfall_female_bald_candidate.glb \
+            --gender female --out builds/tripo-bald-bases-20261014/aetherfall_female_review.png
+      - name: Upload candidate GLBs, images and manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aetherfall-tripo-bald-base-prototypes
+          path: builds/tripo-bald-bases-20261014/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Save candidates ONLY on experiment branch for visual review
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p experiments/tripo-bald-bases-20261014
+          cp builds/tripo-bald-bases-20261014/* experiments/tripo-bald-bases-20261014/
+          git add -f experiments/tripo-bald-bases-20261014/
+          git commit -m "Add Tripo bald anime character prototypes for review (no game swap)"
+          git push origin HEAD:experiment/configura-character-studio-v94
