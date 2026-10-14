@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v83"
+    obj["aetherfall_qa_version"] = "v84"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -241,10 +241,10 @@ def _reshape_authored_garment(obj, original_name):
 
         if "sleeve" in name:
             # Preserve the connected sleeve tube and only soften the cap.
-            p.x = center.x + (p.x - center.x) * 0.90
-            p.y = center.y + (p.y - center.y) * 0.91
-            p.z = center.z + (p.z - center.z) * 0.95
-            p.x -= side * 0.006
+            p.x = center.x + (p.x - center.x) * 0.86
+            p.y = center.y + (p.y - center.y) * 0.88
+            p.z = center.z + (p.z - center.z) * 0.93
+            p.x -= side * 0.008
             p.z -= 0.002
 
         elif "tunic_upper" in name:
@@ -1133,6 +1133,133 @@ def _build_boot_layers(body, rig, part_objects):
     return created
 
 
+
+def _curved_back_panel(name, rows, cols=13):
+    """Back-facing cloth panel with gentle torso curvature.
+
+    rows: (z, cx, back_y, half_width, side_curve)
+    """
+    verts, faces = [], []
+    for z, cx, back_y, halfw, side_curve in rows:
+        for col in range(cols):
+            nx = -1.0 + 2.0 * col / (cols - 1)
+            y = back_y - side_curve * (abs(nx) ** 1.8)
+            verts.append((cx + halfw * nx, y, z))
+    for r in range(len(rows)-1):
+        for col in range(cols-1):
+            a = r*cols + col
+            b = a + 1
+            c2 = (r+1)*cols + col + 1
+            d = (r+1)*cols + col
+            faces.append((a, d, c2, b))
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for p in mesh.polygons:
+        p.use_smooth = True
+    return obj
+
+def _simple_quad(name, pts):
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(pts, [], [(0, 1, 2, 3)])
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for p in mesh.polygons:
+        p.use_smooth = True
+    return obj
+
+def _build_v84_rear_repairs(body, part_objects):
+    """Repair only the openings visible in the v83 diagnostic render.
+
+    The approved front pieces remain untouched.  These pieces add a shaped back
+    tunic and inset boot fills without returning to body-derived shell clothes.
+    """
+    created = []
+    tunics = part_objects.get("Tunic", [])
+    uppers = [o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()]
+    lowers = [o for o in tunics if "tunic_lower" in str(o.get("aetherfall_source_name","")).lower()]
+    if uppers and lowers:
+        mn, mx = _combined_bounds(uppers + lowers)
+        bmn, bmx = world_bounds(body)
+        cx = (bmn.x + bmx.x) * 0.5
+        hx = (mx.x - mn.x) * 0.5
+        h = mx.z - mn.z
+        back_y = bmx.y + 0.010
+
+        # Main back panel begins just below the neckline and overlaps the source
+        # side panels.  It narrows at the waist and flares softly at the hem.
+        rows = [
+            (mx.z - h*0.145, cx, back_y,       hx*0.91, 0.018),
+            (mx.z - h*0.245, cx, back_y+0.004, hx*0.94, 0.020),
+            (mx.z - h*0.390, cx, back_y+0.006, hx*0.91, 0.021),
+            (mx.z - h*0.545, cx, back_y+0.004, hx*0.84, 0.020),
+            (mx.z - h*0.680, cx, back_y+0.002, hx*0.77, 0.018),
+            (mx.z - h*0.790, cx, back_y,       hx*0.76, 0.017),
+            (mx.z - h*0.900, cx, back_y-0.001, hx*0.82, 0.015),
+            (mn.z + h*0.015, cx, back_y-0.002, hx*0.87, 0.014),
+        ]
+        back = _curved_back_panel("AF_Tunic_BackComplete_v84", rows, 15)
+        back.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.300,0.270,0.215), 0.94))
+        back["aetherfall_subpart"] = "complete_back_panel"
+        created.append((back, "Tunic", "complete_back_panel", body))
+
+        # Separate shoulder yokes create a real rear neckline instead of a
+        # single high rectangle covering the neck.
+        top_z = mx.z - h*0.030
+        join_z = mx.z - h*0.165
+        for side in (-1.0, 1.0):
+            inner = cx + side * hx*0.20
+            outer = cx + side * hx*0.88
+            pts = [
+                (inner,                    back_y+0.001, top_z),
+                (outer,                    back_y-0.010, mx.z-h*0.105),
+                (cx + side*hx*0.92,        back_y-0.012, join_z),
+                (cx + side*hx*0.10,        back_y+0.002, join_z),
+            ]
+            yoke = _simple_quad("AF_Tunic_BackShoulder_%s_v84" % ("L" if side < 0 else "R"), pts)
+            yoke.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.300,0.270,0.215), 0.94))
+            yoke["aetherfall_subpart"] = "back_shoulder_yoke"
+            created.append((yoke, "Tunic", "back_shoulder_yoke", body))
+
+    # Inset boot fills close the open rear/heel without changing the visible
+    # approved front silhouette.
+    boots = part_objects.get("Boots", [])
+    for src in boots:
+        source_name = str(src.get("aetherfall_source_name","")).lower()
+        mn, mx = world_bounds(src)
+        center = (mn + mx) * 0.5
+        if "bootshaft" in source_name:
+            rx=(mx.x-mn.x)*0.38
+            ry=(mx.y-mn.y)*0.43
+            h=mx.z-mn.z
+            rear = _back_half_tube("AF_Boot_RearFill_v84", [
+                (mx.z-h*0.03, center.x, center.y, rx, ry),
+                (mn.z+h*0.05, center.x, center.y, rx*0.92, ry*0.95),
+            ], 16)
+            rear.data.materials.append(_material("AF_Scuffed_Leather_Boots",(0.070,0.036,0.018),0.84))
+            rear["aetherfall_subpart"]="rear_boot_fill"
+            rear["aetherfall_rigid_bone"]="mixamorig:LeftLeg" if center.x >= 0 else "mixamorig:RightLeg"
+            created.append((rear,"Boots","rear_boot_fill",None))
+        elif "bootfoot" in source_name:
+            fill = _ellipsoid(
+                "AF_Boot_FootInset_v84",
+                center,
+                (
+                    max(0.010,(mx.x-mn.x)*0.36),
+                    max(0.015,(mx.y-mn.y)*0.42),
+                    max(0.010,(mx.z-mn.z)*0.32),
+                ),
+                18,8
+            )
+            fill.data.materials.append(_material("AF_Scuffed_Leather_Boots",(0.070,0.036,0.018),0.84))
+            fill["aetherfall_subpart"]="boot_foot_inset"
+            fill["aetherfall_rigid_bone"]="mixamorig:LeftFoot" if center.x >= 0 else "mixamorig:RightFoot"
+            created.append((fill,"Boots","boot_foot_inset",None))
+    return created
+
 def look_at(obj, target):
     direction = Vector(target) - obj.location
     obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
@@ -1282,14 +1409,40 @@ def main():
             "weight_ratio_after": after,
         })
 
-    # v83 diagnostic baseline: preserve the actual authored source pieces,
-    # with corrected fit/materials, and no mirrored/procedural gap geometry.
-    # This lets visual QA tell us exactly which openings genuinely need rebuilt.
+    # v84 keeps the successful v83 front silhouette and repairs only the
+    # exposed back/boot openings revealed by the diagnostic checkpoint.
     continuity_count = 0
     filler_count = 0
     rear_patch_count = 0
     gusset_count = 0
     boot_layer_count = 0
+
+    for extra, part, subpart, weight_source in _build_v84_rear_repairs(body, part_objects):
+        rigid_bone = str(extra.get("aetherfall_rigid_bone", ""))
+        if rigid_bone:
+            _assign_rigid_weight(extra, rig, rigid_bone)
+        else:
+            transfer_weights(weight_source, extra, rig)
+            clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio = matching_weight_ratio(extra, rig)
+        garment_candidates.append(extra)
+        if part == "Tunic":
+            rear_patch_count += 1
+        else:
+            boot_layer_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall v84 targeted rear repair",
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
+        })
 
     # Keep metadata on the character as well for Godot import tooling.
     body["aetherfall_body_profile"] = "male_anime_v1"
@@ -1312,7 +1465,7 @@ def main():
     )
 
     data = {
-        "version": "v83",
+        "version": "v84",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -1332,7 +1485,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V83_OK")
+    print("AETHERFALL_MALE_PEASANT_V84_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
