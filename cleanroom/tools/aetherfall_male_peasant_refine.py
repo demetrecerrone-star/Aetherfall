@@ -197,7 +197,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v66"
+    obj["aetherfall_qa_version"] = "v67"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -322,6 +322,114 @@ def _apply_garment_material(obj, original_name, part):
     obj.data.materials.append(mat)
 
 
+
+def _combined_bounds(objects):
+    mins = Vector((1e9, 1e9, 1e9))
+    maxs = Vector((-1e9, -1e9, -1e9))
+    for obj in objects:
+        mn, mx = world_bounds(obj)
+        mins.x = min(mins.x, mn.x); mins.y = min(mins.y, mn.y); mins.z = min(mins.z, mn.z)
+        maxs.x = max(maxs.x, mx.x); maxs.y = max(maxs.y, mx.y); maxs.z = max(maxs.z, mx.z)
+    return mins, maxs
+
+def _elliptic_tube(name, rings, segments=24):
+    """Create an open quad tube from world-space elliptical rings."""
+    verts = []
+    faces = []
+    for z, cx, cy, rx, ry in rings:
+        for i in range(segments):
+            a = (i / segments) * math.tau
+            verts.append((cx + math.cos(a) * rx, cy + math.sin(a) * ry, z))
+    for r in range(len(rings) - 1):
+        base = r * segments
+        nxt = (r + 1) * segments
+        for i in range(segments):
+            j = (i + 1) % segments
+            faces.append((base + i, base + j, nxt + j, nxt + i))
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for p in mesh.polygons:
+        p.use_smooth = True
+    return obj
+
+def _continuity_pieces(body, rig, part_objects):
+    """Add authored cloth underlays only where the source garment is physically open.
+
+    These are deliberately shaped from garment bounds, not copied/extruded from
+    the body, so they solve the source model's open side/waist/crotch gaps
+    without returning to the rejected painted-on shell approach.
+    """
+    created = []
+
+    tunics = part_objects.get("Tunic", [])
+    if tunics:
+        mn, mx = _combined_bounds(tunics)
+        cx = (mn.x + mx.x) * 0.5
+        cy = (mn.y + mx.y) * 0.5
+        hx = (mx.x - mn.x) * 0.5
+        hy = (mx.y - mn.y) * 0.5
+        h = mx.z - mn.z
+        rings = [
+            (mx.z - h * 0.015, cx, cy, hx * 0.40, hy * 0.34),  # neck opening
+            (mx.z - h * 0.14,  cx, cy, hx * 0.83, hy * 0.78),  # shoulder/chest
+            (mx.z - h * 0.43,  cx, cy, hx * 0.80, hy * 0.76),  # chest
+            (mx.z - h * 0.70,  cx, cy, hx * 0.73, hy * 0.70),  # waist
+            (mn.z + h * 0.02,  cx, cy, hx * 0.82, hy * 0.74),  # loose hem
+        ]
+        under = _elliptic_tube("AF_Tunic_ContinuityUnderlay", rings, 28)
+        under.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.205, 0.175, 0.135), 0.93))
+        under["aetherfall_subpart"] = "continuity_underlay"
+        created.append((under, "Tunic", "continuity_underlay"))
+
+    trousers = part_objects.get("Trousers", [])
+    if trousers:
+        mn, mx = _combined_bounds(trousers)
+        cx = (mn.x + mx.x) * 0.5
+        cy = (mn.y + mx.y) * 0.5
+        hx = (mx.x - mn.x) * 0.5
+        hy = (mx.y - mn.y) * 0.5
+        # An inset pelvis/crotch cloth bridge, almost entirely hidden by the
+        # outer trouser legs and tunic but visible where the source had a hole.
+        top = mx.z + 0.004
+        bottom = mx.z - max(0.075, (mx.z - mn.z) * 0.28)
+        rings = [
+            (top, cx, cy, hx * 0.88, hy * 0.80),
+            (bottom, cx, cy, hx * 0.72, hy * 0.68),
+        ]
+        bridge = _elliptic_tube("AF_Trouser_PelvisUnderlay", rings, 24)
+        bridge.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
+        bridge["aetherfall_subpart"] = "pelvis_underlay"
+        created.append((bridge, "Trousers", "pelvis_underlay"))
+
+    # Add two thin irregular-looking wrap bands per boot shaft. They give the
+    # otherwise simple mobile boot silhouette a layered peasant construction.
+    boots = part_objects.get("Boots", [])
+    shafts = [o for o in boots if "bootshaft" in str(o.get("aetherfall_source_name", "")).lower()]
+    for shaft in shafts:
+        mn, mx = world_bounds(shaft)
+        cx = (mn.x + mx.x) * 0.5
+        cy = (mn.y + mx.y) * 0.5
+        rx = (mx.x - mn.x) * 0.52
+        ry = (mx.y - mn.y) * 0.52
+        h = mx.z - mn.z
+        for band_index, frac in enumerate((0.34, 0.68), start=1):
+            zc = mn.z + h * frac
+            thick = max(0.007, h * 0.065)
+            rings = [
+                (zc - thick * 0.5, cx, cy, rx * 1.04, ry * 1.04),
+                (zc + thick * 0.5, cx, cy, rx * 1.06, ry * 1.06),
+            ]
+            band = _elliptic_tube("AF_Boot_Wrap_%s_%d" % ("L" if cx >= 0 else "R", band_index), rings, 18)
+            band.data.materials.append(_material("AF_Scuffed_Leather_Boots", (0.048, 0.023, 0.012), 0.84))
+            band["aetherfall_subpart"] = "boot_wrap"
+            created.append((band, "Boots", "boot_wrap"))
+
+    return created
+
+
 def look_at(obj, target):
     direction = Vector(target) - obj.location
     obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
@@ -406,9 +514,11 @@ def main():
 
     report_items = []
     counters = {"Tunic": 0, "Trousers": 0, "Boots": 0, "Belt": 0}
+    part_objects = {"Tunic": [], "Trousers": [], "Boots": [], "Belt": []}
     for garment in garment_candidates:
         original_name = garment.name
         part = classify_part(garment, body)
+        garment["aetherfall_source_name"] = original_name
         _reshape_authored_garment(garment, original_name)
         _apply_garment_material(garment, original_name, part)
         before = matching_weight_ratio(garment, rig)
@@ -418,6 +528,8 @@ def main():
         ensure_armature(garment, rig)
         counters[part] += 1
         tag_garment(garment, part, counters[part])
+        garment["aetherfall_source_name"] = original_name
+        part_objects[part].append(garment)
         after = matching_weight_ratio(garment, rig)
         garment.hide_viewport = False
         garment.hide_render = False
@@ -429,6 +541,27 @@ def main():
             "vertices": len(garment.data.vertices),
             "weight_ratio_before": before,
             "weight_ratio_after": after,
+        })
+
+    continuity_count = 0
+    for extra, part, subpart in _continuity_pieces(body, rig, part_objects):
+        transfer_weights(body, extra, rig)
+        clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio = matching_weight_ratio(extra, rig)
+        garment_candidates.append(extra)
+        continuity_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall procedural authored " + subpart,
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
         })
 
     # Keep metadata on the character as well for Godot import tooling.
@@ -452,12 +585,13 @@ def main():
     )
 
     data = {
-        "version": "v66",
+        "version": "v67",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
         "body": body.name,
         "authored_garment_objects": len(garment_candidates),
+        "continuity_pieces": continuity_count,
         "parts": counters,
         "garments": report_items,
         "uses_body_derived_shells": False,
@@ -467,7 +601,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V66_OK")
+    print("AETHERFALL_MALE_PEASANT_V67_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
