@@ -24,7 +24,7 @@ jobs:
       - name: Install Blender
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender python3-numpy
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y blender python3-numpy libegl1 libgl1 libglx0
           blender --version
 
       - name: Prepare runtime GLB
