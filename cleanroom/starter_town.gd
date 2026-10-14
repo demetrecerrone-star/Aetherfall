@@ -5,6 +5,7 @@ const NatureReplacement = preload("res://nature_replacements.gd")
 const GateAshlar = preload("res://gate_ashlar.gd")
 const GrassField = preload("res://grass_field.gd")
 const GraphicsQuality = preload("res://graphics_quality.gd")
+const CharacterPreferences = preload("res://character_preferences.gd")
 const PeasantGear = preload("res://peasant_gear.gd")
 # Runtime .bin holds the same optimized GLB bytes and is explicitly
 # bundled in the Android export (Godot does not reliably preload raw .glb).
@@ -183,6 +184,9 @@ func _ready() -> void:
     # Keep the same direct-scene startup path as the proven v0.1.3 build.
     # The diagnostic overlay is created first so later runtime failures remain visible.
     process_priority = 1000
+    var saved_profile: Dictionary = CharacterPreferences.load_profile()
+    _character_variant = str(saved_profile["variant"])
+    _idle_option_index = IDLE_OPTIONS.find(str(saved_profile["idle_pose"]))
     _build_diagnostic_overlay()
     _diag_stage("AF-WORLD-200", "Starter Town controller entered _ready().")
 
@@ -2433,10 +2437,12 @@ func _switch_character() -> void:
     _actor.position.y = 0.0
 
     _character_variant = "female" if _character_variant == "male" else "male"
-    _idle_option_index = 0
     _refresh_character_buttons()
     _set_status("LOADING", "Loading Universal Base " + _character_variant)
     _load_runtime_glb()
+    # Commit the new choice only once the destination character loaded correctly.
+    if _loaded:
+        CharacterPreferences.save_profile(_character_variant, str(IDLE_OPTIONS[_idle_option_index]))
 
 
 func _cycle_idle_pose() -> void:
@@ -2450,6 +2456,8 @@ func _cycle_idle_pose() -> void:
         _set_motion("IDLE")
     else:
         _set_status(_motion, _motion_detail())
+    if _loaded:
+        CharacterPreferences.save_profile(_character_variant, str(IDLE_OPTIONS[_idle_option_index]))
 
 
 func _set_motion(mode: String) -> void:
