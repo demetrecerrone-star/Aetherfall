@@ -32,3 +32,18 @@ jobs:
             exit 1
           fi
           echo 'PASS: missing Unity secrets are detected and block the API check'
+
+  live-unity-build-1:
+    name: Check Aetherfall Unity Cloud build 1
+    needs: check-report
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Query Unity Build Automation API with repository secrets
+        env:
+          UNITY_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UNITY_SERVICE_ACCOUNT_KEY_ID }}
+          UNITY_SERVICE_ACCOUNT_SECRET_KEY: ${{ secrets.UNITY_SERVICE_ACCOUNT_SECRET_KEY }}
+          UNITY_CLOUD_ORG_ID: '2476066025878'
+          UNITY_CLOUD_PROJECT_ID: '92204c56-3bcf-41b8-8eec-43d1069287a1'
+          UNITY_CLOUD_TARGET_ID: 'aetherfall-android'
+        run: python3 tools/unity_cloud_report.py --build 1
