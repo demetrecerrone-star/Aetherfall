@@ -201,7 +201,7 @@ func _choose_tint(index: int) -> void:
 func _apply_tint() -> void:
     if _model == null:
         return
-    var tint := character_state.values.get("prototype_base_tint", COLOR_PRESETS[0])
+    var tint: Variant = character_state.values.get("prototype_base_tint", COLOR_PRESETS[0])
     if not tint is Color:
         tint = COLOR_PRESETS[0]
     var mat := StandardMaterial3D.new()
