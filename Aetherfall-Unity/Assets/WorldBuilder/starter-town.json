@@ -6,5 +6,6 @@
   "residentialHouses": 8,
   "woodlandTrees": 130,
   "bushes": 90,
-  "foliageOuterRadius": 195
+  "foliageOuterRadius": 195,
+  "guildHillHeight": 6
 }
