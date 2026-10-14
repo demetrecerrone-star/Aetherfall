@@ -1,0 +1,86 @@
+name: Aetherfall VRoid Hair Reference Fetch (no APK)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/configura-character-studio-v94
+    paths:
+      - '.github/workflows/vroid-hair-source-fetch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  acquire-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Download two VRoid CC0 sample references
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reference_vrm
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 20 \
+            -o reference_vrm/HairSample_Male.vrm \
+            https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/beta/HairSample_Male.vrm
+          curl --fail --location --retry 4 --retry-all-errors --connect-timeout 20 \
+            -o reference_vrm/HairSample_Female.vrm \
+            https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/beta/HairSample_Female.vrm
+      - name: Verify exact upstream Git blobs and inspect VRM scene names
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,struct, pathlib
+          root=pathlib.Path('reference_vrm')
+          specs={
+           'HairSample_Male.vrm':(18481892,'46e8c583ce5df3b8ee167141b59ba3ad583a2687'),
+           'HairSample_Female.vrm':(17518216,'0e5235f9a7972fbcbceb74960479b208c27a8707')
+          }
+          info={'source_repository':'https://github.com/madjin/vrm-samples',
+                'original_license':'CC0, confirmed for HairSample_Male and HairSample_Female by official VRoid FAQ',
+                'license_reference':'https://vroid.pixiv.help/hc/en-us/articles/4402614652569-Do-VRoid-Studio-s-sample-models-come-with-conditions-of-use',
+                'note':'Unmodified VRoid 0.x source samples; game-ready use requires extraction, retopology/optimization and manual fit validation.',
+                'files':{}}
+          for name,(size,git_sha) in specs.items():
+            raw=(root/name).read_bytes()
+            assert len(raw)==size,(name,'size mismatch',len(raw),size)
+            expected=hashlib.sha1(('blob '+str(len(raw))+'\\0').encode().replace(b'\\0',b'\0')+raw).hexdigest()
+            assert expected==git_sha,(name,'blob mismatch',expected,git_sha)
+            assert raw[:4]==b'glTF' and struct.unpack_from('<I',raw,4)[0]==2,(name,'not glTF 2.0 VRM')
+            assert struct.unpack_from('<I',raw,8)[0]==len(raw)
+            chunk_length,chunk_type=struct.unpack_from('<II',raw,12)
+            assert chunk_type==0x4e4f534a
+            doc=json.loads(raw[20:20+chunk_length].decode('utf8').strip())
+            meshes=doc.get('meshes',[])
+            nodes=doc.get('nodes',[])
+            candidates=[{'index':i,'name':x.get('name','')} for i,x in enumerate(nodes) if 'hair' in x.get('name','').lower()]
+            material_candidates=[{'index':i,'name':x.get('name','')} for i,x in enumerate(doc.get('materials',[])) if 'hair' in x.get('name','').lower()]
+            info['files'][name]={
+             'size_bytes':size,'git_blob_sha1':git_sha,'sha256':hashlib.sha256(raw).hexdigest(),
+             'mesh_count':len(meshes),'node_count':len(nodes),'material_count':len(doc.get('materials',[])),
+             'hair_named_nodes':candidates[:100],'hair_named_materials':material_candidates[:100],
+             'gltf_extensions_used':doc.get('extensionsUsed',[])
+            }
+            print(name,'VERIFIED',size,'bytes',len(meshes),'meshes',len(candidates),'hair named nodes')
+          (root/'source_audit.json').write_text(json.dumps(info,indent=2)+'\\n')
+          PY
+      - name: Document exact license and extraction limits
+        run: |
+          cat > reference_vrm/README_HAIR_SOURCES.md <<'EOF'
+          # Aetherfall — downloaded VRoid CC0 hair reference sources
+          Files: HairSample_Male.vrm and HairSample_Female.vrm.
+          Original format: VRM based on glTF, source models contain complete avatars, NOT yet ready-to-equip hair-only GLB.
+          Source: https://github.com/madjin/vrm-samples/tree/master/vroid/beta
+          License proof: https://vroid.pixiv.help/hc/en-us/articles/4402614652569-Do-VRoid-Studio-s-sample-models-come-with-conditions-of-use
+          Official VRoid FAQ lists HairSample_Male and HairSample_Female as CC0 licensed.
+          Retain originals for reference. Before integrating, extract named hair geometry, confirm textures/materials and fitting.
+          DO NOT replace approved Aetherfall character rigs, or public-commit the extracted copies until reviewed.
+          EOF
+      - name: Upload verified VRMs and source report (not committed to repository)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-VRoid-Hair-CC0-References
+          path: reference_vrm/
+          retention-days: 30
+          compression-level: 0
