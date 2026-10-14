@@ -34,3 +34,6 @@ move_right={"deadzone":0.2,"events":[Object(InputEventKey,"physical_keycode":68)
 jump={"deadzone":0.5,"events":[Object(InputEventKey,"physical_keycode":32)]}
 sprint={"deadzone":0.5,"events":[Object(InputEventKey,"physical_keycode":4194325)]}
 camera_reset={"deadzone":0.5,"events":[Object(InputEventKey,"physical_keycode":82)]}
+
+[editor_plugins]
+enabled=PackedStringArray("res://addons/Configura/plugin.cfg")

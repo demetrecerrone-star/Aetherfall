@@ -1,0 +1,65 @@
+name: Aetherfall Configura Feasibility (no APK)
+on:
+  push:
+    branches:
+      - experiment/configura-character-studio-v94
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  addon-and-asset-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated branch and pinned Configura
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - name: Verify pinned Configura commit
+        run: |
+          set -euo pipefail
+          EXPECTED=0a7b08b74a5a7e684d3242cf3f1140cffed023cb
+          ACTUAL=$(git -C third_party/configura rev-parse HEAD)
+          test "$ACTUAL" = "$EXPECTED"
+          test -s third_party/configura/addons/Configura/LICENSE.txt
+      - name: Install official Configura code into isolated test checkout
+        run: python3 tools/install_configura_experiment.py
+      - name: Validate existing 65-bone male and female source GLBs
+        run: python3 tests/configura_asset_audit.py
+      - name: Install Godot 4.6.3
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.3
+          use-dotnet: false
+          include-templates: false
+      - name: Generate original project character for Godot import
+        run: python3 tools/generate_avatar_v033.py
+      - name: Import project with Configura editor plugin enabled
+        run: |
+          set -o pipefail
+          godot --headless --editor --path . --quit 2>&1 | tee builds/configura_editor.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Failed to load script|Cannot load.*Configura' builds/configura_editor.log; then
+            exit 1
+          fi
+      - name: Verify Configura appearance options and save/load state
+        run: |
+          set -o pipefail
+          godot --headless --path . --script res://tests/configura_smoke.gd 2>&1 | tee builds/configura_smoke.log
+          grep -F AETHERFALL_CONFIGURA_DATA_MODEL_OK builds/configura_smoke.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:' builds/configura_smoke.log; then
+            exit 1
+          fi
+      - name: Publish audit and logs (no APK produced)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aetherfall-Configura-Feasibility-Logs
+          path: |
+            builds/configura_asset_audit.json
+            builds/configura_editor.log
+            builds/configura_smoke.log
+          if-no-files-found: warn
+          retention-days: 14
