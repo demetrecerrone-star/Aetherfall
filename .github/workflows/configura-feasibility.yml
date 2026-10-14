@@ -65,6 +65,14 @@ jobs:
           if grep -E 'SCRIPT ERROR:|Parse Error:' builds/configura_smoke.log; then
             exit 1
           fi
+      - name: Confirm existing peasant outfit meshes share both 65-bone rigs
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/configura_outfit_rig_smoke.gd 2>&1 | tee builds/configura_outfit_rig.log
+          grep -F AETHERFALL_CONFIGURA_EXISTING_GEAR_COMPATIBLE builds/configura_outfit_rig.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:' builds/configura_outfit_rig.log; then
+            exit 1
+          fi
       - name: Publish audit and logs (no APK produced)
         if: always()
         uses: actions/upload-artifact@v4
@@ -75,5 +83,6 @@ jobs:
             builds/configura_bootstrap.log
             builds/configura_editor.log
             builds/configura_smoke.log
+            builds/configura_outfit_rig.log
           if-no-files-found: warn
           retention-days: 14

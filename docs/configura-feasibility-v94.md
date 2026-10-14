@@ -55,3 +55,11 @@ touch controls and camera regression checks, and a permanently signed APK.
 
 Do not merge this experiment into a playable branch or represent it as a
 finished v94 Android release until those tests pass.
+
+## Additional planned rig-only check
+
+The isolated workflow also invokes `cleanroom/tests/configura_outfit_rig_smoke.gd`
+to import both existing male/female Universal GLBs using `GLTFDocument`, equip
+the existing four peasant garment parts, and assert skin binds and weight data.
+Passing this check means the old peasant garments have compatible rig data;
+it **does not** prove fitted Tripo garments, no clipping, or good animation poses.
