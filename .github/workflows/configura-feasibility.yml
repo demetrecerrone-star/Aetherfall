@@ -68,7 +68,7 @@ jobs:
       - name: Test standalone Tripo Configura candidate studio without private models
         run: |
           set -o pipefail
-          godot --headless --path . --script res://tests/configura_candidate_studio_smoke.gd 2>&1 | tee builds/configura_candidate_studio.log
+          timeout 45s godot --headless --path . --script res://tests/configura_candidate_studio_smoke.gd 2>&1 | tee builds/configura_candidate_studio.log
           grep -F AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_OK builds/configura_candidate_studio.log
           if grep -E 'SCRIPT ERROR:|Parse Error:|AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_FAIL' builds/configura_candidate_studio.log; then
             exit 1
@@ -76,7 +76,7 @@ jobs:
       - name: Test independent iris and hair options follow the unmodified head rig
         run: |
           set -o pipefail
-          godot --headless --path . --script res://tests/configura_face_hair_attachment_smoke.gd 2>&1 | tee builds/configura_face_hair.log
+          timeout 45s godot --headless --path . --script res://tests/configura_face_hair_attachment_smoke.gd 2>&1 | tee builds/configura_face_hair.log
           grep -F AETHERFALL_FACE_HAIR_ATTACHMENT_OK builds/configura_face_hair.log
           if grep -E 'SCRIPT ERROR:|Parse Error:|AETHERFALL_FACE_HAIR_ATTACHMENT_FAIL' builds/configura_face_hair.log; then
             exit 1
