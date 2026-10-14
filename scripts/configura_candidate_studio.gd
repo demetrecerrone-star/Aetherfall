@@ -3,6 +3,7 @@ extends Node3D
 ## Loads staged copies of user-approved bald characters; never writes to their GLBs,
 ## renames bones, or replaces the playable Starter Town.
 ## Configura supplies CharacterConfig, ColorOption, and CharacterState persistence.
+const FaceHairAttachments = preload("res://scripts/configura_face_hair_attachments.gd")
 const CANDIDATE_DIR := "res://assets/characters/configura_candidates/"
 const PROFILE_PATH := "user://aetherfall_configura_candidate_state.tres"
 const CHARACTER_IDS := ["male", "female"]
@@ -17,6 +18,9 @@ var current_character := "male"
 var _model: Node3D
 var _camera: Camera3D
 var _message: Label
+const HAIR_PRESETS := [Color("#343047"), Color("#745046"), Color("#b2b9cf"), Color("#be7651"), Color("#d5b071")]
+const IRIS_PRESETS := [Color("#478bd1"), Color("#42ad7c"), Color("#ad76db"), Color("#8e5f38"), Color("#e3b451")]
+var _appearance: Dictionary = {}
 var _swatch_index := 0
 var _orbit := 0.0
 
@@ -44,6 +48,31 @@ func _setup_configura_state() -> void:
     tint.group = "Base Prototype"
     tint.default_color = COLOR_PRESETS[0]
     character_config.options.append(tint)
+    # Configura option data types, with an isolated custom preview UI.
+    var hair_swap := MeshSwapOption.new()
+    hair_swap.resource_name = "hairstyle"
+    hair_swap.display_name = "Hairstyle"
+    hair_swap.group = "Hair"
+    hair_swap.default_choice = 1
+    for label in ["Bald", "Style 1", "Style 2"]:
+        var choice := MeshSwapChoice.new()
+        choice.label = label
+        hair_swap.choices.append(choice)
+    character_config.options.append(hair_swap)
+
+    var hair_color := ColorOption.new()
+    hair_color.resource_name = "hair_color"
+    hair_color.display_name = "Hair Color"
+    hair_color.group = "Hair"
+    hair_color.default_color = HAIR_PRESETS[0]
+    character_config.options.append(hair_color)
+
+    var iris_color := ColorOption.new()
+    iris_color.resource_name = "iris_color"
+    iris_color.display_name = "Iris Color"
+    iris_color.group = "Eyes"
+    iris_color.default_color = IRIS_PRESETS[0]
+    character_config.options.append(iris_color)
 
     character_state = CharacterState.from_config(character_config)
     if ResourceLoader.exists(PROFILE_PATH):
@@ -120,6 +149,47 @@ func _setup_ui() -> void:
         button.pressed.connect(_load_character.bind(variant))
         row.add_child(button)
 
+    var hair_heading := Label.new()
+    hair_heading.text = "HAIR STYLE (BONE-ATTACHED PROTOTYPE)"
+    stack.add_child(hair_heading)
+    var choices := HBoxContainer.new()
+    stack.add_child(choices)
+    for index in range(3):
+        var option := Button.new()
+        option.name = "HairStyle_" + str(index)
+        option.text = ["BALD", "SHORT", "LONG"][index]
+        option.custom_minimum_size = Vector2(95, 48)
+        option.pressed.connect(_choose_hairstyle.bind(index))
+        choices.add_child(option)
+
+    var hair_heading_color := Label.new()
+    hair_heading_color.text = "HAIR COLOR"
+    stack.add_child(hair_heading_color)
+    var hair_swatches := HBoxContainer.new()
+    stack.add_child(hair_swatches)
+    for index in range(HAIR_PRESETS.size()):
+        var option := Button.new()
+        option.name = "HairColor_" + str(index)
+        option.text = str(index + 1)
+        option.modulate = HAIR_PRESETS[index]
+        option.custom_minimum_size = Vector2(56, 48)
+        option.pressed.connect(_choose_hair_color.bind(index))
+        hair_swatches.add_child(option)
+
+    var iris_heading := Label.new()
+    iris_heading.text = "IRIS COLOR (EYES ONLY)"
+    stack.add_child(iris_heading)
+    var iris_swatches := HBoxContainer.new()
+    stack.add_child(iris_swatches)
+    for index in range(IRIS_PRESETS.size()):
+        var option := Button.new()
+        option.name = "IrisColor_" + str(index)
+        option.text = str(index + 1)
+        option.modulate = IRIS_PRESETS[index]
+        option.custom_minimum_size = Vector2(56, 48)
+        option.pressed.connect(_choose_iris_color.bind(index))
+        iris_swatches.add_child(option)
+
     var tint_label := Label.new()
     tint_label.text = "WHOLE-MODEL COLOR TEST"
     stack.add_child(tint_label)
@@ -177,6 +247,7 @@ func _load_character(variant: String) -> void:
     if _model != null:
         _model.queue_free()
         _model = null
+        _appearance.clear()
     _model = imported
     _model.name = "ConfiguraCandidate_" + variant
     add_child(_model)
@@ -184,10 +255,48 @@ func _load_character(variant: String) -> void:
     _model.scale = Vector3.ONE * 1.92
     current_character = variant
     character_state.metadata["character_model"] = variant
+    # Apply body tint before creating independent eye/hair meshes.
     _apply_tint()
+    _appearance = FaceHairAttachments.mount(_model, variant)
+    if _appearance.is_empty():
+        _message.text = "Could not create 65-bone head attachments."
+        return
+    _sync_appearance()
     _message.text = variant.capitalize() + " imported. 65 joints verified.\n" + (
-        "Finger joints preserved. Animation transfer, independent iris colors, "
-        + "hair swaps, and garment fitting still need testing.")
+        "Finger joints preserved. Hair/eye options are separately attached. "
+        + "Animation and garment fitting still need testing.")
+
+
+func _sync_appearance() -> void:
+    if _appearance.is_empty():
+        return
+    var hair_selection: int = int(character_state.values.get("hairstyle", 1))
+    FaceHairAttachments.select_hairstyle(_appearance, hair_selection - 1)
+    var hair: Variant = character_state.values.get("hair_color", HAIR_PRESETS[0])
+    var iris: Variant = character_state.values.get("iris_color", IRIS_PRESETS[0])
+    FaceHairAttachments.color_hair(_appearance, hair if hair is Color else HAIR_PRESETS[0])
+    FaceHairAttachments.color_iris(_appearance, iris if iris is Color else IRIS_PRESETS[0])
+
+
+func _choose_hairstyle(index: int) -> void:
+    if index < 0 or index > 2:
+        return
+    character_state.record("hairstyle", index)
+    _sync_appearance()
+
+
+func _choose_hair_color(index: int) -> void:
+    if index < 0 or index >= HAIR_PRESETS.size():
+        return
+    character_state.record("hair_color", HAIR_PRESETS[index])
+    _sync_appearance()
+
+
+func _choose_iris_color(index: int) -> void:
+    if index < 0 or index >= IRIS_PRESETS.size():
+        return
+    character_state.record("iris_color", IRIS_PRESETS[index])
+    _sync_appearance()
 
 
 func _choose_tint(index: int) -> void:
@@ -209,6 +318,10 @@ func _apply_tint() -> void:
     mat.metallic = 0.0
     mat.roughness = 0.9
     for item in _model.find_children("*", "MeshInstance3D", true, false):
+        if not _appearance.is_empty():
+            var attachment := _appearance.get("attachment") as Node3D
+            if attachment != null and attachment.is_ancestor_of(item):
+                continue
         (item as MeshInstance3D).material_override = mat
 
 
