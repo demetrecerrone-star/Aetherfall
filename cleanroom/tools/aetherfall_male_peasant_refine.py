@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v79"
+    obj["aetherfall_qa_version"] = "v80"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -1174,6 +1174,8 @@ def main():
 
     continuity_count = 0
     for extra, part, subpart in _build_mirrored_back_panels(body, part_objects):
+        if matching_weight_ratio(extra, rig) < 0.98:
+            transfer_weights(body, extra, rig)
         clean_weights(extra)
         ensure_armature(extra, rig)
         counters[part] += 1
@@ -1240,7 +1242,7 @@ def main():
     )
 
     data = {
-        "version": "v79",
+        "version": "v80",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -1259,7 +1261,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V79_OK")
+    print("AETHERFALL_MALE_PEASANT_V80_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
