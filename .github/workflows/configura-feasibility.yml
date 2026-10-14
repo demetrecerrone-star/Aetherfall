@@ -73,6 +73,14 @@ jobs:
           if grep -E 'SCRIPT ERROR:|Parse Error:' builds/configura_outfit_rig.log; then
             exit 1
           fi
+      - name: Check Starter Town character selection survives restart (no APK)
+        run: |
+          set -o pipefail
+          godot --headless --path cleanroom --script res://tests/character_preferences_test.gd 2>&1 | tee builds/character_preferences.log
+          grep -F AETHERFALL_CHARACTER_PREFERENCES_OK builds/character_preferences.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|AETHERFALL_CHARACTER_PREFERENCES_FAIL' builds/character_preferences.log; then
+            exit 1
+          fi
       - name: Publish audit and logs (no APK produced)
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,5 +92,6 @@ jobs:
             builds/configura_editor.log
             builds/configura_smoke.log
             builds/configura_outfit_rig.log
+            builds/character_preferences.log
           if-no-files-found: warn
           retention-days: 14
