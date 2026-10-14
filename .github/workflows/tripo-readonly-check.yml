@@ -1,0 +1,26 @@
+name: Tripo API Read-Only Connection Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/configura-character-studio-v94
+    paths:
+      - .github/workflows/tripo-readonly-check.yml
+      - tools/tripo_connection_check.py
+
+permissions:
+  contents: read
+
+jobs:
+  tripo-connection:
+    name: Verify Tripo API key (no generation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out experiment branch
+        uses: actions/checkout@v4
+      - name: Verify read-only Tripo API access
+        env:
+          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
+        run: python3 tools/tripo_connection_check.py
