@@ -100,6 +100,44 @@ def error_codes(payload):
     return list(dict.fromkeys(m.group(0) for m in CODE_PATTERN.finditer(raw)))[:8]
 
 
+def classify_failure(details):
+    """Return a broad, fixed-label diagnosis. Never publish untrusted failure text."""
+    if not isinstance(details, list):
+        return []
+    categories = []
+    for item in details:
+        if not isinstance(item, dict):
+            continue
+        fields = ("displayName", "stage", "step", "publicMessage", "failureType",
+                  "failureIndicatorLabel")
+        value = " ".join(str(item.get(k, "")) for k in fields).lower()
+        if ("git" in value and ("checkout" in value or "clone" in value or "auth" in value)):
+            category = "Git repository checkout or authentication"
+        elif ("project" in value or "workspace" in value) and (
+                "missing" in value or "invalid" in value or "not found" in value
+                or "unrecognized" in value):
+            category = "Unity project folder or project configuration"
+        elif "license" in value or "activation" in value:
+            category = "Unity Editor license activation"
+        elif "compile" in value or "csharp" in value or re.search(r"\\bcs[0-9]{4}\\b", value):
+            category = "C# compilation"
+        elif "gradle" in value or "android sdk" in value:
+            category = "Android packaging or SDK"
+        elif "timeout" in value or "timed out" in value:
+            category = "Build timeout"
+        elif "signing" in value or "keystore" in value:
+            category = "Android signing"
+        elif "checkout" in value or "clone" in value:
+            category = "Source checkout"
+        elif "configuration" in value or "configure" in value:
+            category = "Build configuration"
+        else:
+            category = "Unclassified; consult Unity build log"
+        if category not in categories:
+            categories.append(category)
+    return categories[:4]
+
+
 def make_summary(build, chosen, org, project, target):
     status = short_text(build.get("buildStatus") or build.get("status") or "Unknown")
     platform = short_text(build.get("platform") or build.get("platformName") or "Android")
@@ -124,6 +162,9 @@ def make_summary(build, chosen, org, project, target):
     if isinstance(failure, (list, dict)) and failure:
         count = len(failure) if isinstance(failure, list) else len(failure.keys())
         result.append("- Failure detail entries: " + str(count))
+        categories = classify_failure(failure)
+        for category in categories:
+            result.append("- Failure category: " + category)
         codes = error_codes(failure)
         if codes:
             result.append("- Recognized error identifiers: " + ", ".join(codes))
@@ -156,6 +197,7 @@ def self_test():
     assert build_number({"buildNumber": "19"}) == 19
     assert len(build_list({"builds": [{"build": 1}]})) == 1
     assert error_codes({"message": "Assets/A.cs: error CS0103: example.com?token=secret"}) == ["CS0103"]
+    assert classify_failure([{"displayName": "Git Checkout Error", "publicMessage": "Git authentication failed"}]) == ["Git repository checkout or authentication"]
     test = make_summary(
         {"buildStatus": "failure", "failureDetails": ["error CS0103: secret=mykey"]},
         1, "org", "project", "aetherfall-android",
