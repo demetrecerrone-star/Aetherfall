@@ -73,6 +73,14 @@ jobs:
           if grep -E 'SCRIPT ERROR:|Parse Error:|AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_FAIL' builds/configura_candidate_studio.log; then
             exit 1
           fi
+      - name: Test independent iris and hair options follow the unmodified head rig
+        run: |
+          set -o pipefail
+          godot --headless --path . --script res://tests/configura_face_hair_attachment_smoke.gd 2>&1 | tee builds/configura_face_hair.log
+          grep -F AETHERFALL_FACE_HAIR_ATTACHMENT_OK builds/configura_face_hair.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|AETHERFALL_FACE_HAIR_ATTACHMENT_FAIL' builds/configura_face_hair.log; then
+            exit 1
+          fi
       - name: Confirm existing peasant outfit meshes share both 65-bone rigs
         run: |
           set -o pipefail
@@ -100,6 +108,7 @@ jobs:
             builds/configura_editor.log
             builds/configura_smoke.log
             builds/configura_candidate_studio.log
+            builds/configura_face_hair.log
             builds/configura_outfit_rig.log
             builds/character_preferences.log
           if-no-files-found: warn
