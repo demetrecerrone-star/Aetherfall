@@ -50,66 +50,96 @@ namespace Aetherfall.Editor
             var greenery = Group(root.transform, "06 Outdoor Foliage");
             var lights = Group(root.transform, "07 Lamps and Lighting");
 
-            float halfWidth = preset.width * .5f;
-            float halfDepth = preset.depth * .5f;
-            Box(terrain, "Outer Landscape", Vector3.down * .7f,
+            // An irregular walled settlement, NOT a rectangular courtyard.
+            // The main entrance opens directly into a busy circular market square.
+            // A winding road travels round cottage blocks to the quieter guild quarter.
+            Box(terrain, "Outer Meadow Ground", Vector3.down * .7f,
                 new Vector3(preset.foliageOuterRadius * 2.5f, 1.3f,
-                    preset.foliageOuterRadius * 2.5f), "MossGrass", "#567D49", true);
-            Box(terrain, "Town Ground", new Vector3(0, -.12f, 0),
-                new Vector3(preset.width, .3f, preset.depth), "TownGrass", "#819962", true);
+                    preset.foliageOuterRadius * 2.5f), "MossGrass", "#648257", true);
 
-            // Orthogonal readable streets; only the central avenue leads through the gate.
-            Box(roads, "South-North Main Road", new Vector3(0, .052f, -22),
-                new Vector3(11f, .12f, preset.depth + 82f), "PackedEarth", "#B2A18A", false);
-            Box(roads, "West-East Market Street", new Vector3(0, .052f, 5),
-                new Vector3(preset.width - 24f, .12f, 8.5f), "PackedEarth", "#B2A18A", false);
-            Box(roads, "Central Square Paving", new Vector3(0, .091f, 0),
-                new Vector3(34f, .12f, 34f), "Stone", "#B5ACA0", false);
-            for (int i = -3; i <= 3; i++)
-            {
-                Box(roads, "Square Stone Stripe " + i, new Vector3(i * 4.5f, .159f, 0),
-                    new Vector3(.18f, .025f, 33), "Mortar", "#857F73", false);
-            }
+            // South gate (-Z) -> market district -> winding guild road.
+            // Circular market loop deliberately leaves the fountain clear.
+            CurvedRoad(roads, "Arrival Road to Gate", 10f,
+                new Vector2(0, -146), new Vector2(0, -122), new Vector2(0, -102),
+                new Vector2(-1, -91), new Vector2(0, -86));
+            RingRoad(roads, "Gate Market Loop Road", new Vector2(0, -64), 24f, 8f);
+            Cylinder(roads, "Rounded Market Plaza", new Vector3(0, .038f, -64),
+                new Vector3(18f, .055f, 18f), "PlazaStone", "#AEA497", false);
 
-            // Stone walls. A deliberate 18 m opening at the SOUTH (-Z) gate.
-            float wallY = 4f;
-            float wallHeight = 8.5f;
-            Box(defenses, "North Curtain Wall", new Vector3(0, wallY, halfDepth),
-                new Vector3(preset.width + 5, wallHeight, 3.8f), "TownStone", "#898F95", true);
-            Box(defenses, "West Curtain Wall", new Vector3(-halfWidth, wallY, 0),
-                new Vector3(4, wallHeight, preset.depth + 5), "TownStone", "#898F95", true);
-            Box(defenses, "East Curtain Wall", new Vector3(halfWidth, wallY, 0),
-                new Vector3(4, wallHeight, preset.depth + 5), "TownStone", "#898F95", true);
-            float curtainLength = (preset.width - 18f) / 2f;
-            Box(defenses, "South West Wall", new Vector3(-(18f + curtainLength) / 2, wallY, -halfDepth),
-                new Vector3(curtainLength, wallHeight, 4), "TownStone", "#898F95", true);
-            Box(defenses, "South East Wall", new Vector3((18f + curtainLength) / 2, wallY, -halfDepth),
-                new Vector3(curtainLength, wallHeight, 4), "TownStone", "#898F95", true);
-            Tower(defenses, "South Gate West Tower", -13.3f, -halfDepth);
-            Tower(defenses, "South Gate East Tower", 13.3f, -halfDepth);
-            Box(defenses, "Gate Arch Lintel", new Vector3(0, 12.2f, -halfDepth),
+            CurvedRoad(roads, "Winding Guild Approach", 7.8f,
+                new Vector2(-16, -45), new Vector2(-29, -27),
+                new Vector2(-28, -7), new Vector2(-43, 15),
+                new Vector2(-39, 35), new Vector2(-30, 54),
+                new Vector2(-22, 72));
+            CurvedRoad(roads, "Residential Return Lane", 6.6f,
+                new Vector2(22, -54), new Vector2(46, -35),
+                new Vector2(45, -13), new Vector2(45, 9),
+                new Vector2(37, 29), new Vector2(17, 47),
+                new Vector2(-6, 60), new Vector2(-22, 72));
+            CurvedRoad(roads, "Blacksmith Side Lane", 5.8f,
+                new Vector2(24, -66), new Vector2(49, -67),
+                new Vector2(72, -65));
+            CurvedRoad(roads, "Market Shopfront Spur", 5.6f,
+                new Vector2(-23, -66), new Vector2(-48, -69),
+                new Vector2(-65, -57));
+            CurvedRoad(roads, "Shrine Footpath", 4.4f,
+                new Vector2(37, 29), new Vector2(54, 49),
+                new Vector2(66, 67));
+            CurvedRoad(roads, "Guild Hall Forecourt", 7.0f,
+                new Vector2(-22, 72), new Vector2(-22, 78),
+                new Vector2(-22, 83));
+
+            // Segmented perimeter follows a soft, irregular silhouette.
+            // Gap between x=-9 and x=+9 is an 18-m south gate opening.
+            Vector2[] wallOutline = {
+                new Vector2(9, -104), new Vector2(42, -107),
+                new Vector2(86, -96), new Vector2(109, -68),
+                new Vector2(124, -19), new Vector2(115, 31),
+                new Vector2(93, 78), new Vector2(56, 102),
+                new Vector2(5, 119), new Vector2(-48, 110),
+                new Vector2(-93, 85), new Vector2(-117, 46),
+                new Vector2(-121, 5), new Vector2(-111, -48),
+                new Vector2(-83, -88), new Vector2(-43, -104),
+                new Vector2(-9, -104)
+            };
+            for (int i = 0; i < wallOutline.Length - 1; i++)
+                WallSegment(defenses, "Curved Wall Segment " + (i + 1),
+                    wallOutline[i], wallOutline[i + 1], 8.5f, 3.8f);
+            Tower(defenses, "South Gate West Tower", -13.3f, -104);
+            Tower(defenses, "South Gate East Tower", 13.3f, -104);
+            Box(defenses, "Gate Arch Lintel", new Vector3(0, 12.2f, -104),
                 new Vector3(23f, 3.2f, 6), "TownStone", "#898F95", true);
-            Box(defenses, "Gate Crest", new Vector3(0, 14.2f, -halfDepth),
+            Box(defenses, "Gate Crest", new Vector3(0, 14.2f, -104),
                 new Vector3(8f, 2.8f, 6.2f), "RoofSlate", "#55566C", true);
 
-            // Landmark sizes are intentional for legibility on a mobile screen.
-            Fountain(landmarks, new Vector3(0, 0, 0));
-            House(landmarks, "Adventurers Guild", new Vector3(0, 0, 68), 29, 19, 12, "#C9B59B", "#475C7D");
-            House(landmarks, "The Hearth Inn", new Vector3(-68, 0, -34), 23, 17, 10.5f, "#D6C5A7", "#78604E");
-            House(landmarks, "Blacksmith and Forge", new Vector3(67, 0, -34), 24, 17, 9.5f, "#99968C", "#4F505B");
-            House(landmarks, "General Supply Shop", new Vector3(-64, 0, 38), 19, 16, 9, "#DCC6A4", "#627A67");
-            House(landmarks, "Healing Shrine", new Vector3(67, 0, 52), 21, 19, 11, "#C7CFDC", "#6C79A1");
-            House(landmarks, "Bakery", new Vector3(-37, 0, -64), 18, 13, 8, "#C4A67B", "#755C57");
-            House(landmarks, "Apothecary", new Vector3(38, 0, -63), 18, 13, 8, "#C3B7A3", "#5D8176");
-            Market(landmarks, new Vector3(75, 0, 22));
-            TrainingYard(landmarks, new Vector3(80, 0, -70));
+            // Bustling gate-side market district (southern half).
+            Fountain(landmarks, new Vector3(0, 0, -64));
+            Market(landmarks, new Vector3(-45, 0, -84));
+            House(landmarks, "General Supply Shop", new Vector3(-77, 0, -52),
+                19, 16, 9, "#DCC6A4", "#627A67");
+            House(landmarks, "Bakery", new Vector3(39, 0, -82),
+                17, 13, 8, "#C4A67B", "#755C57");
+            House(landmarks, "Blacksmith and Forge", new Vector3(90, 0, -54),
+                23, 17, 9.5f, "#99968C", "#4F505B");
+            House(landmarks, "Apothecary", new Vector3(74, 0, -10),
+                19, 14, 8, "#C3B7A3", "#5D8176");
+            House(landmarks, "The Hearth Inn", new Vector3(-69, 0, -19),
+                23, 17, 10.5f, "#D6C5A7", "#78604E");
+
+            // Guild quarter is deliberately separate: the road winds past homes.
+            House(landmarks, "Adventurers Guild", new Vector3(-22, 0, 96),
+                29, 19, 12, "#C9B59B", "#475C7D");
+            TrainingYard(landmarks, new Vector3(-77, 0, 76));
+            House(landmarks, "Healing Shrine", new Vector3(72, 0, 82),
+                21, 19, 11, "#C7CFDC", "#6C79A1");
 
             // Repeatable residential blockout. These are editable individual objects.
             var residentialSlots = new []
             {
-                new Vector3(-85,0,73), new Vector3(-39,0,73), new Vector3(39,0,74),
-                new Vector3(-89,0,-70), new Vector3(-63,0,-68),
-                new Vector3(63,0,77), new Vector3(-91,0,-4), new Vector3(91,0,66)
+                new Vector3(-90, 0, 14), new Vector3(-78, 0, 42),
+                new Vector3(-59, 0, 62), new Vector3(7, 0, 4),
+                new Vector3(83, 0, 25), new Vector3(75, 0, 47),
+                new Vector3(18, 0, 27), new Vector3(-96, 0, -61)
             };
             int houseCount = Mathf.Clamp(preset.residentialHouses, 0, residentialSlots.Length);
             for (int i = 0; i < houseCount; i++)
@@ -120,14 +150,13 @@ namespace Aetherfall.Editor
                 House(residences, "Residence " + (i + 1), pos, w, d, 6.7f, "#C5B6A0", "#6E6255");
             }
 
-            // Foliage lives primarily beyond the walls, preventing the road-clipping
-            // issues from earlier prototypes. The same seed always yields the same town.
+            // Boundary-focused woodland: leave the winding streets and gate clear.
             for (int i = 0; i < preset.woodlandTrees; i++)
             {
                 float x = (float)(random.NextDouble() * 2 - 1) * preset.foliageOuterRadius;
                 float z = (float)(random.NextDouble() * 2 - 1) * preset.foliageOuterRadius;
-                if (Mathf.Abs(x) < halfWidth + 13 && Mathf.Abs(z) < halfDepth + 13) continue;
-                if (Mathf.Abs(x) < 13 && z < -halfDepth) continue;
+                if (Mathf.Abs(x) < 141f && Mathf.Abs(z) < 136f) continue;
+                if (Mathf.Abs(x) < 14 && z < -103) continue;
                 Tree(greenery, "Tree " + i, new Vector3(x, 0, z),
                     7 + (float)random.NextDouble() * 6,
                     (float)random.NextDouble() > .42f);
@@ -136,17 +165,19 @@ namespace Aetherfall.Editor
             {
                 float x = (float)(random.NextDouble() * 2 - 1) * preset.foliageOuterRadius;
                 float z = (float)(random.NextDouble() * 2 - 1) * preset.foliageOuterRadius;
-                if (Mathf.Abs(x) < 19 && Mathf.Abs(z) < halfDepth + 38) continue;
-                if (Mathf.Abs(x) < halfWidth + 5 && Mathf.Abs(z) < halfDepth + 5) continue;
+                if (Mathf.Abs(x) < 136f && Mathf.Abs(z) < 130f) continue;
+                if (Mathf.Abs(x) < 20f && z < -90) continue;
                 Sphere(greenery, "Shrub " + i, new Vector3(x, 1, z),
                     new Vector3(2.6f, 2.1f, 2.7f), "DarkLeaves", "#486945", false);
             }
 
-            for (int i = -3; i <= 3; i++)
-            {
-                Lamp(lights, new Vector3(-8.5f, 0, i * 21f));
-                Lamp(lights, new Vector3(8.5f, 0, i * 21f));
-            }
+            // Light the entrance, then guide the player along the guild approach.
+            foreach (Vector2 lamp in new[] {
+                new Vector2(-11, -116), new Vector2(11, -116),
+                new Vector2(-35, -39), new Vector2(-43, 8),
+                new Vector2(-39, 46), new Vector2(-33, 76),
+                new Vector2(39, -37), new Vector2(45, 13) })
+                Lamp(lights, new Vector3(lamp.x, 0, lamp.y));
             var sun = new GameObject("Sun (Baked-light candidate)");
             sun.transform.SetParent(lights, false);
             sun.transform.rotation = Quaternion.Euler(43, -35, 0);
@@ -158,8 +189,8 @@ namespace Aetherfall.Editor
 
             var cameraObject = new GameObject("Preview Camera (replace with player camera)");
             cameraObject.transform.SetParent(root.transform, false);
-            cameraObject.transform.position = new Vector3(0, 178, -190);
-            cameraObject.transform.LookAt(new Vector3(0, 0, 0));
+            cameraObject.transform.position = new Vector3(0, 185, -204);
+            cameraObject.transform.LookAt(new Vector3(0, 0, -4));
             var camera = cameraObject.AddComponent<Camera>();
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(.66f, .79f, .9f);
@@ -251,6 +282,76 @@ namespace Aetherfall.Editor
         private static GameObject Sphere(Transform t, string name, Vector3 p, Vector3 s,
             string m, string c, bool solid = false) =>
             Primitive(t, name, PrimitiveType.Sphere, p, s, m, c, solid);
+
+        private static void WallSegment(Transform parent, string label,
+            Vector2 from, Vector2 to, float height, float thickness)
+        {
+            Vector3 a = new Vector3(from.x, 0, from.y);
+            Vector3 b = new Vector3(to.x, 0, to.y);
+            Vector3 delta = b - a;
+            var block = Box(parent, label, (a + b) * .5f + Vector3.up * (height * .5f),
+                new Vector3(thickness, height, delta.magnitude + .25f),
+                "TownStone", "#898F95", true);
+            block.transform.rotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
+        }
+
+        private static void RingRoad(Transform parent, string name,
+            Vector2 center, float radius, float width)
+        {
+            const int segments = 32;
+            var points = new Vector2[segments + 1];
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = (i / (float)segments) * Mathf.PI * 2f;
+                points[i] = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+            }
+            PolylineRoad(parent, name, width, points);
+        }
+
+        private static void CurvedRoad(Transform parent, string name, float width,
+            params Vector2[] controlPoints)
+        {
+            // Catmull-Rom creates a bend without sharp 90-degree junctions.
+            if (controlPoints.Length < 2) return;
+            var points = new List<Vector2>();
+            const int divisions = 5;
+            for (int i = 0; i < controlPoints.Length - 1; i++)
+            {
+                Vector2 p0 = controlPoints[Mathf.Max(0, i - 1)];
+                Vector2 p1 = controlPoints[i];
+                Vector2 p2 = controlPoints[i + 1];
+                Vector2 p3 = controlPoints[Mathf.Min(controlPoints.Length - 1, i + 2)];
+                for (int j = 0; j < divisions; j++)
+                {
+                    float t = j / (float)divisions;
+                    float t2 = t * t;
+                    float t3 = t2 * t;
+                    points.Add(.5f * (2f * p1 +
+                        (-p0 + p2) * t +
+                        (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2 +
+                        (-p0 + 3f * p1 - 3f * p2 + p3) * t3));
+                }
+            }
+            points.Add(controlPoints[controlPoints.Length - 1]);
+            PolylineRoad(parent, name, width, points.ToArray());
+        }
+
+        private static void PolylineRoad(Transform parent, string name, float width,
+            Vector2[] points)
+        {
+            Transform road = Group(parent, name);
+            for (int i = 0; i < points.Length - 1; i++)
+            {
+                Vector3 a = new Vector3(points[i].x, .055f, points[i].y);
+                Vector3 b = new Vector3(points[i + 1].x, .055f, points[i + 1].y);
+                Vector3 direction = b - a;
+                if (direction.sqrMagnitude < .0001f) continue;
+                GameObject segment = Box(road, "Road Surface " + i, (a + b) / 2f,
+                    new Vector3(width, .12f, direction.magnitude + .22f),
+                    "PackedEarth", "#B2A18A", false);
+                segment.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+            }
+        }
 
         private static void House(Transform parent, string name, Vector3 p,
             float width, float depth, float height, string wallColor, string roofColor)
