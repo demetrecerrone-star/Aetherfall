@@ -197,7 +197,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v65"
+    obj["aetherfall_qa_version"] = "v66"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -223,10 +223,10 @@ def _reshape_authored_garment(obj, original_name):
         if "sleeve" in name:
             # The source cap sleeves read like shoulder armor. Pull them inward
             # and make the cross-section slimmer while keeping a short cloth cap.
-            p.x = center.x + (p.x - center.x) * 0.80
-            p.y = center.y + (p.y - center.y) * 0.82
-            p.z = center.z + (p.z - center.z) * 0.92
-            p.x -= side * 0.010
+            p.x = center.x + (p.x - center.x) * 0.74
+            p.y = center.y + (p.y - center.y) * 0.76
+            p.z = center.z + (p.z - center.z) * 0.88
+            p.x -= side * 0.014
             p.z -= 0.004
 
         elif "tunic_upper" in name:
@@ -235,6 +235,17 @@ def _reshape_authored_garment(obj, original_name):
             p.x = center.x + (p.x - center.x) * shoulder
             depth = 0.94 - 0.03 * t
             p.y = center.y + (p.y - center.y) * depth
+            # Turn the hard rectangular top edge into a softer cloth shoulder.
+            halfw = max(1e-6, (mx.x - mn.x) * 0.5)
+            edge = abs(p.x - center.x) / halfw
+            if t > 0.72 and edge > 0.50:
+                shoulder_edge = min(1.0, (edge - 0.50) / 0.50) * min(1.0, (t - 0.72) / 0.28)
+                p.z -= 0.018 * shoulder_edge
+                p.x = center.x + (p.x - center.x) * (1.0 - 0.055 * shoulder_edge)
+            # Lower the front-center neckline into a shallow anime-fantasy scoop.
+            if p.y < center.y and t > 0.78:
+                neck = max(0.0, 1.0 - abs(p.x - center.x) / max(0.055, halfw * 0.48))
+                p.z -= 0.018 * neck * min(1.0, (t - 0.78) / 0.22)
 
         elif "tunic_lower" in name:
             # Slight peasant-shirt flare: restrained at the belt, freer at hem.
@@ -242,6 +253,8 @@ def _reshape_authored_garment(obj, original_name):
             p.x = center.x + (p.x - center.x) * flare
             p.y = center.y + (p.y - center.y) * (0.95 + (1.0 - t) * 0.035)
             # Break the perfectly horizontal hem very subtly.
+            # Close the old upper/lower tunic gap without moving the hem.
+            p.z += 0.026 * t
             if t < 0.16:
                 phase = (p.x - center.x) * 42.0
                 p.z -= (0.16 - t) * 0.010 * (0.5 + 0.5 * math.sin(phase))
@@ -269,7 +282,7 @@ def _reshape_authored_garment(obj, original_name):
         elif "cuff" in name:
             p.x = center.x + (p.x - center.x) * 0.96
             p.y = center.y + (p.y - center.y) * 0.95
-            p.z = center.z + (p.z - center.z) * 0.72
+            p.z = center.z + (p.z - center.z) * 0.84
 
         elif "belt" in name:
             p.x = center.x + (p.x - center.x) * 0.98
@@ -296,15 +309,15 @@ def _material(name, color, roughness):
 def _apply_garment_material(obj, original_name, part):
     n = original_name.lower()
     if "cuff" in n:
-        mat = _material("AF_Linen_Boot_Wrap", (0.30, 0.225, 0.16), 0.88)
+        mat = _material("AF_Linen_Boot_Wrap", (0.115, 0.075, 0.045), 0.88)
     elif part == "Tunic":
-        mat = _material("AF_Worn_Linen_Tunic", (0.43, 0.405, 0.345), 0.93)
+        mat = _material("AF_Worn_Linen_Tunic", (0.205, 0.175, 0.135), 0.93)
     elif part == "Trousers":
-        mat = _material("AF_Patched_Wool_Trousers", (0.235, 0.175, 0.125), 0.96)
+        mat = _material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96)
     elif part == "Boots":
-        mat = _material("AF_Scuffed_Leather_Boots", (0.18, 0.115, 0.075), 0.82)
+        mat = _material("AF_Scuffed_Leather_Boots", (0.055, 0.028, 0.014), 0.82)
     else:
-        mat = _material("AF_Plain_Leather_Belt", (0.26, 0.145, 0.085), 0.76)
+        mat = _material("AF_Plain_Leather_Belt", (0.090, 0.038, 0.016), 0.76)
     obj.data.materials.clear()
     obj.data.materials.append(mat)
 
@@ -321,6 +334,12 @@ def setup_render(body, garments, out_dir):
     scene.render.image_settings.file_format = "PNG"
     scene.render.film_transparent = False
     scene.world.color = (0.020, 0.026, 0.038)
+    scene.view_settings.exposure = -0.65
+    try:
+        scene.view_settings.view_transform = "AgX"
+        scene.view_settings.look = "AgX - Medium High Contrast"
+    except Exception:
+        pass
 
     try:
         scene.render.engine = "BLENDER_EEVEE_NEXT"
@@ -433,7 +452,7 @@ def main():
     )
 
     data = {
-        "version": "v65",
+        "version": "v66",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -448,7 +467,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V65_OK")
+    print("AETHERFALL_MALE_PEASANT_V66_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
