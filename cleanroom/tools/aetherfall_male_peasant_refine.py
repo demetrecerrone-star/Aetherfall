@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v74"
+    obj["aetherfall_qa_version"] = "v75"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -760,6 +760,81 @@ def _build_mirrored_back_panels(body, part_objects):
 
     return created
 
+
+def _back_half_tube(name, rings, segments=18):
+    verts, faces = [], []
+    for z, cx, cy, rx, ry in rings:
+        for i in range(segments + 1):
+            a = math.pi * i / segments
+            verts.append((cx + math.cos(a) * rx, cy + math.sin(a) * ry, z))
+    stride = segments + 1
+    for r in range(len(rings)-1):
+        for i in range(segments):
+            a = r*stride + i
+            b = a + 1
+            c2 = (r+1)*stride + i + 1
+            d = (r+1)*stride + i
+            faces.append((a, d, c2, b))
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for p in mesh.polygons:
+        p.use_smooth = True
+    return obj
+
+def _build_gap_fillers(body, part_objects):
+    created = []
+    tunics = part_objects.get("Tunic", [])
+    uppers = [o for o in tunics if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()]
+    lowers = [o for o in tunics if "tunic_lower" in str(o.get("aetherfall_source_name","")).lower()]
+    if uppers and lowers:
+        umn, umx = _combined_bounds(uppers)
+        lmn, lmx = _combined_bounds(lowers)
+        bmn, bmx = world_bounds(body)
+        cx = (bmn.x + bmx.x) * 0.5
+        cy = (bmn.y + bmx.y) * 0.5
+        bhx = (bmx.x - bmn.x) * 0.5
+        bhy = (bmx.y - bmn.y) * 0.5
+
+        zc = (umn.z + lmx.z) * 0.5
+        half_h = max(0.020, abs(umn.z - lmx.z) * 0.62)
+        waist = _elliptic_tube("AF_Tunic_WaistBridge", [
+            (zc-half_h, cx, cy, bhx*0.54, bhy*0.91),
+            (zc+half_h, cx, cy, bhx*0.56, bhy*0.93),
+        ], 24)
+        waist.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.190,0.162,0.124), 0.94))
+        waist["aetherfall_subpart"] = "waist_bridge"
+        created.append((waist, "Tunic", "waist_bridge", body))
+
+        top = umx.z - (umx.z-umn.z)*0.055
+        bottom = umn.z + (umx.z-umn.z)*0.20
+        rear = _back_half_tube("AF_Tunic_UpperBackFill", [
+            (top, cx, cy, bhx*0.29, bhy*1.02),
+            (top-(top-bottom)*0.20, cx, cy, bhx*0.55, bhy*1.04),
+            (top-(top-bottom)*0.52, cx, cy, bhx*0.68, bhy*1.05),
+            (bottom, cx, cy, bhx*0.57, bhy*1.02),
+        ], 20)
+        rear.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.190,0.162,0.124), 0.94))
+        rear["aetherfall_subpart"] = "upper_back_fill"
+        created.append((rear, "Tunic", "upper_back_fill", body))
+    return created
+
+def evaluated_world_bounds(obj):
+    deps = bpy.context.evaluated_depsgraph_get()
+    eo = obj.evaluated_get(deps)
+    mesh = eo.to_mesh()
+    try:
+        pts = [eo.matrix_world @ v.co for v in mesh.vertices]
+        if not pts:
+            return world_bounds(obj)
+        mn = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+        mx = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+        return mn, mx
+    finally:
+        eo.to_mesh_clear()
+
 def _build_boot_layers(body, rig, part_objects):
     created = []
     boots = part_objects.get("Boots", [])
@@ -910,7 +985,7 @@ def setup_render(body, garments, rig, out_dir):
         frame = int(round(start + (end-start) * (0.44 if needle == "walk" else 0.38)))
         scene.frame_set(frame)
         bpy.context.view_layer.update()
-        pmn, pmx = world_bounds(body)
+        pmn, pmx = evaluated_world_bounds(body)
         pose_target = (pmn + pmx) * 0.5
         pose_height = max(0.1, pmx.z - pmn.z)
         pose_dist = pose_height * 2.15
@@ -989,7 +1064,51 @@ def main():
             "subpart": subpart,
         })
 
+    filler_count = 0
+    for extra, part, subpart, weight_source in _build_gap_fillers(body, part_objects):
+        transfer_weights(weight_source, extra, rig)
+        clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio = matching_weight_ratio(extra, rig)
+        garment_candidates.append(extra)
+        filler_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall targeted " + subpart,
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
+        })
+
     boot_layer_count = 0
+    for extra, part, subpart in _build_boot_layers(body, rig, part_objects):
+        rigid_bone = str(extra.get("aetherfall_rigid_bone", ""))
+        if rigid_bone:
+            _assign_rigid_weight(extra, rig, rigid_bone)
+        else:
+            transfer_weights(body, extra, rig)
+            clean_weights(extra)
+        ensure_armature(extra, rig)
+        counters[part] += 1
+        tag_garment(extra, part, counters[part])
+        extra["aetherfall_subpart"] = subpart
+        ratio = matching_weight_ratio(extra, rig)
+        garment_candidates.append(extra)
+        boot_layer_count += 1
+        report_items.append({
+            "name": extra.name,
+            "source_name": "Aetherfall boot layer " + subpart,
+            "part": part,
+            "vertices": len(extra.data.vertices),
+            "weight_ratio_before": 0.0,
+            "weight_ratio_after": ratio,
+            "subpart": subpart,
+        })
 
     # Keep metadata on the character as well for Godot import tooling.
     body["aetherfall_body_profile"] = "male_anime_v1"
@@ -1014,13 +1133,14 @@ def main():
     )
 
     data = {
-        "version": "v74",
+        "version": "v75",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
         "body": body.name,
         "authored_garment_objects": len(garment_candidates),
         "mirrored_back_panels": continuity_count,
+        "targeted_gap_fillers": filler_count,
         "boot_layer_pieces": boot_layer_count,
         "parts": counters,
         "garments": report_items,
@@ -1031,7 +1151,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V74_OK")
+    print("AETHERFALL_MALE_PEASANT_V75_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
