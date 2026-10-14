@@ -26,10 +26,10 @@ func _run() -> void:
     if config == null or state == null:
         _fail("Configura config/state did not initialize")
         return
-    if config.options.size() != 4:
+    if config.options.size() != 6:
         _fail("Expected body, hairstyle, hair and iris options")
         return
-    var expected := ["prototype_base_tint", "hairstyle", "hair_color", "iris_color"]
+    var expected := ["prototype_base_tint", "hairstyle", "hair_color", "iris_color", "layered_bangs", "layered_sides"]
     for i in range(expected.size()):
         if config.options[i].resource_name != expected[i]:
             _fail("Configura option missing: " + expected[i])
@@ -39,6 +39,14 @@ func _run() -> void:
         _fail("Candidate selection interface is missing")
         return
     print("CONFIGURA_STAGE_5_CHECKING_COLORS")
+    node.call("_toggle_hair_layer", "layered_bangs")
+    if int(state.values.get("layered_bangs", 1)) != 0:
+        _fail("Bangs toggle was not recorded in Configura")
+        return
+    node.call("_toggle_hair_layer", "layered_sides")
+    if int(state.values.get("layered_sides", 1)) != 0:
+        _fail("Side toggle was not recorded in Configura")
+        return
     node.call("_choose_tint", 2)
     if state.values.get("prototype_base_tint") != Color("#bb886a"):
         _fail("Configura ColorOption not recorded in CharacterState")
