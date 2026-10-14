@@ -50,10 +50,11 @@ func _run() -> void:
             if material == null or material.albedo_color != new_hair:
                 _fail("Hair color option failed")
                 return
-        var sclera := model.find_child("Sclera-1.0", true, false) as MeshInstance3D
-        if sclera == null:
-            _fail("Sclera not found")
+        var sclera_nodes := model.find_children("Sclera*", "MeshInstance3D", true, false)
+        if sclera_nodes.size() != 2:
+            _fail("Separate sclera components not found")
             return
+        var sclera := sclera_nodes[0] as MeshInstance3D
         var sclera_mat := sclera.material_override as StandardMaterial3D
         if sclera_mat.albedo_color == new_iris:
             _fail("Iris recoloring accidentally changed sclera")
