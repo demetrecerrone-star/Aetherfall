@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v81"
+    obj["aetherfall_qa_version"] = "v82"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -240,13 +240,12 @@ def _reshape_authored_garment(obj, original_name):
         t = max(0.0, min(1.0, (p.z - mn.z) / height))
 
         if "sleeve" in name:
-            # The source cap sleeves read like shoulder armor. Pull them inward
-            # and make the cross-section slimmer while keeping a short cloth cap.
-            p.x = center.x + (p.x - center.x) * 0.74
-            p.y = center.y + (p.y - center.y) * 0.76
-            p.z = center.z + (p.z - center.z) * 0.88
-            p.x -= side * 0.014
-            p.z -= 0.004
+            # Preserve the connected sleeve tube and only soften the cap.
+            p.x = center.x + (p.x - center.x) * 0.90
+            p.y = center.y + (p.y - center.y) * 0.91
+            p.z = center.z + (p.z - center.z) * 0.95
+            p.x -= side * 0.006
+            p.z -= 0.002
 
         elif "tunic_upper" in name:
             # Narrow the shoulder line progressively while retaining waist room.
@@ -279,22 +278,21 @@ def _reshape_authored_garment(obj, original_name):
                 p.z -= (0.16 - t) * 0.010 * (0.5 + 0.5 * math.sin(phase))
 
         elif "trousers" in name:
-            # Baggy thigh/knee volume with a deliberate taper into the boot.
+            # The source trouser mesh is already a connected tube. Keep it
+            # outside the body and add only restrained peasant-style bunching.
             bulge = math.sin(math.pi * t)
-            knee_bunch = math.exp(-((t - 0.34) / 0.17) ** 2)
-            radial = 0.82 + 0.19 * t + 0.13 * bulge + 0.075 * knee_bunch
+            knee_bunch = math.exp(-((t - 0.34) / 0.18) ** 2)
+            radial = 1.015 + 0.045 * bulge + 0.040 * knee_bunch
             p.x = center.x + (p.x - center.x) * radial
-            p.y = center.y + (p.y - center.y) * (radial * 0.98)
-            # Tiny asymmetrical cloth undulation; this is silhouette, not a fake
-            # high-frequency wrinkle substitute for the later normal bake.
-            p.x += side * (0.0025 + 0.0025 * knee_bunch) * math.sin(t * math.pi * 5.0)
-            p.y += (0.0020 + 0.0028 * knee_bunch) * math.sin(t * math.pi * 6.0 + side)
+            p.y = center.y + (p.y - center.y) * (1.010 + 0.035 * bulge + 0.030 * knee_bunch)
+            p.x += side * 0.0018 * knee_bunch * math.sin(t * math.pi * 5.0)
+            p.y += 0.0018 * knee_bunch * math.sin(t * math.pi * 6.0 + side)
 
         elif "bootshaft" in name:
-            # Broader cuff, narrower ankle for a less blocky medieval boot.
-            shaft_scale = 0.86 + 0.10 * t
+            # Source shaft is a complete tube: preserve coverage and taper gently.
+            shaft_scale = 0.97 + 0.05 * t
             p.x = center.x + (p.x - center.x) * shaft_scale
-            p.y = center.y + (p.y - center.y) * (shaft_scale * 0.97)
+            p.y = center.y + (p.y - center.y) * (0.98 + 0.04 * t)
 
         elif "bootfoot" in name:
             half_y = max(1e-6, (mx.y - mn.y) * 0.5)
@@ -340,13 +338,13 @@ def _apply_garment_material(obj, original_name, part):
     if "cuff" in n:
         mat = _material("AF_Linen_Boot_Wrap", (0.115, 0.075, 0.045), 0.88)
     elif part == "Tunic":
-        mat = _material("AF_Worn_Linen_Tunic", (0.205, 0.175, 0.135), 0.93)
+        mat = _material("AF_Worn_Linen_Tunic", (0.300, 0.270, 0.215), 0.94)
     elif part == "Trousers":
-        mat = _material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96)
+        mat = _material("AF_Patched_Wool_Trousers", (0.125, 0.078, 0.045), 0.96)
     elif part == "Boots":
-        mat = _material("AF_Scuffed_Leather_Boots", (0.055, 0.028, 0.014), 0.82)
+        mat = _material("AF_Scuffed_Leather_Boots", (0.070, 0.036, 0.018), 0.84)
     else:
-        mat = _material("AF_Plain_Leather_Belt", (0.090, 0.038, 0.016), 0.76)
+        mat = _material("AF_Plain_Leather_Belt", (0.105, 0.050, 0.023), 0.78)
     obj.data.materials.clear()
     obj.data.materials.append(mat)
 
@@ -474,6 +472,50 @@ def _styled_tube(name, rings, segments=28, fold_strength=0.018, hem_wobble=0.0):
     for poly in mesh.polygons:
         poly.use_smooth = True
     return obj
+
+
+def _build_clean_tunic(body, part_objects):
+    """Build one complete deformation-friendly tunic body.
+
+    The imported Tunic_Upper/Lower meshes are dozens of disconnected fragments,
+    so they are fit references only. Sleeves remain as their connected source
+    tubes; this new torso provides continuous front/back/side cloth.
+    """
+    sources=[o for o in part_objects.get("Tunic",[])
+             if "tunic_upper" in str(o.get("aetherfall_source_name","")).lower()
+             or "tunic_lower" in str(o.get("aetherfall_source_name","")).lower()]
+    if not sources:
+        return []
+    mn,mx=_combined_bounds(sources)
+    bmn,bmx=world_bounds(body)
+    cx=(mn.x+mx.x)*0.5
+    cy=(bmn.y+bmx.y)*0.5
+    hx=(mx.x-mn.x)*0.5
+    source_hy=(mx.y-mn.y)*0.5
+    body_hy=(bmx.y-bmn.y)*0.5
+    hy=max(source_hy*0.88, body_hy*0.56)
+    h=mx.z-mn.z
+    rings=[
+        (mx.z-h*0.018,cx,cy,hx*0.30,hy*0.42,0.00),
+        (mx.z-h*0.070,cx,cy,hx*0.60,hy*0.78,0.18),
+        (mx.z-h*0.135,cx,cy,hx*0.92,hy*0.98,0.38),
+        (mx.z-h*0.245,cx,cy,hx*0.94,hy*1.03,0.65),
+        (mx.z-h*0.375,cx,cy,hx*0.91,hy*1.04,0.95),
+        (mx.z-h*0.515,cx,cy,hx*0.86,hy*1.00,1.25),
+        (mx.z-h*0.645,cx,cy,hx*0.79,hy*0.94,1.60),
+        (mx.z-h*0.735,cx,cy,hx*0.75,hy*0.90,1.95),
+        (mx.z-h*0.825,cx,cy,hx*0.76,hy*0.91,2.25),
+        (mx.z-h*0.910,cx,cy,hx*0.82,hy*0.95,2.55),
+        (mn.z+h*0.010,cx,cy,hx*0.86,hy*0.97,2.90),
+    ]
+    tunic=_styled_tube("AF_Tunic_Complete",rings,36,fold_strength=0.038,hem_wobble=-h*0.018)
+    tunic.data.materials.append(_material("AF_Worn_Linen_Tunic",(0.300,0.270,0.215),0.94))
+    tunic["aetherfall_subpart"]="complete_tunic"
+    for src in sources:
+        src.hide_viewport=True
+        src.hide_render=True
+        src["aetherfall_replaced_source"]=True
+    return [(tunic,"Tunic","complete_tunic",body)]
 
 def _build_primary_cloth(body, rig, part_objects):
     """Replace the source's incomplete torso/trouser panels with full garments.
@@ -1241,9 +1283,8 @@ def main():
         })
 
     continuity_count = 0
-    for extra, part, subpart in _build_mirrored_back_panels(body, part_objects):
-        if matching_weight_ratio(extra, rig) < 0.98:
-            transfer_weights(body, extra, rig)
+    for extra, part, subpart, weight_source in _build_clean_tunic(body, part_objects):
+        transfer_weights(weight_source, extra, rig)
         clean_weights(extra)
         ensure_armature(extra, rig)
         counters[part] += 1
@@ -1254,58 +1295,17 @@ def main():
         continuity_count += 1
         report_items.append({
             "name": extra.name,
-            "source_name": "Mirrored from " + str(extra.get("aetherfall_mirror_source", "")),
+            "source_name": "Aetherfall complete authored tunic",
             "part": part,
             "vertices": len(extra.data.vertices),
-            "weight_ratio_before": ratio,
+            "weight_ratio_before": 0.0,
             "weight_ratio_after": ratio,
             "subpart": subpart,
         })
 
     filler_count = 0
-    for extra, part, subpart, weight_source in _build_gap_fillers(body, part_objects):
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio = matching_weight_ratio(extra, rig)
-        garment_candidates.append(extra)
-        filler_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall targeted " + subpart,
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
-
     rear_patch_count = 0
-
     gusset_count = 0
-    for extra, part, subpart, weight_source in _build_gussets(body, part_objects):
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio = matching_weight_ratio(extra, rig)
-        garment_candidates.append(extra)
-        gusset_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall authored " + subpart,
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
-
     boot_layer_count = 0
 
     # Keep metadata on the character as well for Godot import tooling.
@@ -1315,8 +1315,10 @@ def main():
 
     setup_render(body, garment_candidates, rig, Path(a.render_dir).resolve())
 
-    # Source panels remain the authored outer layer. Mirrored copies complete
-    # the back using the exact same topology and skin-weight language.
+    for obj in list(bpy.context.scene.objects):
+        if bool(obj.get("aetherfall_replaced_source", False)):
+            bpy.data.objects.remove(obj, do_unlink=True)
+
     output = Path(a.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.export_scene.gltf(
@@ -1331,13 +1333,13 @@ def main():
     )
 
     data = {
-        "version": "v81",
+        "version": "v82",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
         "body": body.name,
         "authored_garment_objects": len(garment_candidates),
-        "mirrored_back_panels": continuity_count,
+        "complete_tunic_pieces": continuity_count,
         "targeted_gap_fillers": filler_count,
         "rear_coverage_patches": rear_patch_count,
         "gusset_pieces": gusset_count,
@@ -1351,7 +1353,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V81_OK")
+    print("AETHERFALL_MALE_PEASANT_V82_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
