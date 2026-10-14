@@ -25,8 +25,8 @@ namespace Aetherfall.Editor
         {
             public string townName = "Aetherfall Frontier";
             public int seed = 77421;
-            public float width = 220f;
-            public float depth = 190f;
+            public float width = 250f;
+            public float depth = 240f;
             public int residentialHouses = 8;
             public int woodlandTrees = 130;
             public int bushes = 90;
@@ -137,9 +137,9 @@ namespace Aetherfall.Editor
             var residentialSlots = new []
             {
                 new Vector3(-90, 0, 14), new Vector3(-78, 0, 42),
-                new Vector3(-59, 0, 62), new Vector3(7, 0, 4),
+                new Vector3(-54, 0, 55), new Vector3(7, 0, 4),
                 new Vector3(83, 0, 25), new Vector3(75, 0, 47),
-                new Vector3(18, 0, 27), new Vector3(-96, 0, -61)
+                new Vector3(18, 0, 27), new Vector3(-75, 0, -81)
             };
             int houseCount = Mathf.Clamp(preset.residentialHouses, 0, residentialSlots.Length);
             for (int i = 0; i < houseCount; i++)
