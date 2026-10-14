@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v73"
+    obj["aetherfall_qa_version"] = "v74"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -910,8 +910,15 @@ def setup_render(body, garments, rig, out_dir):
         frame = int(round(start + (end-start) * (0.44 if needle == "walk" else 0.38)))
         scene.frame_set(frame)
         bpy.context.view_layer.update()
-        cam.location = pos
-        look_at(cam, target)
+        pmn, pmx = world_bounds(body)
+        pose_target = (pmn + pmx) * 0.5
+        pose_height = max(0.1, pmx.z - pmn.z)
+        pose_dist = pose_height * 2.15
+        if filename.endswith("_34"):
+            cam.location = Vector((pose_target.x + pose_dist * 0.52, pose_target.y - pose_dist * 0.86, pose_target.z + pose_height * 0.02))
+        else:
+            cam.location = Vector((pose_target.x, pose_target.y - pose_dist, pose_target.z + pose_height * 0.02))
+        look_at(cam, pose_target)
         scene.render.filepath = str(out_dir / (filename + ".png"))
         bpy.ops.render.render(write_still=True)
     if rig.animation_data:
@@ -1007,7 +1014,7 @@ def main():
     )
 
     data = {
-        "version": "v73",
+        "version": "v74",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -1024,7 +1031,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V73_OK")
+    print("AETHERFALL_MALE_PEASANT_V74_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
