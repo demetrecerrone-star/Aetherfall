@@ -65,6 +65,14 @@ jobs:
           if grep -E 'SCRIPT ERROR:|Parse Error:' builds/configura_smoke.log; then
             exit 1
           fi
+      - name: Test standalone Tripo Configura candidate studio without private models
+        run: |
+          set -o pipefail
+          godot --headless --path . --script res://tests/configura_candidate_studio_smoke.gd 2>&1 | tee builds/configura_candidate_studio.log
+          grep -F AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_OK builds/configura_candidate_studio.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_FAIL' builds/configura_candidate_studio.log; then
+            exit 1
+          fi
       - name: Confirm existing peasant outfit meshes share both 65-bone rigs
         run: |
           set -o pipefail
@@ -91,6 +99,7 @@ jobs:
             builds/configura_bootstrap.log
             builds/configura_editor.log
             builds/configura_smoke.log
+            builds/configura_candidate_studio.log
             builds/configura_outfit_rig.log
             builds/character_preferences.log
           if-no-files-found: warn
