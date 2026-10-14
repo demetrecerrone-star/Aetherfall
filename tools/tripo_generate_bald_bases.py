@@ -14,7 +14,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-BASE = "https://api.tripo3d.ai/v2/openapi"
+BASE = "https://openapi.tripo3d.com/v3"
 OUT = Path("builds/tripo-bald-bases-20261014")
 MODEL_VERSION = "v3.1-20260211"
 ESTIMATED_CREDITS_EACH = 10  # Base model only; verified against Oct 2026 Tripo price sheet.
@@ -76,7 +76,7 @@ def save_manifest(manifest):
 
 
 def get_balance(key):
-    result = request("/user/balance", key)
+    result = request("/account/balance", key)
     return float(result["balance"])
 
 
@@ -84,14 +84,14 @@ def poll(task_id, key, gender, seconds=960):
     deadline = time.monotonic() + seconds
     last = None
     while time.monotonic() < deadline:
-        result = request("/task/" + task_id, key)
+        result = request("/tasks/" + task_id, key)
         status = result.get("status", "unknown")
         if status != last:
             print(f"TRIPO_{gender.upper()}_STATUS={status}", flush=True)
             last = status
         if status == "success":
             output = result.get("output") or {}
-            url = next((output.get(n) for n in ("base_model", "model", "pbr_model") if output.get(n)), None)
+            url = next((output.get(n) for n in ("model_url", "base_model", "model", "pbr_model") if output.get(n)), None)
             if not url:
                 raise RuntimeError(f"{gender}: task succeeded without a downloadable 3D model")
             return url
@@ -139,40 +139,39 @@ def main():
     print(f"TRIPO_PRECHECK_OK: balance sufficient for two untextured models; estimated budget {minimum} credits.")
     save_manifest(manifest)
 
-    # Submit exactly TWO tasks, one per character. No implicit retries and no paid downstream tasks.
-    tasks = {}
-    for gender, prompt in PROMPTS.items():
-        payload = {
-            "type": "text_to_model",
-            "model_version": MODEL_VERSION,
-            "prompt": prompt,
-            "negative_prompt": NEGATIVE,
-            "texture": False,
-            "pbr": False,
-            "geometry_quality": "standard",
-            "quad": False,
-        }
-        response = request("/task", key, payload)
-        task_id = response.get("task_id")
-        if not task_id:
-            raise RuntimeError(f"Tripo did not supply task_id for {gender}")
-        tasks[gender] = task_id
-        manifest["gender_candidates"][gender] = {"task_id": task_id, "status": "submitted", "prompt": prompt}
-        save_manifest(manifest)
-        print(f"TRIPO_{gender.upper()}_TASK_SUBMITTED={task_id}", flush=True)
-
+    # Generate sequentially: Tripo result download URLs may expire quickly.
+    # No automatic retries or duplicate submissions. Every task id is recorded.
     errors = []
-    for gender, task_id in tasks.items():
+    for gender, prompt in PROMPTS.items():
         try:
+            payload = {
+                "model": MODEL_VERSION,
+                "prompt": prompt,
+                "negative_prompt": NEGATIVE,
+                "texture": False,
+                "pbr": False,
+                "geometry_quality": "standard",
+            }
+            response = request("/generation/text-to-model", key, payload)
+            task_id = response.get("task_id")
+            if not task_id:
+                raise RuntimeError(f"Tripo did not supply task_id for {gender}")
+            manifest["gender_candidates"][gender] = {
+                "task_id": task_id, "status": "submitted", "prompt": prompt
+            }
+            save_manifest(manifest)
+            print(f"TRIPO_{gender.upper()}_TASK_SUBMITTED={task_id}", flush=True)
             url = poll(task_id, key, gender)
             fileinfo = download_glb(url, OUT / f"aetherfall_{gender}_bald_candidate.glb")
             manifest["gender_candidates"][gender].update(fileinfo)
             manifest["gender_candidates"][gender]["status"] = "downloaded"
             print(f"TRIPO_{gender.upper()}_GLB_READY={fileinfo['bytes']}bytes", flush=True)
         except Exception as e:
-            manifest["gender_candidates"][gender]["status"] = "error"
+            manifest["gender_candidates"].setdefault(gender, {})["status"] = "error"
             errors.append(f"{gender}: {e}")
             print(f"TRIPO_{gender.upper()}_ERROR={type(e).__name__}", flush=True)
+            # Abort rather than risk further charges with a broken API integration.
+            break
         finally:
             save_manifest(manifest)
 
