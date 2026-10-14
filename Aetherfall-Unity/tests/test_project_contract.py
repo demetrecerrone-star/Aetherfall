@@ -21,6 +21,15 @@ assert 'Screen.safeArea' in source
 assert 'No credentials have been sent or saved' in source or 'no credentials have been sent or saved' in source
 assert 'Aetherfall/Build Android Preview APK' in editor
 assert 'com.demetrecerrone.aetherfall.unitydev' in editor
+assert 'AetherfallLandscapePrebuild : IPreprocessBuildWithReport' in editor
+assert 'AetherfallProjectSetup.ConfigureLandscape();' in editor
+assert 'PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft' in editor
+assert 'PlayerSettings.allowedAutorotateToPortrait = false' in editor
+assert 'PlayerSettings.allowedAutorotateToPortraitUpsideDown = false' in editor
+assert 'PlayerSettings.allowedAutorotateToLandscapeRight = false' in editor
+assert 'Screen.orientation = ScreenOrientation.LandscapeLeft' in source
+assert 'RuntimeInitializeLoadType.BeforeSplashScreen' in source
+assert 'Screen.autorotateToPortrait = false' in source
 buildsettings=(root/'ProjectSettings/EditorBuildSettings.asset').read_text()
 assert 'enabled: 1' in buildsettings
 assert 'path: Assets/Scenes/AetherfallFrontEnd.unity' in buildsettings
