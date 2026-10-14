@@ -13,13 +13,13 @@ func _run() -> void:
         var rig := Skeleton3D.new()
         rig.name = "SyntheticRig"
         model.add_child(rig)
-        rig.add_bone("mixamorig:Head")
+        rig.add_bone("Head")
         rig.set_bone_rest(0, Transform3D(Basis.IDENTITY, Vector3(0, 0.86, -0.02)))
         var opts: Dictionary = FaceHairAttachments.mount(model, variant)
         if opts.is_empty():
             _fail("Could not attach head options: " + variant)
             return
-        if rig.get_bone_count() != 1 or rig.get_bone_name(0) != "mixamorig:Head":
+        if rig.get_bone_count() != 1 or rig.get_bone_name(0) != "Head":
             _fail("Head attachment changed original rig")
             return
         var styles: Array = opts["hairstyles"]
