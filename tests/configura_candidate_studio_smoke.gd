@@ -22,8 +22,13 @@ func _run() -> void:
     if config == null or state == null:
         _fail("Configura config/state did not initialize")
         return
-    if config.options.size() != 1 or config.options[0].resource_name != "prototype_base_tint":
-        _fail("Expected the explicitly scoped prototype tint option")
+    if config.options.size() != 4:
+        _fail("Expected body, hairstyle, hair and iris options")
+        return
+    var expected := ["prototype_base_tint", "hairstyle", "hair_color", "iris_color"]
+    for i in range(expected.size()):
+        if config.options[i].resource_name != expected[i]:
+            _fail("Configura option missing: " + expected[i])
         return
     var screen := node.find_child("ConfiguraCandidateControls", true, false)
     if screen == null:
@@ -32,6 +37,19 @@ func _run() -> void:
     node.call("_choose_tint", 2)
     if state.values.get("prototype_base_tint") != Color("#bb886a"):
         _fail("Configura ColorOption not recorded in CharacterState")
+        return
+
+    node.call("_choose_hairstyle", 2)
+    node.call("_choose_hair_color", 2)
+    node.call("_choose_iris_color", 1)
+    if state.values.get("hairstyle") != 2:
+        _fail("Hair swap choice was not recorded")
+        return
+    if state.values.get("hair_color") != Color("#b2b9cf"):
+        _fail("Hair color was not recorded independently")
+        return
+    if state.values.get("iris_color") != Color("#42ad7c"):
+        _fail("Eye iris color was not recorded independently")
         return
 
     # Missing private GLBs should give a useful UI explanation, not crash.
@@ -43,7 +61,7 @@ func _run() -> void:
     if str(node.get("current_character")) not in ["male", "female"]:
         _fail("Studio accepted an unknown character type")
         return
-    print("AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_OK: scene loads, state created, tint recorded, UI initialized")
+    print("AETHERFALL_CONFIGURA_CANDIDATE_STUDIO_OK: model, three appearance options, isolated color state, UI initialized")
     node.queue_free()
     quit(0)
 
