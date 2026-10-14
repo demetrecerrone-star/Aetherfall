@@ -31,6 +31,16 @@ _Last updated 2026-10-14. Planning document; milestones are not claims of comple
 - Characters and monsters are separate asset pipelines: shared humanoid animator for players/townsfolk where practical; species-specific rig/animations for monsters.
 - Keep mobile and later MMO performance in mind: LODs, mesh/material budgets, pooled monsters, distance-based animation update, culling and network-authoritative combat design when networking is implemented.
 
+## Preferred asset-production pipeline (Blender optional)
+The earlier Blender attempts have not consistently achieved the approved anime-JRPG quality, especially hair geometry, character proportions, clipping and equipment fit. **Do not make hand-modeling in Blender the critical path** to shipping Aetherfall.
+
+1. **Characters:** Inspect existing male/female GLBs, then use a consistent, properly rigged anime base from owned or suitably licensed sources if those GLBs are unsuitable. Verify scale, textures, rig mapping, Unity Humanoid support, animation and Android performance. Consider a dedicated anime-character creator where its export rights and avatar proportions work; do not assume VRM/GLB is automatically Unity-ready.
+2. **Weapons and static accessories:** Prefer prebuilt licensed modular weapons, Tripo-generated starting geometry when the result passes visual and topology checks, and editor-based Unity placement through attachment anchors. Assign item IDs and gameplay stats independently of visuals.
+3. **Armor and wearable accessories:** Prefer pre-rigged armor packs explicitly compatible with the chosen shared skeleton/body proportions. Fit-test each wearable in Unity under idle, walk, run and attack; correct penetrating meshes or reject the asset. Tripo output alone does not guarantee wearable rigging, deformation or quality.
+4. **Monsters:** Start with ready-to-animate creatures from licensed assets or vetted generated models, each with an appropriate creature rig or procedural animation approach. Reuse AI/health/spawn logic independently of species model.
+5. **Unity automation:** Import and organize prefabs, material presets, collision, animation controllers, equipment slots, preview scenes and screenshot evidence. Use Blender only for narrowly scoped conversions or repairs if a reproducible script solves the issue, rather than relying on difficult manual artistry.
+6. **Approval gate:** Provide actual Unity-rendered screenshots of the model **wearing the gear** before approving it. No promise of high-quality 3D visuals merely from source code or concept imagery.
+
 ## Review gates
 1. Review a screenshot/render after every meaningful **visual** milestone.
 2. Verify Unity Editor scene creation and script compilation, not just static source tests.
