@@ -1,0 +1,44 @@
+name: Unity Reboot Source Import
+
+on:
+  push:
+    branches:
+      - unity-reboot
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-unity-archive:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: unity-reboot
+      - name: Unpack Unity source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=""
+          for candidate in Aetherfall-Unity-Stage1-Build-Ready.zip Aetherfall-Unity-Stage1-Title-Login.zip unity-project.zip; do
+            if [ -f "$candidate" ]; then archive="$candidate"; break; fi
+          done
+          if [ -n "$archive" ]; then
+            mkdir -p _unity_stage
+            unzip -q "$archive" -d _unity_stage
+            test -f _unity_stage/Aetherfall-Unity/ProjectSettings/ProjectVersion.txt
+            mkdir -p Aetherfall-Unity
+            cp -a _unity_stage/Aetherfall-Unity/. Aetherfall-Unity/
+            rm -rf _unity_stage
+            git rm -f "$archive"
+            git add Aetherfall-Unity
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Import Aetherfall Unity project files'
+            git push origin HEAD:unity-reboot
+          fi
+      - name: Validate imported Unity project
+        if: hashFiles('Aetherfall-Unity/ProjectSettings/ProjectVersion.txt') != ''
+        run: |
+          cd Aetherfall-Unity
+          python3 -m pip install --user pillow
+          python3 tests/test_project_contract.py
