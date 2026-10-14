@@ -4,3 +4,5 @@
 *.log
 .DS_Store
 builds/
+# User-provided character GLBs are local/private review inputs in public repo.
+assets/characters/configura_candidates/
