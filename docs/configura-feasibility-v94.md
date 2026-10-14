@@ -11,7 +11,7 @@ The base branch remains \`feature/universal-characters-rebuild\`; no production 
 
 Configura's repository nests the plugin in \`addons/Configura\` and bundles sample
 Blender assets under \`!example\`. This experiment pins upstream source in
-\`third_party/configura\` and copies *only* the addon code/assets, excluding
+\`third_party/configura\` and copies the addon code/assets and the small preview theme files, excluding
 large sample Blender models, into Godot's expected \`addons/Configura\` path.
 \`third_party/.gdignore\` prevents Godot registering duplicated global classes.
 

@@ -20,8 +20,15 @@ def main() -> None:
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(
         SOURCE, TARGET,
-        ignore=shutil.ignore_patterns("!example", "*.blend", "*.blend1", "*.import", ".DS_Store"),
+        ignore=shutil.ignore_patterns("*.blend", "*.blend1", "*.import", ".DS_Store"),
     )
+    for sample_dir in ("meshes", "character_scenes", "applicator test"):
+        directory = TARGET / "!example" / sample_dir
+        if directory.exists():
+            shutil.rmtree(directory)
+    # Bundled small theme resources are required by Configura preview scenes.
+    # Original artist/example Blender files are intentionally excluded.
+
     required = [
         TARGET / "plugin.cfg",
         TARGET / "configura_plugin.gd",

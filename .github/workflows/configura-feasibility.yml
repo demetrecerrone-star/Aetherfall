@@ -37,6 +37,19 @@ jobs:
           include-templates: false
       - name: Generate original project character for Godot import
         run: python3 tools/generate_avatar_v033.py
+      - name: Bootstrap Godot asset import before enabling editor plugin
+        run: |
+          set -o pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("project.godot")
+          s=p.read_text()
+          needle='enabled=PackedStringArray("res://addons/Configura/plugin.cfg")'
+          assert needle in s
+          p.write_text(s.replace(needle, 'enabled=PackedStringArray()'))
+          PY
+          godot --headless --editor --path . --quit 2>&1 | tee builds/configura_bootstrap.log
+          git show HEAD:project.godot > project.godot
       - name: Import project with Configura editor plugin enabled
         run: |
           set -o pipefail
@@ -59,6 +72,7 @@ jobs:
           name: Aetherfall-Configura-Feasibility-Logs
           path: |
             builds/configura_asset_audit.json
+            builds/configura_bootstrap.log
             builds/configura_editor.log
             builds/configura_smoke.log
           if-no-files-found: warn
