@@ -1,0 +1,45 @@
+name: Aetherfall Unity Build Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Unity build number, or latest"
+        required: false
+        default: "latest"
+        type: string
+  schedule:
+    - cron: "23 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aetherfall-unity-build-report
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Read Unity Cloud build status
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Unity reporting source
+        uses: actions/checkout@v4
+        with:
+          ref: unity-reboot
+          persist-credentials: false
+
+      - name: Verify reporting script without secrets
+        run: |
+          python3 -m py_compile tools/unity_cloud_report.py
+          python3 tools/unity_cloud_report.py --self-test
+
+      - name: Query Unity Cloud Build Automation (read-only)
+        env:
+          UNITY_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UNITY_SERVICE_ACCOUNT_KEY_ID }}
+          UNITY_SERVICE_ACCOUNT_SECRET_KEY: ${{ secrets.UNITY_SERVICE_ACCOUNT_SECRET_KEY }}
+          UNITY_CLOUD_ORG_ID: '2476066025878'
+          UNITY_CLOUD_PROJECT_ID: '92204c56-3bcf-41b8-8eec-43d1069287a1'
+          UNITY_CLOUD_TARGET_ID: 'aetherfall-android'
+          REQUESTED_BUILD: ${{ inputs.build_number || 'latest' }}
+        run: python3 tools/unity_cloud_report.py --build "$REQUESTED_BUILD"
