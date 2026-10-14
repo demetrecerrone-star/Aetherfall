@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v82"
+    obj["aetherfall_qa_version"] = "v83"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -1282,27 +1282,10 @@ def main():
             "weight_ratio_after": after,
         })
 
+    # v83 diagnostic baseline: preserve the actual authored source pieces,
+    # with corrected fit/materials, and no mirrored/procedural gap geometry.
+    # This lets visual QA tell us exactly which openings genuinely need rebuilt.
     continuity_count = 0
-    for extra, part, subpart, weight_source in _build_clean_tunic(body, part_objects):
-        transfer_weights(weight_source, extra, rig)
-        clean_weights(extra)
-        ensure_armature(extra, rig)
-        counters[part] += 1
-        tag_garment(extra, part, counters[part])
-        extra["aetherfall_subpart"] = subpart
-        ratio = matching_weight_ratio(extra, rig)
-        garment_candidates.append(extra)
-        continuity_count += 1
-        report_items.append({
-            "name": extra.name,
-            "source_name": "Aetherfall complete authored tunic",
-            "part": part,
-            "vertices": len(extra.data.vertices),
-            "weight_ratio_before": 0.0,
-            "weight_ratio_after": ratio,
-            "subpart": subpart,
-        })
-
     filler_count = 0
     rear_patch_count = 0
     gusset_count = 0
@@ -1314,10 +1297,6 @@ def main():
     body["aetherfall_skeleton_profile"] = "AF_65"
 
     setup_render(body, garment_candidates, rig, Path(a.render_dir).resolve())
-
-    for obj in list(bpy.context.scene.objects):
-        if bool(obj.get("aetherfall_replaced_source", False)):
-            bpy.data.objects.remove(obj, do_unlink=True)
 
     output = Path(a.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -1333,13 +1312,13 @@ def main():
     )
 
     data = {
-        "version": "v82",
+        "version": "v83",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
         "body": body.name,
         "authored_garment_objects": len(garment_candidates),
-        "complete_tunic_pieces": continuity_count,
+        "diagnostic_extra_pieces": continuity_count,
         "targeted_gap_fillers": filler_count,
         "rear_coverage_patches": rear_patch_count,
         "gusset_pieces": gusset_count,
@@ -1353,7 +1332,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V82_OK")
+    print("AETHERFALL_MALE_PEASANT_V83_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
