@@ -4,6 +4,7 @@ extends Node3D
 ## renames bones, or replaces the playable Starter Town.
 ## Configura supplies CharacterConfig, ColorOption, and CharacterState persistence.
 const FaceHairAttachments = preload("res://scripts/configura_face_hair_attachments.gd")
+const LayeredHair = preload("res://scripts/configura_layered_hair_controller.gd")
 const CANDIDATE_DIR := "res://assets/characters/configura_candidates/"
 const PROFILE_PATH := "user://aetherfall_configura_candidate_state.tres"
 const CHARACTER_IDS := ["male", "female"]
@@ -21,6 +22,7 @@ var _message: Label
 const HAIR_PRESETS := [Color("#343047"), Color("#745046"), Color("#b2b9cf"), Color("#be7651"), Color("#d5b071")]
 const IRIS_PRESETS := [Color("#478bd1"), Color("#42ad7c"), Color("#ad76db"), Color("#8e5f38"), Color("#e3b451")]
 var _appearance: Dictionary = {}
+var _layered_hair: Dictionary = {}
 var _swatch_index := 0
 var _orbit := 0.0
 
@@ -74,6 +76,8 @@ func _setup_configura_state() -> void:
     iris_color.default_color = IRIS_PRESETS[0]
     character_config.options.append(iris_color)
 
+    # The new modular-hair options share Configura CharacterState persistence.
+    LayeredHair.add_configura_options(character_config)
     character_state = CharacterState.from_config(character_config)
     if ResourceLoader.exists(PROFILE_PATH):
         var loaded := ResourceLoader.load(
@@ -157,7 +161,7 @@ func _setup_ui() -> void:
     for index in range(3):
         var option := Button.new()
         option.name = "HairStyle_" + str(index)
-        option.text = ["BALD", "SHORT", "LONG"][index]
+        option.text = ["BALD", "LAYERED", "OLD TEST"][index]
         option.custom_minimum_size = Vector2(95, 48)
         option.pressed.connect(_choose_hairstyle.bind(index))
         choices.add_child(option)
@@ -189,6 +193,19 @@ func _setup_ui() -> void:
         option.custom_minimum_size = Vector2(56, 48)
         option.pressed.connect(_choose_iris_color.bind(index))
         iris_swatches.add_child(option)
+
+    var layer_heading := Label.new()
+    layer_heading.text = "MODULAR LAYERS (WITH FITTED GLB ASSETS)"
+    stack.add_child(layer_heading)
+    var layer_buttons := HBoxContainer.new()
+    stack.add_child(layer_buttons)
+    for info in [{"id":"layered_bangs","title":"BANGS"},{"id":"layered_sides","title":"SIDES"}]:
+        var control := Button.new()
+        control.name = "LayerToggle_" + info["id"]
+        control.text = info["title"] + ": TOGGLE"
+        control.custom_minimum_size = Vector2(142, 50)
+        control.pressed.connect(_toggle_hair_layer.bind(info["id"]))
+        layer_buttons.add_child(control)
 
     var tint_label := Label.new()
     tint_label.text = "WHOLE-MODEL COLOR TEST"
@@ -248,6 +265,7 @@ func _load_character(variant: String) -> void:
         _model.queue_free()
         _model = null
         _appearance.clear()
+        _layered_hair.clear()
     _model = imported
     _model.name = "ConfiguraCandidate_" + variant
     add_child(_model)
@@ -261,6 +279,13 @@ func _load_character(variant: String) -> void:
     if _appearance.is_empty():
         _message.text = "Could not create 65-bone head attachments."
         return
+    # Use byte-identical copied local GLB layers if staged, else the previous
+    # procedural placeholders remain visible; don't publish candidate files.
+    var frame := _appearance.get("frame") as Node3D
+    if frame != null:
+        var staged: Dictionary = LayeredHair.mount(frame, variant)
+        if bool(staged.get("ok", false)):
+            _layered_hair = staged.get("layers", {})
     _sync_appearance()
     _message.text = variant.capitalize() + " imported. 65 joints verified.\n" + (
         "Finger joints preserved. Hair/eye options are separately attached. "
@@ -276,6 +301,14 @@ func _sync_appearance() -> void:
     var iris: Variant = character_state.values.get("iris_color", IRIS_PRESETS[0])
     FaceHairAttachments.color_hair(_appearance, hair if hair is Color else HAIR_PRESETS[0])
     FaceHairAttachments.color_iris(_appearance, iris if iris is Color else IRIS_PRESETS[0])
+    if not _layered_hair.is_empty():
+        # A single fitted test hairstyle is available at choice 1. Choice 2
+        # deliberately shows the old procedural hair for visual comparison.
+        LayeredHair.apply_configura_state(_layered_hair, character_state, hair_selection == 1)
+        LayeredHair.color_hair(_layered_hair, hair if hair is Color else HAIR_PRESETS[0])
+        if hair_selection == 1:
+            for old_style in _appearance.get("hairstyles", []):
+                (old_style as Node3D).visible = false
 
 
 func _choose_hairstyle(index: int) -> void:
@@ -296,6 +329,14 @@ func _choose_iris_color(index: int) -> void:
     if index < 0 or index >= IRIS_PRESETS.size():
         return
     character_state.record("iris_color", IRIS_PRESETS[index])
+    _sync_appearance()
+
+
+func _toggle_hair_layer(option_id: String) -> void:
+    if option_id not in ["layered_bangs", "layered_sides"]:
+        return
+    var before := int(character_state.values.get(option_id, 1))
+    character_state.record(option_id, 0 if before == 1 else 1)
     _sync_appearance()
 
 
