@@ -216,7 +216,7 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v69"
+    obj["aetherfall_qa_version"] = "v70"
 
 
 def _set_world_vertex(obj, vertex, p):
@@ -422,6 +422,141 @@ def _ellipsoid(name, center, scale, segments=20, rings=10):
     obj.scale = scale
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     return obj
+
+
+
+def _styled_tube(name, rings, segments=28, fold_strength=0.018, hem_wobble=0.0):
+    """Build a complete low-poly cloth tube with authored broad folds.
+
+    rings: (z, cx, cy, rx, ry, phase)
+    """
+    verts = []
+    faces = []
+    last = len(rings) - 1
+    for r, (z, cx, cy, rx, ry, phase) in enumerate(rings):
+        vertical = r / max(1, last)
+        for i in range(segments):
+            a = (i / segments) * math.tau
+            # Large, readable cloth folds rather than noisy micro-displacement.
+            wave = (
+                math.sin(a * 3.0 + phase) * fold_strength +
+                math.sin(a * 5.0 - phase * 0.7) * fold_strength * 0.42
+            )
+            # Folds gather more strongly through waist/mid sections.
+            gather = 0.45 + 0.55 * math.sin(math.pi * vertical)
+            radial = 1.0 + wave * gather
+            px = cx + math.cos(a) * rx * radial
+            py = cy + math.sin(a) * ry * (1.0 + wave * gather * 0.75)
+            pz = z
+            if r == last and hem_wobble:
+                pz += hem_wobble * (
+                    0.55 * math.sin(a * 2.0 + 0.65) +
+                    0.35 * math.sin(a * 5.0 - 0.3)
+                )
+            verts.append((px, py, pz))
+    for r in range(len(rings)-1):
+        a0 = r * segments
+        b0 = (r + 1) * segments
+        for i in range(segments):
+            j = (i + 1) % segments
+            faces.append((a0 + i, a0 + j, b0 + j, b0 + i))
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    return obj
+
+def _build_primary_cloth(body, rig, part_objects):
+    """Replace the source's incomplete torso/trouser panels with full garments.
+
+    The original Tripo clothing pieces are useful as fit references and weight
+    donors, but their open backs/sides make them unsuitable as final geometry.
+    """
+    created = []
+
+    tunic_sources = [
+        o for o in part_objects.get("Tunic", [])
+        if "tunic_upper" in str(o.get("aetherfall_source_name", "")).lower()
+        or "tunic_lower" in str(o.get("aetherfall_source_name", "")).lower()
+    ]
+    if tunic_sources:
+        mn, mx = _combined_bounds(tunic_sources)
+        cx = (mn.x + mx.x) * 0.5
+        cy = (mn.y + mx.y) * 0.5
+        hx = (mx.x - mn.x) * 0.5
+        hy = (mx.y - mn.y) * 0.5
+        h = mx.z - mn.z
+        rings = [
+            (mx.z - h*0.015, cx, cy, hx*0.34, hy*0.31, 0.00), # neck
+            (mx.z - h*0.115, cx, cy, hx*0.86, hy*0.79, 0.35), # shoulders
+            (mx.z - h*0.285, cx, cy, hx*0.83, hy*0.78, 0.75), # chest
+            (mx.z - h*0.465, cx, cy, hx*0.78, hy*0.75, 1.10), # ribs
+            (mx.z - h*0.625, cx, cy, hx*0.70, hy*0.69, 1.55), # waist
+            (mx.z - h*0.735, cx, cy, hx*0.69, hy*0.68, 2.05), # belt gather
+            (mx.z - h*0.865, cx, cy, hx*0.77, hy*0.72, 2.45), # lower flare
+            (mn.z + h*0.010, cx, cy, hx*0.82, hy*0.74, 2.90), # hem
+        ]
+        tunic = _styled_tube("AF_Tunic_Primary", rings, 32, fold_strength=0.055, hem_wobble=-h*0.030)
+        tunic.data.materials.append(_material("AF_Worn_Linen_Tunic", (0.205, 0.175, 0.135), 0.93))
+        tunic["aetherfall_subpart"] = "primary_tunic"
+        created.append((tunic, "Tunic", "primary_tunic", body))
+        for src in tunic_sources:
+            src.hide_viewport = True
+            src.hide_render = True
+            src["aetherfall_replaced_source"] = True
+
+    trouser_sources = [
+        o for o in part_objects.get("Trousers", [])
+        if "trousers" in str(o.get("aetherfall_source_name", "")).lower()
+    ]
+    if trouser_sources:
+        tmn, tmx = _combined_bounds(trouser_sources)
+        tcx = (tmn.x + tmx.x) * 0.5
+        tcy = (tmn.y + tmx.y) * 0.5
+        thx = (tmx.x - tmn.x) * 0.5
+        thy = (tmx.y - tmn.y) * 0.5
+        th = tmx.z - tmn.z
+        pelvis_rings = [
+            (tmx.z + th*0.015, tcx, tcy, thx*0.88, thy*0.83, 0.2),
+            (tmx.z - th*0.17,  tcx, tcy, thx*0.82, thy*0.76, 0.8),
+        ]
+        pelvis = _styled_tube("AF_Trousers_Pelvis", pelvis_rings, 28, fold_strength=0.025)
+        pelvis.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
+        pelvis["aetherfall_subpart"] = "trouser_pelvis"
+        created.append((pelvis, "Trousers", "trouser_pelvis", body))
+
+        for src in trouser_sources:
+            mn, mx = world_bounds(src)
+            cx = (mn.x + mx.x) * 0.5
+            cy = (mn.y + mx.y) * 0.5
+            hx = (mx.x - mn.x) * 0.5
+            hy = (mx.y - mn.y) * 0.5
+            h = mx.z - mn.z
+            side_phase = 0.45 if cx >= tcx else 1.25
+            rings = [
+                (mx.z - h*0.01, cx, cy, hx*0.90, hy*0.84, side_phase),
+                (mx.z - h*0.18, cx, cy, hx*0.98, hy*0.91, side_phase+0.5),
+                (mx.z - h*0.39, cx, cy, hx*1.04, hy*0.96, side_phase+1.0),
+                (mx.z - h*0.55, cx, cy, hx*1.10, hy*1.00, side_phase+1.6), # knee bunch
+                (mx.z - h*0.68, cx, cy, hx*0.99, hy*0.92, side_phase+2.0),
+                (mx.z - h*0.82, cx, cy, hx*0.82, hy*0.78, side_phase+2.5),
+                (mn.z + h*0.01, cx, cy, hx*0.67, hy*0.65, side_phase+3.0),
+            ]
+            leg = _styled_tube(
+                "AF_Trouser_Primary_%s" % ("L" if cx >= tcx else "R"),
+                rings, 22, fold_strength=0.060, hem_wobble=h*0.010
+            )
+            leg.data.materials.append(_material("AF_Patched_Wool_Trousers", (0.095, 0.060, 0.038), 0.96))
+            leg["aetherfall_subpart"] = "primary_trouser_leg"
+            created.append((leg, "Trousers", "primary_trouser_leg", src))
+            src.hide_viewport = True
+            src.hide_render = True
+            src["aetherfall_replaced_source"] = True
+
+    return created
 
 
 def _continuity_pieces(body, rig, part_objects):
@@ -674,13 +809,9 @@ def main():
         })
 
     continuity_count = 0
-    for extra, part, subpart in _continuity_pieces(body, rig, part_objects):
-        rigid_bone = str(extra.get("aetherfall_rigid_bone", ""))
-        if rigid_bone:
-            _assign_rigid_weight(extra, rig, rigid_bone)
-        else:
-            transfer_weights(body, extra, rig)
-            clean_weights(extra)
+    for extra, part, subpart, weight_source in _build_primary_cloth(body, rig, part_objects):
+        transfer_weights(weight_source, extra, rig)
+        clean_weights(extra)
         ensure_armature(extra, rig)
         counters[part] += 1
         tag_garment(extra, part, counters[part])
@@ -690,7 +821,7 @@ def main():
         continuity_count += 1
         report_items.append({
             "name": extra.name,
-            "source_name": "Aetherfall procedural authored " + subpart,
+            "source_name": "Aetherfall authored replacement " + subpart,
             "part": part,
             "vertices": len(extra.data.vertices),
             "weight_ratio_before": 0.0,
@@ -704,6 +835,12 @@ def main():
     body["aetherfall_skeleton_profile"] = "AF_65"
 
     setup_render(body, garment_candidates, Path(a.render_dir).resolve())
+
+    # The broken source torso/trouser panels were useful fit/weight donors only.
+    # Remove them from the shipping GLB after QA rendering.
+    for obj in list(bpy.context.scene.objects):
+        if bool(obj.get("aetherfall_replaced_source", False)):
+            bpy.data.objects.remove(obj, do_unlink=True)
 
     output = Path(a.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -719,13 +856,13 @@ def main():
     )
 
     data = {
-        "version": "v69",
+        "version": "v70",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
         "body": body.name,
         "authored_garment_objects": len(garment_candidates),
-        "continuity_pieces": continuity_count,
+        "replacement_cloth_pieces": continuity_count,
         "parts": counters,
         "garments": report_items,
         "uses_body_derived_shells": False,
@@ -735,7 +872,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V69_OK")
+    print("AETHERFALL_MALE_PEASANT_V70_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
