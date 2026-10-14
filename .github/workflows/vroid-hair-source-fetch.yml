@@ -63,7 +63,7 @@ jobs:
              'gltf_extensions_used':doc.get('extensionsUsed',[])
             }
             print(name,'VERIFIED',size,'bytes',len(meshes),'meshes',len(candidates),'hair named nodes')
-          (root/'source_audit.json').write_text(json.dumps(info,indent=2)+'\\n')
+          (root/'source_audit.json').write_text(json.dumps(info,indent=2)+chr(10))
           PY
       - name: Document exact license and extraction limits
         run: |
