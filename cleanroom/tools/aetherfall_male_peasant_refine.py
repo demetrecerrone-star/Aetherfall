@@ -197,7 +197,117 @@ def tag_garment(obj, part, index):
     obj["aetherfall_fit_profile"] = "male_anime_v1"
     obj["aetherfall_skeleton_profile"] = "AF_65"
     obj["aetherfall_authored_geometry"] = True
-    obj["aetherfall_qa_version"] = "v64"
+    obj["aetherfall_qa_version"] = "v65"
+
+
+def _set_world_vertex(obj, vertex, p):
+    vertex.co = obj.matrix_world.inverted() @ p
+
+def _reshape_authored_garment(obj, original_name):
+    """Small, reversible silhouette pass over the existing authored garment.
+
+    Work in world axes after glTF import (Blender Z-up) so the pass is stable
+    even when source node transforms differ.
+    """
+    mn, mx = world_bounds(obj)
+    center = (mn + mx) * 0.5
+    height = max(1e-6, mx.z - mn.z)
+    name = original_name.lower()
+    side = 1.0 if center.x >= 0.0 else -1.0
+    inv = obj.matrix_world.inverted()
+
+    for v in obj.data.vertices:
+        p = obj.matrix_world @ v.co
+        t = max(0.0, min(1.0, (p.z - mn.z) / height))
+
+        if "sleeve" in name:
+            # The source cap sleeves read like shoulder armor. Pull them inward
+            # and make the cross-section slimmer while keeping a short cloth cap.
+            p.x = center.x + (p.x - center.x) * 0.80
+            p.y = center.y + (p.y - center.y) * 0.82
+            p.z = center.z + (p.z - center.z) * 0.92
+            p.x -= side * 0.010
+            p.z -= 0.004
+
+        elif "tunic_upper" in name:
+            # Narrow the shoulder line progressively while retaining waist room.
+            shoulder = 0.98 - 0.13 * (t ** 1.6)
+            p.x = center.x + (p.x - center.x) * shoulder
+            depth = 0.94 - 0.03 * t
+            p.y = center.y + (p.y - center.y) * depth
+
+        elif "tunic_lower" in name:
+            # Slight peasant-shirt flare: restrained at the belt, freer at hem.
+            flare = 0.965 + (1.0 - t) * 0.075
+            p.x = center.x + (p.x - center.x) * flare
+            p.y = center.y + (p.y - center.y) * (0.95 + (1.0 - t) * 0.035)
+            # Break the perfectly horizontal hem very subtly.
+            if t < 0.16:
+                phase = (p.x - center.x) * 42.0
+                p.z -= (0.16 - t) * 0.010 * (0.5 + 0.5 * math.sin(phase))
+
+        elif "trousers" in name:
+            # Baggy thigh/knee volume with a deliberate taper into the boot.
+            bulge = math.sin(math.pi * t)
+            radial = 0.82 + 0.19 * t + 0.13 * bulge
+            p.x = center.x + (p.x - center.x) * radial
+            p.y = center.y + (p.y - center.y) * (radial * 0.98)
+            # Tiny asymmetrical cloth undulation; this is silhouette, not a fake
+            # high-frequency wrinkle substitute for the later normal bake.
+            p.x += side * 0.0025 * math.sin(t * math.pi * 5.0)
+            p.y += 0.0020 * math.sin(t * math.pi * 6.0 + side)
+
+        elif "bootshaft" in name:
+            p.x = center.x + (p.x - center.x) * 0.94
+            p.y = center.y + (p.y - center.y) * 0.92
+
+        elif "bootfoot" in name:
+            p.x = center.x + (p.x - center.x) * 0.92
+            p.y = center.y + (p.y - center.y) * 0.90
+            p.z = center.z + (p.z - center.z) * 0.96
+
+        elif "cuff" in name:
+            p.x = center.x + (p.x - center.x) * 0.96
+            p.y = center.y + (p.y - center.y) * 0.95
+            p.z = center.z + (p.z - center.z) * 0.72
+
+        elif "belt" in name:
+            p.x = center.x + (p.x - center.x) * 0.98
+            p.y = center.y + (p.y - center.y) * 0.94
+            p.z = center.z + (p.z - center.z) * 0.88
+
+        v.co = inv @ p
+
+    obj.data.update()
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+
+def _material(name, color, roughness):
+    mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    mat.diffuse_color = (*color, 1.0)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = (*color, 1.0)
+        bsdf.inputs["Roughness"].default_value = roughness
+        bsdf.inputs["Metallic"].default_value = 0.0
+    return mat
+
+def _apply_garment_material(obj, original_name, part):
+    n = original_name.lower()
+    if "cuff" in n:
+        mat = _material("AF_Linen_Boot_Wrap", (0.30, 0.225, 0.16), 0.88)
+    elif part == "Tunic":
+        mat = _material("AF_Worn_Linen_Tunic", (0.43, 0.405, 0.345), 0.93)
+    elif part == "Trousers":
+        mat = _material("AF_Patched_Wool_Trousers", (0.235, 0.175, 0.125), 0.96)
+    elif part == "Boots":
+        mat = _material("AF_Scuffed_Leather_Boots", (0.18, 0.115, 0.075), 0.82)
+    else:
+        mat = _material("AF_Plain_Leather_Belt", (0.26, 0.145, 0.085), 0.76)
+    obj.data.materials.clear()
+    obj.data.materials.append(mat)
+
 
 def look_at(obj, target):
     direction = Vector(target) - obj.location
@@ -210,7 +320,7 @@ def setup_render(body, garments, out_dir):
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.film_transparent = False
-    scene.world.color = (0.035, 0.045, 0.06)
+    scene.world.color = (0.020, 0.026, 0.038)
 
     try:
         scene.render.engine = "BLENDER_EEVEE_NEXT"
@@ -234,14 +344,14 @@ def setup_render(body, garments, out_dir):
 
     bpy.ops.object.light_add(type="AREA", location=(target.x - height, target.y - height, target.z + height))
     key = bpy.context.object
-    key.data.energy = 900
+    key.data.energy = 310
     key.data.shape = "DISK"
     key.data.size = height * 1.2
     look_at(key, target)
 
     bpy.ops.object.light_add(type="AREA", location=(target.x + height, target.y + height * 0.3, target.z + height * 0.45))
     fill = bpy.context.object
-    fill.data.energy = 550
+    fill.data.energy = 145
     fill.data.size = height
     look_at(fill, target)
 
@@ -278,7 +388,10 @@ def main():
     report_items = []
     counters = {"Tunic": 0, "Trousers": 0, "Boots": 0, "Belt": 0}
     for garment in garment_candidates:
+        original_name = garment.name
         part = classify_part(garment, body)
+        _reshape_authored_garment(garment, original_name)
+        _apply_garment_material(garment, original_name, part)
         before = matching_weight_ratio(garment, rig)
         if before < 0.98:
             transfer_weights(body, garment, rig)
@@ -292,6 +405,7 @@ def main():
         garment["aetherfall_weight_coverage"] = float(after)
         report_items.append({
             "name": garment.name,
+            "source_name": original_name,
             "part": part,
             "vertices": len(garment.data.vertices),
             "weight_ratio_before": before,
@@ -319,7 +433,7 @@ def main():
     )
 
     data = {
-        "version": "v64",
+        "version": "v65",
         "input": str(Path(a.input).resolve()),
         "output": str(output),
         "armature_bones": len(rig.data.bones),
@@ -334,7 +448,7 @@ def main():
     report = Path(a.report).resolve()
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    print("AETHERFALL_MALE_PEASANT_V64_OK")
+    print("AETHERFALL_MALE_PEASANT_V65_OK")
     print(json.dumps(data, indent=2))
 
 if __name__ == "__main__":
