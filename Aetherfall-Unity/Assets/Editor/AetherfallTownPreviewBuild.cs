@@ -30,6 +30,9 @@ namespace Aetherfall.Editor
         {
             AetherfallWorldBuilder.GenerateStarterTown();
 
+            // Scene assets created during this Editor session may need a
+            // synchronous import before the build profile resolves them.
+            AssetDatabase.ImportAsset(TownScene, ImportAssetOptions.ForceSynchronousImport);
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(TownScene) == null)
                 throw new System.InvalidOperationException(
                     "Town scene generation failed; refusing to export placeholder login scene.");
