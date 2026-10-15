@@ -21,5 +21,26 @@ for name in ["Generate Starter Town", "EditorSceneManager.SaveScene",
              "New Adventurer Registration",
              "UnityEngine.Object.DestroyImmediate(collider)"]:
     assert name in code, name
+# Preview pipeline is EDITOR-ONLY; renders genuine Unity camera output, not a
+# planning image. Successful source checks still do not prove Unity compilation.
+preview = (root/"Assets/Editor/AetherfallTownPreviewCapture.cs").read_text()
+for feature in [
+    "GenerateAndCapture", "CaptureCurrentTown", "RenderTexture.GetTemporary",
+    "camera.Render()", "EncodeToPNG()", "SystemInfo.graphicsDeviceType",
+    "01-overhead-real-unity.png", "02-south-gate-market.png",
+    "03-winding-road-to-guild.png", "04-guild-town-hall.png",
+    "05-view-from-guild-hill.png", "Assets/Scenes/StarterTown.unity",
+]:
+    assert feature in preview, f"Missing preview feature: {feature}"
+for landmark in [
+    "Player Spawn - Inside South Gate",
+    "Town Market Interaction Center",
+    "Guild Registration Arrival",
+    "Starter Field Exit - Beyond Gate",
+]:
+    assert landmark in code, landmark
+assert "Application.dataPath" in code
+assert "#if UNITY_EDITOR" in preview
+assert "EditorBuildSettings.scenes =" not in preview
 assert "EditorBuildSettings.scenes =" not in code, "do not touch startup build configuration"
 print("PASS: World Builder preset, layout landmarks and safe scene separation")
