@@ -315,46 +315,114 @@ namespace Aetherfall.Exploration
         private static void Road(Transform parent, string name, float width,
                                  params Vector2[] points)
         {
-            var road = Group(parent, name);
-            // Short sections follow the climb without clipping into the hill.
+            if (points == null || points.Length < 2) return;
+
+            // Older builds laid down overlapping cubes. Every sharp bend made
+            // wedge-shaped seams, which are visible around the marketplace.
+            // An actual continuous mesh keeps a clean edge at each bend.
+            var smooth = new List<Vector2>();
             for (int i = 0; i < points.Length - 1; i++)
             {
-                Vector3 a = Point(points[i].x, points[i].y) + Vector3.up * .12f;
-                Vector3 b = Point(points[i + 1].x, points[i + 1].y) + Vector3.up * .12f;
-                float distance = Vector3.Distance(a, b);
-                int slices = Mathf.Max(1, Mathf.CeilToInt(distance / 7f));
-                for (int s = 0; s < slices; s++)
+                Vector2 p0 = points[Mathf.Max(0, i - 1)];
+                Vector2 p1 = points[i];
+                Vector2 p2 = points[i + 1];
+                Vector2 p3 = points[Mathf.Min(points.Length - 1, i + 2)];
+                int subdivisions = Mathf.Clamp(
+                    Mathf.CeilToInt(Vector2.Distance(p1, p2) / 3.5f), 3, 14);
+                for (int j = 0; j < subdivisions; j++)
                 {
-                    float t0 = (float)s / slices, t1 = (float)(s + 1) / slices;
-                    Vector3 mid = Vector3.Lerp(a, b, (t0 + t1) * .5f);
-                    Vector3 delta = (b - a) / slices;
-                    var tile = Box(road, "Path Segment " + i + "-" + s,
-                        mid, new Vector3(width, .12f, delta.magnitude + .22f),
-                        "Road", "#B2A18A", false);
-                    tile.transform.rotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
+                    float t = (float)j / subdivisions;
+                    float t2 = t * t;
+                    float t3 = t2 * t;
+                    smooth.Add(.5f * (2f * p1 + (-p0 + p2) * t +
+                        (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2 +
+                        (-p0 + 3f * p1 - 3f * p2 + p3) * t3));
                 }
             }
+            smooth.Add(points[points.Length - 1]);
+            RoadStrip(parent, name, width, smooth, false);
         }
 
         private static void RingRoad(Transform parent, Vector2 center,
                                       float radius, float width)
         {
-            var ring = Group(parent, "Gate Market Loop Road");
-            const int sections = 30;
+            const int sections = 72;
+            var ring = new List<Vector2>(sections);
             for (int i = 0; i < sections; i++)
             {
-                float a0 = (float)i / sections * Mathf.PI * 2f;
-                float a1 = (float)(i + 1) / sections * Mathf.PI * 2f;
-                Vector2 p0 = center + new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * radius;
-                Vector2 p1 = center + new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * radius;
-                Vector3 from = Point(p0.x, p0.y) + Vector3.up * .12f;
-                Vector3 to = Point(p1.x, p1.y) + Vector3.up * .12f;
-                Vector3 delta = to - from;
-                var tile = Box(ring, "Market Ring " + i, (from + to) * .5f,
-                    new Vector3(width, .13f, delta.magnitude + .22f),
-                    "Road", "#B2A18A", false);
-                tile.transform.rotation = Quaternion.LookRotation(delta.normalized, Vector3.up);
+                float radians = (float)i / sections * Mathf.PI * 2f;
+                ring.Add(center + new Vector2(
+                    Mathf.Cos(radians), Mathf.Sin(radians)) * radius);
             }
+            RoadStrip(parent, "Gate Market Loop Road", width, ring, true);
+        }
+
+        private static void RoadStrip(Transform parent, string name, float width,
+                                      IList<Vector2> centers, bool closed)
+        {
+            int n = centers.Count;
+            if (n < 2) return;
+
+            // Connected strip with mitered joins; no independent road cubes,
+            // overlapping corner caps or physics surfaces above the terrain.
+            int count = closed ? n + 1 : n;
+            var vertices = new Vector3[count * 2];
+            var uv = new Vector2[vertices.Length];
+            var triangles = new int[(count - 1) * 6];
+            float travelDistance = 0f;
+
+            for (int i = 0; i < count; i++)
+            {
+                int idx = i % n;
+                Vector2 position = centers[idx];
+                Vector2 previous = centers[(idx - 1 + n) % n];
+                Vector2 next = centers[(idx + 1) % n];
+                Vector2 entering = (position - previous).normalized;
+                Vector2 exiting = (next - position).normalized;
+                if (!closed && idx == 0) entering = exiting;
+                if (!closed && idx == n - 1) exiting = entering;
+                if (entering.sqrMagnitude < .01f) entering = exiting;
+                if (exiting.sqrMagnitude < .01f) exiting = entering;
+
+                Vector2 leftBefore = new Vector2(-entering.y, entering.x);
+                Vector2 leftAfter = new Vector2(-exiting.y, exiting.x);
+                Vector2 bisector = leftBefore + leftAfter;
+                Vector2 left = bisector.sqrMagnitude < .02f
+                    ? leftAfter : bisector.normalized;
+                float dot = Mathf.Max(.72f, Vector2.Dot(left, leftAfter));
+                Vector2 lateral = left * (width * .5f / dot);
+
+                Vector2 a = position + lateral;
+                Vector2 b = position - lateral;
+                vertices[i * 2] = Point(a.x, a.y) + Vector3.up * .18f;
+                vertices[i * 2 + 1] = Point(b.x, b.y) + Vector3.up * .18f;
+                if (i > 0)
+                    travelDistance += Vector2.Distance(
+                        centers[(idx - 1 + n) % n], position);
+                uv[i * 2] = new Vector2(0f, travelDistance / 5f);
+                uv[i * 2 + 1] = new Vector2(1f, travelDistance / 5f);
+                if (i == count - 1) continue;
+                int t = i * 6, v = i * 2;
+                triangles[t] = v;
+                triangles[t + 1] = v + 2;
+                triangles[t + 2] = v + 1;
+                triangles[t + 3] = v + 1;
+                triangles[t + 4] = v + 2;
+                triangles[t + 5] = v + 3;
+            }
+
+            var mesh = new Mesh { name = name + " - continuous road" };
+            mesh.vertices = vertices;
+            mesh.uv = uv;
+            mesh.triangles = triangles;
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            GameObject road = new GameObject(name,
+                typeof(MeshFilter), typeof(MeshRenderer));
+            road.transform.SetParent(parent, false);
+            road.GetComponent<MeshFilter>().sharedMesh = mesh;
+            road.GetComponent<MeshRenderer>().sharedMaterial =
+                Surface("Road", "#B2A18A");
         }
 
         private static void Wall(Transform parent, Vector2 from, Vector2 to)
