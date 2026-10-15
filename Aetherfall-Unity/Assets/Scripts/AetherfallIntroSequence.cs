@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.Video;
 
@@ -27,6 +28,8 @@ namespace Aetherfall.Frontend
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void ShowIntro()
         {
+            // StarterTown preview has its own native 3D tour interface.
+            if (SceneManager.GetActiveScene().name == "StarterTown") return;
             if (FindFirstObjectByType<AetherfallIntroSequence>() != null)
                 return;
 
