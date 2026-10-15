@@ -10,7 +10,8 @@ assert 0<=preset["residentialHouses"]<=8
 assert preset["foliageOuterRadius"] >= preset["width"]*.65
 for name in ["Generate Starter Town", "EditorSceneManager.SaveScene",
              "Town Walls and South Gate", "South Gate West Tower",
-             "Central Fountain Landmark", "Town Guild Hall - Civic Government",
+             "Central Fountain Landmark", "Town Guild Hall - Civic Government", "GuildHallDetails",
+             "Guild Blue Banner", "Civic Stone Entry Step", "Roof Ridge Cap",
              "The Hearth Inn", "Blacksmith and Forge", "Healing Shrine",
              "General Supply Shop", "Combat Training Yard",
              "Gate Market Loop Road", "Winding Guild Approach",
