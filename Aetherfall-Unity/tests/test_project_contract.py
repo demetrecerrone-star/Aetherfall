@@ -69,7 +69,7 @@ assert (root/'Assets/Scripts/AetherfallGuestExplorer.cs').is_file()
 guest=(root/'Assets/Scripts/AetherfallGuestExplorer.cs').read_text()
 assert 'SceneManager.sceneLoaded += OnSceneLoaded' in guest
 assert 'CharacterController' in guest
-assert 'Sprint' in guest
+assert 'SPRINT' in guest
 assert 'Guest Explorer' in guest
 assert 'Screen.safeArea' in guest
 assert 'VideoPlayer' in intro and 'StreamingAssets' in intro
