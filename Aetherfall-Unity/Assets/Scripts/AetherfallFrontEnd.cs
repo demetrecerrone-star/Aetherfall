@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using Aetherfall.Exploration;
 using UnityEngine.UI;
 
 namespace Aetherfall.Frontend
@@ -198,7 +199,7 @@ namespace Aetherfall.Frontend
             });
 
             var submit = MakeButton(parent, "Log In", "Log In", Hex("1E67B4"), gold);
-            Stretch(submit.GetComponent<RectTransform>(), new Vector2(.074f, .345f), new Vector2(.926f, .434f));
+            Stretch(submit.GetComponent<RectTransform>(), new Vector2(.074f, .365f), new Vector2(.926f, .448f));
             submit.GetComponentInChildren<Text>().fontSize = 28;
             submit.onClick.AddListener(TryLogin);
 
@@ -207,12 +208,12 @@ namespace Aetherfall.Frontend
             Button guest = MakeButton(parent, "Play as Guest", "Play as Guest",
                 Hex("24665A"), Hex("FFF1C7"));
             Stretch(guest.GetComponent<RectTransform>(),
-                new Vector2(.075f, .293f), new Vector2(.925f, .343f));
+                new Vector2(.075f, .267f), new Vector2(.925f, .352f));
             guest.GetComponentInChildren<Text>().fontSize = 24;
             guest.onClick.AddListener(EnterGuestWorld);
 
             var create = MakeButton(parent, "Create Account", "Create Account", Hex("152943"), gold);
-            Stretch(create.GetComponent<RectTransform>(), new Vector2(.075f, .219f), new Vector2(.925f, .291f));
+            Stretch(create.GetComponent<RectTransform>(), new Vector2(.075f, .181f), new Vector2(.925f, .258f));
             create.GetComponentInChildren<Text>().color = gold;
             create.onClick.AddListener(() => OpenDialog("Create Account", "Account registration is the next development milestone. This preview does not save passwords or create accounts."));
 
@@ -222,11 +223,11 @@ namespace Aetherfall.Frontend
             googleIcon.raycastTarget = false;
             Text googleText = google.GetComponentInChildren<Text>();
             Stretch(googleText.rectTransform, new Vector2(.26f, 0), new Vector2(.98f, 1));
-            Stretch(google.GetComponent<RectTransform>(), new Vector2(.075f, .127f), new Vector2(.925f, .198f));
+            Stretch(google.GetComponent<RectTransform>(), new Vector2(.075f, .096f), new Vector2(.925f, .171f));
             google.onClick.AddListener(() => OpenDialog("Google Login", "Google sign-in will be enabled after connecting a real authentication provider and configuring the Android app credentials."));
 
             var settings = MakeButton(parent, "Settings", "Settings", Color.clear, Color.clear);
-            Stretch(settings.GetComponent<RectTransform>(), new Vector2(.19f, .049f), new Vector2(.81f, .111f));
+            Stretch(settings.GetComponent<RectTransform>(), new Vector2(.19f, .027f), new Vector2(.81f, .085f));
             settings.onClick.AddListener(() => OpenDialog("Settings", "Aetherfall Unity Reboot — title/login UI preview.\n\nMusic, accessibility and network settings will be added to this menu."));
 
             status = MakeText(parent, "Validation status", "", 15, Hex("FFCC9E"),
@@ -236,12 +237,6 @@ namespace Aetherfall.Frontend
         private void EnterGuestWorld()
         {
             if (inTransition) return;
-            if (!Application.CanStreamedLevelBeLoaded("StarterTown"))
-            {
-                OpenDialog("Starter Town unavailable",
-                    "This APK does not include the 3D town scene. Please install the updated Aetherfall guest-world build.");
-                return;
-            }
             StartCoroutine(LoadGuestWorld());
         }
 
@@ -250,17 +245,47 @@ namespace Aetherfall.Frontend
             inTransition = true;
             panelGroup.interactable = false;
             panelGroup.blocksRaycasts = false;
-            status.text = "Entering the starter town as Guest...";
-            // Guest is local preview access, NOT a fake login or saved account.
-            AsyncOperation loading = SceneManager.LoadSceneAsync("StarterTown", LoadSceneMode.Single);
-            if (loading == null)
+            status.text = "Entering Aetherfall as Guest...";
+            // Guest is local offline exploration, NOT mock authentication.
+            // Prefer the baked editor scene, but Unity Cloud can override the
+            // scene list and ship only login. In that case construct StarterTown
+            // on the device instead of leaving the player trapped at login.
+            if (Application.CanStreamedLevelBeLoaded("StarterTown"))
             {
+                AsyncOperation loading = SceneManager.LoadSceneAsync(
+                    "StarterTown", LoadSceneMode.Single);
+                if (loading != null)
+                {
+                    while (!loading.isDone) yield return null;
+                    yield break;
+                }
+                Debug.LogWarning("Guest: baked StarterTown failed to load; building runtime fallback.");
+            }
+
+            // Yield once so that the UI can show its loading status before we
+            // generate geometry on a mobile device.
+            yield return null;
+            Scene loginScene = SceneManager.GetActiveScene();
+            Scene runtimeScene = default(Scene);
+            try
+            {
+                runtimeScene = AetherfallRuntimeTown.CreateScene();
+                AetherfallGuestExplorer.StartInTown();
+                // Unload the login scene (including the opening cinematic and
+                // all UI), while leaving the newly created StarterTown active.
+                SceneManager.UnloadSceneAsync(loginScene);
+            }
+            catch (Exception error)
+            {
+                Debug.LogError("Guest runtime world creation failed: " + error);
+                SceneManager.SetActiveScene(loginScene);
+                if (runtimeScene.IsValid() && runtimeScene.isLoaded)
+                    SceneManager.UnloadSceneAsync(runtimeScene);
                 inTransition = false;
                 panelGroup.interactable = panelGroup.blocksRaycasts = true;
-                OpenDialog("Unable to enter world", "The town could not be loaded.");
-                yield break;
+                OpenDialog("Unable to enter world",
+                    "The 3D preview could not be generated on this device. Please send us the Unity Android log.");
             }
-            while (!loading.isDone) yield return null;
         }
 
         private void TryLogin()
