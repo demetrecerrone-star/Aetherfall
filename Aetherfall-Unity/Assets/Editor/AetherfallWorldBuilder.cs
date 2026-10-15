@@ -139,6 +139,7 @@ namespace Aetherfall.Editor
             // town, registers newcomers, coordinates guards and posts town quests.
             House(landmarks, "Town Guild Hall - Civic Government", GroundPosition(-22, 96),
                 29, 19, 12, "#C9B59B", "#475C7D");
+            GuildHallDetails(landmarks, GroundPosition(-22, 96), 29f, 19f);
             GuildNoticeBoards(landmarks, GroundPosition(5, 83));
             TrainingYard(landmarks, GroundPosition(-77, 76));
             House(landmarks, "Healing Shrine", GroundPosition(72, 82),
@@ -481,6 +482,42 @@ namespace Aetherfall.Editor
             }
         }
 
+        private static void GuildHallDetails(
+            Transform parent, Vector3 position, float width, float depth)
+        {
+            // The guild hall is also the town hall: wider entrance, civic blue
+            // banners, golden crest and a simple covered reception porch.
+            // Decorative parts have no colliders so they cannot snag players.
+            var hall = Group(parent, "Guild Town Hall Details - Civic Identity");
+            hall.localPosition = position;
+            float front = -depth * .5f;
+
+            Box(hall, "Civic Stone Entry Step",
+                new Vector3(0f, .26f, front - 1.55f),
+                new Vector3(7.2f, .46f, 2.8f), "Stone", "#B5ACA0", true);
+            Box(hall, "Guild Entrance Porch Roof",
+                new Vector3(0f, 7.4f, front - 2.0f),
+                new Vector3(19f, .7f, 5.4f), "RoofSlate", "#475C7D", false);
+            foreach (float x in new[] { -8.2f, 8.2f })
+            {
+                Box(hall, "Porch Pillar " + x,
+                    new Vector3(x, 3.6f, front - 3.9f),
+                    new Vector3(.55f, 7.2f, .55f), "Timber", "#77543B", false);
+                Box(hall, "Guild Blue Banner " + x,
+                    new Vector3(x * 1.25f, 9.2f, front - .23f),
+                    new Vector3(2.5f, 4f, .16f), "GuildBlue", "#385A94", false);
+                Box(hall, "Guild Banner Gold Device " + x,
+                    new Vector3(x * 1.25f, 9.4f, front - .33f),
+                    new Vector3(1.1f, 1.15f, .09f), "GuildGold", "#E5BC65", false);
+            }
+            Box(hall, "Guild Hall Door Frame",
+                new Vector3(0f, 2.7f, front - .2f),
+                new Vector3(3.5f, 5.0f, .5f), "Timber", "#77543B", false);
+            Box(hall, "Guild Charter Crest",
+                new Vector3(0f, 9.1f, front - .24f),
+                new Vector3(3.6f, 3.6f, .25f), "GuildGold", "#E5BC65", false);
+        }
+
         private static void House(Transform parent, string name, Vector3 p,
             float width, float depth, float height, string wallColor, string roofColor)
         {
@@ -502,6 +539,33 @@ namespace Aetherfall.Editor
                 new Vector3(2.2f, 2.5f, .1f), "Window", "#739CA5", false);
             Box(plot, "Right Window", new Vector3(width * .28f, height * .53f, -depth * .5f - .13f),
                 new Vector3(2.2f, 2.5f, .1f), "Window", "#739CA5", false);
+
+            // Low-cost timber framing reads more like a stylized JRPG village
+            // than bare cubes. These are visual-only, without new collision.
+            foreach (float side in new[] { -1f, 1f })
+            {
+                Box(plot, "Front Timber Corner " + side,
+                    new Vector3(side * (width * .5f - .25f), height * .5f + .4f, -depth * .5f - .12f),
+                    new Vector3(.52f, height, .35f), "Timber", "#77543B", false);
+                Box(plot, "Rear Timber Corner " + side,
+                    new Vector3(side * (width * .5f - .25f), height * .5f + .4f, depth * .5f),
+                    new Vector3(.5f, height, .42f), "Timber", "#77543B", false);
+                float windowX = side * width * .28f;
+                Box(plot, "Window Shutter " + side,
+                    new Vector3(windowX + side * 1.36f, height * .53f, -depth * .5f - .19f),
+                    new Vector3(.5f, 2.65f, .16f), "Timber", "#77543B", false);
+            }
+            Box(plot, "Front Exposed Timber Beam",
+                new Vector3(0f, height * .86f + .48f, -depth * .5f - .13f),
+                new Vector3(width, .36f, .35f), "Timber", "#77543B", false);
+            Box(plot, "Roof Ridge Cap",
+                new Vector3(0f, height + 3.9f, 0f),
+                new Vector3(.75f, .65f, depth + 2.8f), "RoofSlate", roofColor, false);
+
+            if (name.Contains("Inn") || name.Contains("Bakery"))
+                Box(plot, "Stone Chimney",
+                    new Vector3(width * .28f, height + 3.25f, depth * .19f),
+                    new Vector3(1.8f, 5.1f, 1.8f), "TownStone", "#898F95", false);
         }
 
         private static void Tower(Transform parent, string name, float x, float z)
