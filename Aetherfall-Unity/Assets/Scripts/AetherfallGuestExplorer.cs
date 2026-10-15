@@ -26,6 +26,8 @@ namespace Aetherfall.Exploration
         private GUIStyle labelStyle;
         private GUIStyle buttonStyle;
         private GUIStyle joystickStyle;
+        private Texture2D joystickBaseTexture;
+        private Texture2D joystickThumbTexture;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Register()
@@ -293,27 +295,63 @@ namespace Aetherfall.Exploration
             worldCamera.transform.LookAt(target, Vector3.up);
         }
 
+        private static Texture2D CircularControlTexture(int resolution,
+            Color centerColor, Color borderColor, string name)
+        {
+            var image = new Texture2D(
+                resolution, resolution, TextureFormat.RGBA32, false)
+            {
+                name = name,
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            var pixels = new Color[resolution * resolution];
+            for (int y = 0; y < resolution; y++)
+            for (int x = 0; x < resolution; x++)
+            {
+                float dx = (x + .5f - resolution * .5f) / (resolution * .5f);
+                float dy = (y + .5f - resolution * .5f) / (resolution * .5f);
+                float r = Mathf.Sqrt(dx * dx + dy * dy);
+                float inner = Mathf.SmoothStep(0f, 1f,
+                    Mathf.InverseLerp(.68f, .99f, r));
+                Color c = Color.Lerp(centerColor, borderColor, inner);
+                c.a *= 1f - Mathf.SmoothStep(0f, 1f,
+                    Mathf.InverseLerp(.96f, 1f, r));
+                pixels[y * resolution + x] = c;
+            }
+            image.SetPixels(pixels);
+            image.Apply(false, true);
+            return image;
+        }
+
         private void PrepareStyles()
         {
             if (labelStyle != null) return;
             labelStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * .034f), 17, 30),
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * .031f), 17, 28),
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleLeft,
                 normal = { textColor = Color.white },
             };
             buttonStyle = new GUIStyle(GUI.skin.button)
             {
-                fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * .031f), 17, 29),
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * .030f), 16, 26),
                 fontStyle = FontStyle.Bold,
             };
-            joystickStyle = new GUIStyle(GUI.skin.box)
+            joystickStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * .045f), 22, 40),
-                normal = { textColor = Color.white },
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * .023f), 14, 20),
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(.96f, .97f, 1f, .92f) },
             };
+            joystickBaseTexture = CircularControlTexture(96,
+                new Color(.11f, .17f, .24f, .29f),
+                new Color(.11f, .19f, .30f, .63f), "Move Joystick Ring");
+            joystickThumbTexture = CircularControlTexture(64,
+                new Color(.92f, .94f, 1f, .86f),
+                new Color(.63f, .76f, .94f, .98f), "Move Joystick Thumb");
         }
 
         private void OnGUI()
@@ -325,13 +363,17 @@ namespace Aetherfall.Exploration
             float h = safe.height;
             float w = safe.width;
             float side = Mathf.Max(12f, h * .025f);
-            float buttonHeight = Mathf.Clamp(h * .11f, 54f, 87f);
+            float buttonHeight = Mathf.Clamp(h * .085f, 48f, 72f);
 
-            GUI.Box(new Rect(safe.xMin, top, w, buttonHeight + side * 2f),
-                GUIContent.none);
-            GUI.Label(new Rect(safe.xMin + side, top + side,
-                Mathf.Max(120f, w * .52f), buttonHeight),
-                "AETHERFALL   •   Guest Explorer", labelStyle);
+            // Compact HUD panel instead of a solid bar across the entire
+            // landscape view. The environment should stay the main focus.
+            float titleWidth = Mathf.Min(w * .47f, 490f);
+            Rect heading = new Rect(safe.xMin + side, top + side,
+                titleWidth, buttonHeight);
+            GUI.Box(heading, GUIContent.none);
+            GUI.Label(new Rect(heading.x + 13f, heading.y,
+                heading.width - 21f, heading.height),
+                "AETHERFALL  •  Guest Explorer", labelStyle);
 
             float buttonW = Mathf.Clamp(w * .17f, 112f, 210f);
             if (GUI.Button(new Rect(safe.xMax - side - buttonW, top + side,
@@ -350,12 +392,16 @@ namespace Aetherfall.Exploration
             float radius = Mathf.Clamp(h * .15f, 66f, 115f);
             Rect joyBackground = new Rect(joyCenter.x - radius,
                 Screen.height - joyCenter.y - radius, radius * 2f, radius * 2f);
-            GUI.Box(joyBackground, "MOVE", joystickStyle);
-            float thumb = radius * .43f;
-            GUI.Box(new Rect(joyBackground.center.x - thumb + joystick.x * radius * .60f,
-                             joyBackground.center.y - thumb - joystick.y * radius * .60f,
-                             thumb * 2f, thumb * 2f),
-                    "●", joystickStyle);
+            GUI.DrawTexture(joyBackground, joystickBaseTexture,
+                ScaleMode.StretchToFill, true);
+            float thumb = radius * .36f;
+            GUI.DrawTexture(new Rect(
+                joyBackground.center.x - thumb + joystick.x * radius * .60f,
+                joyBackground.center.y - thumb - joystick.y * radius * .60f,
+                thumb * 2f, thumb * 2f), joystickThumbTexture,
+                ScaleMode.StretchToFill, true);
+            GUI.Label(new Rect(joyBackground.x, joyBackground.y + radius * 1.40f,
+                radius * 2f, radius * .4f), "MOVE", joystickStyle);
             GUI.Label(new Rect(safe.xMax - Mathf.Min(w * .43f, 435f),
                 top + h - buttonHeight - side,
                 Mathf.Min(w * .41f, 435f), buttonHeight),
@@ -365,6 +411,8 @@ namespace Aetherfall.Exploration
         private void OnDestroy()
         {
             if (avatar != null) Destroy(avatar);
+            if (joystickBaseTexture != null) Destroy(joystickBaseTexture);
+            if (joystickThumbTexture != null) Destroy(joystickThumbTexture);
         }
     }
 }
