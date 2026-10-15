@@ -53,6 +53,7 @@ namespace Aetherfall.Editor
             var residences = Group(root.transform, "05 Residences");
             var greenery = Group(root.transform, "06 Outdoor Foliage");
             var lights = Group(root.transform, "07 Lamps and Lighting");
+            var navigation = Group(root.transform, "08 Player and Quest Markers");
 
             // An irregular walled settlement, NOT a rectangular courtyard.
             // The main entrance opens directly into a busy circular market square.
@@ -161,6 +162,13 @@ namespace Aetherfall.Editor
                 House(residences, "Residence " + (i + 1), pos, w, d, 6.7f, "#C5B6A0", "#6E6255");
             }
 
+            // Explicit entry/interaction anchors for the first playable prototype.
+            // They are empty transforms, so they cannot block player movement.
+            Marker(navigation, "Player Spawn - Inside South Gate", 0f, -93f, 1f);
+            Marker(navigation, "Town Market Interaction Center", 0f, -64f, 1f);
+            Marker(navigation, "Guild Registration Arrival", -22f, 81f, 1f);
+            Marker(navigation, "Starter Field Exit - Beyond Gate", 0f, -130f, 1f);
+
             // Boundary-focused woodland: leave the winding streets and gate clear.
             for (int i = 0; i < preset.woodlandTrees; i++)
             {
@@ -209,7 +217,7 @@ namespace Aetherfall.Editor
             camera.farClipPlane = 700;
             camera.tag = "MainCamera";
 
-            Directory.CreateDirectory("Assets/Scenes");
+            Directory.CreateDirectory(Path.Combine(Application.dataPath, "Scenes"));
             EditorSceneManager.MarkSceneDirty(scene);
             if (!EditorSceneManager.SaveScene(scene, ScenePath))
                 throw new InvalidOperationException("Could not save starter town scene.");
@@ -220,9 +228,15 @@ namespace Aetherfall.Editor
 
         private static TownPreset LoadPreset()
         {
-            if (!File.Exists(PresetPath))
-                throw new FileNotFoundException("Missing Aetherfall World Builder preset", PresetPath);
-            TownPreset settings = JsonUtility.FromJson<TownPreset>(File.ReadAllText(PresetPath));
+            // Do not rely on the shell's current working directory. Unity Cloud,
+            // batchmode, and local editors can be invoked from different folders.
+            string absolutePreset = Path.Combine(Application.dataPath,
+                "WorldBuilder", "starter-town.json");
+            if (!File.Exists(absolutePreset))
+                throw new FileNotFoundException(
+                    "Missing Aetherfall World Builder preset", absolutePreset);
+            TownPreset settings = JsonUtility.FromJson<TownPreset>(
+                File.ReadAllText(absolutePreset));
             if (settings == null || settings.width < 180 || settings.depth < 150 ||
                 settings.foliageOuterRadius < settings.width * .65f ||
                 settings.guildHillHeight < 0 || settings.guildHillHeight > 12f)
@@ -294,6 +308,15 @@ namespace Aetherfall.Editor
         private static GameObject Sphere(Transform t, string name, Vector3 p, Vector3 s,
             string m, string c, bool solid = false) =>
             Primitive(t, name, PrimitiveType.Sphere, p, s, m, c, solid);
+
+        private static void Marker(Transform parent, string name,
+            float x, float z, float standingOffset)
+        {
+            var marker = new GameObject(name);
+            marker.transform.SetParent(parent, false);
+            marker.transform.localPosition =
+                GroundPosition(x, z) + Vector3.up * standingOffset;
+        }
 
         private static void WallSegment(Transform parent, string label,
             Vector2 from, Vector2 to, float height, float thickness)
