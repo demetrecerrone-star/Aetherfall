@@ -66,6 +66,9 @@ namespace Aetherfall.Exploration
 
             avatar = new GameObject("Guest - Temporary Adventurer");
             avatar.transform.position = spawn;
+            // IgnoreRaycast keeps the follow camera from zooming into our own
+            // avatar; physical CharacterController collisions remain enabled.
+            avatar.layer = 2;
             character = avatar.AddComponent<CharacterController>();
             character.height = 2.5f;
             character.radius = .43f;
@@ -110,6 +113,7 @@ namespace Aetherfall.Exploration
         {
             var piece = GameObject.CreatePrimitive(shape);
             piece.name = name;
+            piece.layer = 2;
             piece.transform.SetParent(avatarModel, false);
             piece.transform.localPosition = position;
             piece.transform.localScale = scale;
@@ -220,11 +224,6 @@ namespace Aetherfall.Exploration
             // Keep sprint a toggle, including when using the touch joystick.
             if (Input.GetKeyDown(KeyCode.LeftShift)) sprint = !sprint;
             UpdateCamera(false);
-        }
-
-        private void LateUpdate()
-        {
-            // Camera updates in Update, after applying movement; no rigidbody needed.
         }
 
         private void UpdateCamera(bool immediate)
