@@ -30,6 +30,18 @@ assert 'PlayerSettings.allowedAutorotateToLandscapeRight = false' in editor
 assert 'Screen.orientation = ScreenOrientation.LandscapeLeft' in source
 assert 'RuntimeInitializeLoadType.BeforeSplashScreen' in source
 assert 'Screen.autorotateToPortrait = false' in source
+# The UI alone cannot guarantee launch orientation. Unity's generated
+# Android Activity manifest must be patched before Gradle packages the APK.
+manifest_patch=(root/'Assets/Editor/AetherfallAndroidManifestOrientation.cs').read_text()
+assert 'IPostGenerateGradleAndroidProject' in manifest_patch
+assert 'OnPostGenerateGradleAndroidProject(string unityLibraryPath)' in manifest_patch
+assert 'src", "main", "AndroidManifest.xml' in manifest_patch
+assert 'screenOrientation' in manifest_patch
+assert 'orientation.Value = "landscape"' in manifest_patch
+assert 'UnityPlayer' in manifest_patch
+assert 'AppUIGameActivity' in manifest_patch
+assert 'Refusing to produce an APK' in manifest_patch
+assert 'AETHERFALL_ORIENTATION_VERIFY' in manifest_patch
 buildsettings=(root/'ProjectSettings/EditorBuildSettings.asset').read_text()
 assert 'enabled: 1' in buildsettings
 assert 'path: Assets/Scenes/AetherfallFrontEnd.unity' in buildsettings
