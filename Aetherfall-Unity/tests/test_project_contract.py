@@ -18,6 +18,11 @@ assert 'Play as Guest' in source
 assert 'EnterGuestWorld' in source
 assert 'SceneManager.LoadSceneAsync("StarterTown", LoadSceneMode.Single)' in source
 assert 'Application.CanStreamedLevelBeLoaded("StarterTown")' in source
+assert 'AetherfallRuntimeTown.CreateScene()' in source
+assert 'AetherfallGuestExplorer.StartInTown()' in source
+assert 'SceneManager.UnloadSceneAsync(loginScene)' in source
+assert 'Starter Town unavailable' not in source
+assert 'SceneManager.SetActiveScene(loginScene)' in source
 assert 'if (scene.name == "StarterTown") return;' in source
 assert 'SceneManager.sceneLoaded += OnSceneLoaded;' in source
 assert 'UnityEngine.UI' in source
@@ -70,6 +75,17 @@ guest=(root/'Assets/Scripts/AetherfallGuestExplorer.cs').read_text()
 assert 'SceneManager.sceneLoaded += OnSceneLoaded' in guest
 assert 'CharacterController' in guest
 assert 'SPRINT' in guest
+assert 'public static void StartInTown()' in guest
+runtime_town=(root/'Assets/Scripts/AetherfallRuntimeTown.cs').read_text()
+assert 'SceneManager.CreateScene("StarterTown")' in runtime_town
+assert 'SceneManager.SetActiveScene(town)' in runtime_town
+assert 'AETHERFALL_GUEST_RUNTIME_WORLD_READY' in runtime_town
+assert 'Player Spawn - Inside South Gate' in runtime_town
+assert 'Town Guild Hall - Civic Government' in runtime_town
+assert 'Gate Market Loop Road' in runtime_town
+assert 'New Adventurer Registration' in runtime_town
+assert 'Walkable North Guild Hill' in runtime_town
+assert 'Runtime Blockout Prototype - Not Final Game Art' in runtime_town
 assert 'Guest Explorer' in guest
 assert 'Screen.safeArea' in guest
 assert 'VideoPlayer' in intro and 'StreamingAssets' in intro
