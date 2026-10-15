@@ -89,6 +89,24 @@ assert 'Walkable North Guild Hill' in runtime_town
 assert 'Runtime Blockout Prototype - Not Final Game Art' in runtime_town
 assert 'Guest Explorer' in guest
 assert 'Screen.safeArea' in guest
+# Screenshot QA: the guest avatar was bright magenta because its material
+# wasn't reliably compatible with the Android render pipeline.
+assert 'new Material(template)' in guest
+assert 'sourceRenderer.sharedMaterial.shader.isSupported' in guest
+assert 'GraphicsSettings.currentRenderPipeline' in guest
+assert 'material.SetColor("_BaseColor", color)' in guest
+# Keep the interface compact in landscape and render a round joystick.
+assert 'CircularControlTexture' in guest
+assert 'GUI.DrawTexture(joyBackground, joystickBaseTexture' in guest
+assert 'joystickThumbTexture' in guest
+assert 'float titleWidth = Mathf.Min(w * .47f, 490f)' in guest
+# Roads must be continuous, terrain-following meshes rather than overlapping
+# cube segments with conspicuous triangular corners.
+assert 'RoadStrip(parent, name, width, smooth, false)' in runtime_town
+assert 'RoadStrip(parent, "Gate Market Loop Road", width, ring, true)' in runtime_town
+assert 'MeshFilter), typeof(MeshRenderer)' in runtime_town
+assert 'mesh.RecalculateNormals();' in runtime_town
+assert 'Path Segment ' not in runtime_town
 assert 'VideoPlayer' in intro and 'StreamingAssets' in intro
 assert 'FinishIntro' in intro and 'Skip Intro' in intro
 manifest=json.loads((root/'Packages/manifest.json').read_text())
