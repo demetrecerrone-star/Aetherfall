@@ -6,14 +6,44 @@ It does not run during gameplay and does **not** alter the game's title/login st
 ## Working branch
 world-builder-prototype (isolated from unity-reboot while Unity Cloud APK debugging continues).
 
-## Generate and edit
-1. Open Aetherfall-Unity in Unity 6000.3.
-2. Modify Assets/WorldBuilder/starter-town.json if desired.
-3. Select **Aetherfall > World Builder > Generate Starter Town**.
-4. The editor creates Assets/Scenes/StarterTown.unity, a saved, editable 3D scene.
-5. Commit the generated scene and Materials folder if accepting this buildout.
-6. **Do not add the prototype scene to Android build profiles yet**. First review appearance
-   and replace simple geometry with modular assets. All players will use the same saved scene.
+## Generate, save, and see the real 3D town
+The `Assets/Editor/AetherfallTownPreviewCapture.cs` editor script now creates
+five **real Unity camera screenshots**: overhead, entrance market, winding
+residential road, guild-run hilltop town hall, and the overlook back toward the
+market. This code has source checks but **has not yet executed in Unity**.
+
+### Via the Unity Editor (recommended first verification)
+1. Open `Aetherfall-Unity` in **Unity 6000.3.26f1**.
+2. Select **Aetherfall > World Builder > Generate Town + Capture Screenshots**.
+3. The editor saves `Assets/Scenes/StarterTown.unity`, the mesh in
+   `Assets/WorldBuilder/Generated/` and materials in
+   `Assets/WorldBuilder/Materials/`.
+4. Open `Aetherfall-Unity/Builds/StarterTownPreview/` for five 1600 x 900 PNGs.
+5. Review screenshots, tune the town and regenerate before accepting the
+   generated scene into the game's main branch.
+
+### Via a properly licensed Unity Editor runner
+Run from a shell that has a **graphics-capable Unity Editor session**:
+```bash
+/path/to/Unity -batchmode -quit \
+  -projectPath "/path/to/Aetherfall-Unity" \
+  -executeMethod Aetherfall.Editor.AetherfallTownPreviewCapture.GenerateAndCapture \
+  -logFile "/path/to/town-preview.log"
+```
+**Do not use `-nographics`**; that disables the graphics device needed for
+`Camera.Render()`. A headless VM may require a configured display/GPU or
+software renderer. The project does not yet have a provisioned CI runner with
+graphics and Unity activation. Do not claim screenshots exist just because
+source checks passed. After the runner is available, an artifact-upload job
+can collect `Aetherfall-Unity/Builds/StarterTownPreview/*.png` and publish
+them for review from a phone.
+
+### Preserve the currently building Android APK
+Town generation is confined to the `world-builder-prototype` branch. It does
+not change `EditorBuildSettings`, the opening video, the title/login
+scene, or the currently configured `unity-reboot` Android build target.
+Do not add the prototype scene to the Android build until the scene compiles,
+renders and receives visual approval.
 
 ## Organic starter town plan
 - Nominal 250 x 240 m town footprint, with an irregular perimeter of 16 angled wall sections rather than rectangular walls.
@@ -24,6 +54,7 @@ world-builder-prototype (isolated from unity-reboot while Unity Cloud APK debugg
 - A second residential lane loops around houses and connects back to the guild approach; short footpaths lead to services.
 - 8 residential plots, woodland beyond the irregular walls and waist-high shrubs.
 - Default reproducible seed 77421, daytime directional light, elevated preview camera.
+- Empty scene anchors mark the entrance spawn, market, guild registration and outside-field exit.
 - Collision only on solid geometry; decorative leaves, bushes, water and paths do not block players.
 - Editable materials saved under Assets/WorldBuilder/Materials.
 - No expensive realtime point lights or runtime mesh regeneration.
