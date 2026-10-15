@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Aetherfall.Frontend
@@ -33,6 +34,9 @@ namespace Aetherfall.Frontend
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Launch()
         {
+            // The separately packaged town-preview APK launches into StarterTown.
+            // Never cover its 3D camera with the production title/login overlay.
+            if (SceneManager.GetActiveScene().name == "StarterTown") return;
             if (FindFirstObjectByType<AetherfallFrontEnd>() != null) return;
             var root = new GameObject("Aetherfall Front End");
             root.AddComponent<AetherfallFrontEnd>();
