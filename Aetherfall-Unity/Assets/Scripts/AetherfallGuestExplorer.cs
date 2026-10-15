@@ -43,6 +43,14 @@ namespace Aetherfall.Exploration
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             if (scene.name != "StarterTown") return;
+            StartInTown();
+        }
+
+        // A SceneManager.CreateScene() fallback doesn't fire sceneLoaded; the
+        // login flow calls this directly after creating its runtime town.
+        public static void StartInTown()
+        {
+            if (SceneManager.GetActiveScene().name != "StarterTown") return;
             if (FindFirstObjectByType<AetherfallGuestExplorer>() != null) return;
             new GameObject("Guest Explorer - Offline Town Test")
                 .AddComponent<AetherfallGuestExplorer>();
