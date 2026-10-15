@@ -49,10 +49,11 @@ renders and receives visual approval.
 - Nominal 250 x 240 m town footprint, with an irregular perimeter of 16 angled wall sections rather than rectangular walls.
 - 18 m south gate enters a lively market neighborhood: fountain plaza, market stalls, supply shop, bakery, blacksmith, apothecary, and inn.
 - A winding street leaves the market ring and travels past cottage plots to a **separate guild quarter** in the north: guild hall, training yard, and shrine.
-- The guild functions as the starter town's administrative town hall, not merely a quest office: registration, public orders, contracts and town-guard leadership are centralized there.
+- The guild functions as the starter town's administrative town hall, not merely a quest office: registration, public orders, contracts and town-guard leadership are centralized there. It has a blockout porch, gold charter crest and blue civic banners.
 - A gentle, walkable **6 m northern hill** lifts the guild hall above the market so it can overlook the town. Roads follow the slope; the scene saves the collidable terrain mesh as a Unity asset.
 - A second residential lane loops around houses and connects back to the guild approach; short footpaths lead to services.
-- 8 residential plots, woodland beyond the irregular walls and waist-high shrubs.
+- 8 residential plots, woodland beyond the irregular walls and waist-high shrubs. Housing blockouts now include simple timber framing, shutters and roof ridge caps.
+- Four non-solid named navigation anchors: player gate spawn, market interaction, guild registration and field exit.
 - Default reproducible seed 77421, daytime directional light, elevated preview camera.
 - Empty scene anchors mark the entrance spawn, market, guild registration and outside-field exit.
 - Collision only on solid geometry; decorative leaves, bushes, water and paths do not block players.
