@@ -12,6 +12,7 @@ namespace Aetherfall.Editor
     public static class AetherfallProjectSetup
     {
         private const string ScenePath = "Assets/Scenes/AetherfallFrontEnd.unity";
+        private const string TownScenePath = "Assets/Scenes/StarterTown.unity";
         static AetherfallProjectSetup()
         {
             EditorApplication.delayCall += EnsureScene;
@@ -20,18 +21,40 @@ namespace Aetherfall.Editor
         [MenuItem("Aetherfall/Set Up Title and Login Scene")]
         public static void EnsureScene()
         {
-            // Empty Unity scene: runtime UI is built on launch. This avoids brittle scene GUIDs.
-            if (!File.Exists(ScenePath))
+            // Unity Cloud must bake the world during Editor import. A build containing
+            // only the login scene is NOT a valid Aetherfall guest exploration build.
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                EditorApplication.delayCall += EnsureScene;
+                return;
+            }
+            // Empty Unity startup scene: the title/login UI is built at runtime.
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
             {
                 if (!Directory.Exists("Assets/Scenes")) Directory.CreateDirectory("Assets/Scenes");
                 var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
                 EditorSceneManager.SaveScene(scene, ScenePath);
                 Debug.Log("Aetherfall: created startup scene at " + ScenePath);
             }
-            var found = false;
-            foreach (var scene in EditorBuildSettings.scenes)
-                if (scene.path == ScenePath && scene.enabled) found = true;
-            if (!found) EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+            // Generate the editable deterministic town once for a fresh Unity
+            // Cloud checkout, then include it as scene 1 after the login scene.
+            // This avoids relying on manually configured pre-export hooks.
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(TownScenePath) == null)
+            {
+                AetherfallWorldBuilder.GenerateStarterTown();
+                AssetDatabase.ImportAsset(TownScenePath,
+                    ImportAssetOptions.ForceSynchronousImport);
+            }
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(TownScenePath) == null)
+                throw new System.InvalidOperationException(
+                    "Aetherfall guest world missing: unable to bake Assets/Scenes/StarterTown.unity.");
+
+            EditorBuildSettings.scenes = new[]
+            {
+                new EditorBuildSettingsScene(ScenePath, true),
+                new EditorBuildSettingsScene(TownScenePath, true),
+            };
+            Debug.Log("AETHERFALL_GUEST_WORLD_READY: title + baked StarterTown included in build scenes.");
             PlayerSettings.productName = "Aetherfall";
             PlayerSettings.companyName = "Dabsky";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.demetrecerrone.aetherfall.unitydev");
@@ -66,7 +89,7 @@ namespace Aetherfall.Editor
             // Preview uses Unity's development signing; do not label as production/update-safe.
             var result = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath },
+                scenes = new[] { ScenePath, TownScenePath },
                 locationPathName = "Builds/Aetherfall-Unity-Login-Preview.apk",
                 target = BuildTarget.Android,
                 options = BuildOptions.Development
@@ -74,6 +97,19 @@ namespace Aetherfall.Editor
             if (result.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
                 throw new System.Exception("Aetherfall Android preview build failed: " + result.summary.result);
             Debug.Log("Aetherfall preview APK: Builds/Aetherfall-Unity-Login-Preview.apk");
+        }
+    }
+
+    /// <summary>
+    /// Optional Unity Build Automation Pre-Export Method:
+    /// Aetherfall.Editor.AetherfallMainBuildPreExport.PreExport
+    /// The Editor import path already prepares the scene without this hook.
+    /// </summary>
+    public static class AetherfallMainBuildPreExport
+    {
+        public static void PreExport()
+        {
+            AetherfallProjectSetup.EnsureScene();
         }
     }
 
@@ -88,8 +124,9 @@ namespace Aetherfall.Editor
         public void OnPreprocessBuild(BuildReport report)
         {
             if (report.summary.platform != BuildTarget.Android) return;
+            AetherfallProjectSetup.EnsureScene();
             AetherfallProjectSetup.ConfigureLandscape();
-            Debug.Log("Aetherfall Android orientation: locked to LandscapeLeft.");
+            Debug.Log("Aetherfall Android orientation: locked to LandscapeLeft; guest town verified.");
         }
     }
 }

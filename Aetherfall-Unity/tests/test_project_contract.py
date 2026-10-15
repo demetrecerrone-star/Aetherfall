@@ -14,7 +14,12 @@ for name in ['TitleLandscape', 'CastleGate', 'LoginPanel', 'IconMail', 'IconLock
 assert 'field.placeholder = null' in source
 assert 'InputField.ContentType.Password' in source
 assert 'Google Login' in source
-assert 'Continue as Guest' not in source
+assert 'Play as Guest' in source
+assert 'EnterGuestWorld' in source
+assert 'SceneManager.LoadSceneAsync("StarterTown", LoadSceneMode.Single)' in source
+assert 'Application.CanStreamedLevelBeLoaded("StarterTown")' in source
+assert 'if (scene.name == "StarterTown") return;' in source
+assert 'SceneManager.sceneLoaded += OnSceneLoaded;' in source
 assert 'UnityEngine.UI' in source
 assert 'Application.targetFrameRate = 60' in source
 assert 'Screen.safeArea' in source
@@ -23,6 +28,12 @@ assert 'Aetherfall/Build Android Preview APK' in editor
 assert 'com.demetrecerrone.aetherfall.unitydev' in editor
 assert 'AetherfallLandscapePrebuild : IPreprocessBuildWithReport' in editor
 assert 'AetherfallProjectSetup.ConfigureLandscape();' in editor
+assert 'AetherfallMainBuildPreExport' in editor
+assert 'AetherfallWorldBuilder.GenerateStarterTown();' in editor
+assert 'new EditorBuildSettingsScene(TownScenePath, true)' in editor
+assert 'new[] { ScenePath, TownScenePath }' in editor
+assert 'AETHERFALL_GUEST_WORLD_READY' in editor
+assert 'AetherfallProjectSetup.EnsureScene();' in editor
 assert 'PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft' in editor
 assert 'PlayerSettings.allowedAutorotateToPortrait = false' in editor
 assert 'PlayerSettings.allowedAutorotateToPortraitUpsideDown = false' in editor
@@ -49,6 +60,18 @@ assert (root/'Assets/Scenes/AetherfallFrontEnd.unity').is_file()
 assert (root/'Assets/Scenes/AetherfallFrontEnd.unity.meta').is_file()
 assert (root/'Assets/StreamingAssets').is_dir()
 assert 'AetherfallIntro.mp4' in intro
+assert 'SceneManager.GetActiveScene().name == "StarterTown"' in intro
+assert (root/'Assets/Editor/AetherfallWorldBuilder.cs').is_file()
+assert (root/'Assets/WorldBuilder/starter-town.json').is_file()
+assert '"Town Guild Hall - Civic Government"' in (root/'Assets/Editor/AetherfallWorldBuilder.cs').read_text()
+assert '"Player Spawn - Inside South Gate"' in (root/'Assets/Editor/AetherfallWorldBuilder.cs').read_text()
+assert (root/'Assets/Scripts/AetherfallGuestExplorer.cs').is_file()
+guest=(root/'Assets/Scripts/AetherfallGuestExplorer.cs').read_text()
+assert 'SceneManager.sceneLoaded += OnSceneLoaded' in guest
+assert 'CharacterController' in guest
+assert 'Sprint' in guest
+assert 'Guest Explorer' in guest
+assert 'Screen.safeArea' in guest
 assert 'VideoPlayer' in intro and 'StreamingAssets' in intro
 assert 'FinishIntro' in intro and 'Skip Intro' in intro
 manifest=json.loads((root/'Packages/manifest.json').read_text())

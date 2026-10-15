@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Aetherfall.Frontend
@@ -44,12 +45,25 @@ namespace Aetherfall.Frontend
 #endif
         }
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void RegisterSceneLoading()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Launch()
         {
+            OnSceneLoaded(SceneManager.GetActiveScene(), LoadSceneMode.Single);
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            // A guest player must see and control StarterTown, NOT the title.
+            if (scene.name == "StarterTown") return;
             if (FindFirstObjectByType<AetherfallFrontEnd>() != null) return;
-            var root = new GameObject("Aetherfall Front End");
-            root.AddComponent<AetherfallFrontEnd>();
+            new GameObject("Aetherfall Front End").AddComponent<AetherfallFrontEnd>();
         }
 
         private void Awake()
@@ -188,8 +202,14 @@ namespace Aetherfall.Frontend
             submit.GetComponentInChildren<Text>().fontSize = 28;
             submit.onClick.AddListener(TryLogin);
 
-            MakeText(parent, "or", "—   or   —", 19, secondary,
-                new Vector2(.15f, .303f), new Vector2(.85f, .339f), TextAnchor.MiddleCenter);
+            // Guest play is real offline scene navigation, not mock authentication.
+            // This is deliberately prominent and independent of password fields.
+            Button guest = MakeButton(parent, "Play as Guest", "Play as Guest",
+                Hex("24665A"), Hex("FFF1C7"));
+            Stretch(guest.GetComponent<RectTransform>(),
+                new Vector2(.075f, .293f), new Vector2(.925f, .343f));
+            guest.GetComponentInChildren<Text>().fontSize = 24;
+            guest.onClick.AddListener(EnterGuestWorld);
 
             var create = MakeButton(parent, "Create Account", "Create Account", Hex("152943"), gold);
             Stretch(create.GetComponent<RectTransform>(), new Vector2(.075f, .219f), new Vector2(.925f, .291f));
@@ -211,6 +231,36 @@ namespace Aetherfall.Frontend
 
             status = MakeText(parent, "Validation status", "", 15, Hex("FFCC9E"),
                 new Vector2(.055f, .005f), new Vector2(.945f, .055f), TextAnchor.MiddleCenter);
+        }
+
+        private void EnterGuestWorld()
+        {
+            if (inTransition) return;
+            if (!Application.CanStreamedLevelBeLoaded("StarterTown"))
+            {
+                OpenDialog("Starter Town unavailable",
+                    "This APK does not include the 3D town scene. Please install the updated Aetherfall guest-world build.");
+                return;
+            }
+            StartCoroutine(LoadGuestWorld());
+        }
+
+        private IEnumerator LoadGuestWorld()
+        {
+            inTransition = true;
+            panelGroup.interactable = false;
+            panelGroup.blocksRaycasts = false;
+            status.text = "Entering the starter town as Guest...";
+            // Guest is local preview access, NOT a fake login or saved account.
+            AsyncOperation loading = SceneManager.LoadSceneAsync("StarterTown", LoadSceneMode.Single);
+            if (loading == null)
+            {
+                inTransition = false;
+                panelGroup.interactable = panelGroup.blocksRaycasts = true;
+                OpenDialog("Unable to enter world", "The town could not be loaded.");
+                yield break;
+            }
+            while (!loading.isDone) yield return null;
         }
 
         private void TryLogin()
