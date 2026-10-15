@@ -105,14 +105,53 @@ namespace Aetherfall.Exploration
 
         private static Material SimpleMaterial(Color color)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ??
-                            Shader.Find("Standard") ??
-                            Shader.Find("Unlit/Color");
-            if (shader == null) return null;
-            var material = new Material(shader);
-            material.color = color;
+            // QA showed an all-magenta avatar, while the terrain and buildings
+            // rendered correctly. A dynamically found shader may be stripped
+            // from the Android player or incompatible with its active pipeline.
+            // Copy a material which is ALREADY drawing in the current town.
+            Material template = null;
+            foreach (string name in new[] {
+                "Walkable North Guild Hill", "Outer Meadow", "Outer Meadow Ground" })
+            {
+                GameObject source = GameObject.Find(name);
+                if (source == null) continue;
+                Renderer sourceRenderer = source.GetComponent<Renderer>();
+                if (sourceRenderer == null || sourceRenderer.sharedMaterial == null)
+                    continue;
+                if (!sourceRenderer.sharedMaterial.shader.isSupported) continue;
+                template = sourceRenderer.sharedMaterial;
+                break;
+            }
+
+            Material material;
+            if (template != null)
+                material = new Material(template);
+            else
+            {
+                // Only used if a future scene does not contain the expected
+                // starter-terrain material. Choose the ACTIVE render pipeline.
+                bool srp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
+                Shader shader = Shader.Find(srp
+                    ? "Universal Render Pipeline/Lit" : "Standard");
+                if (shader == null || !shader.isSupported)
+                    shader = Shader.Find("Sprites/Default");
+                if (shader == null || !shader.isSupported)
+                {
+                    Debug.LogError("AETHERFALL_GUEST_AVATAR_MATERIAL_FAILED: no supported shader.");
+                    return null;
+                }
+                material = new Material(shader);
+            }
+            material.name = "Guest Avatar Color " + ColorUtility.ToHtmlStringRGB(color);
             if (material.HasProperty("_BaseColor"))
                 material.SetColor("_BaseColor", color);
+            if (material.HasProperty("_Color"))
+                material.SetColor("_Color", color);
+            if (material.HasProperty("_BaseMap"))
+                material.SetTexture("_BaseMap", Texture2D.whiteTexture);
+            if (material.HasProperty("_MainTex"))
+                material.SetTexture("_MainTex", Texture2D.whiteTexture);
+            material.color = color;
             return material;
         }
 
