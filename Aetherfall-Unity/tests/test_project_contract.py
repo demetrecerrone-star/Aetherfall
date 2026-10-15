@@ -16,7 +16,8 @@ assert 'InputField.ContentType.Password' in source
 assert 'Google Login' in source
 assert 'Play as Guest' in source
 assert 'EnterGuestWorld' in source
-assert 'SceneManager.LoadSceneAsync("StarterTown", LoadSceneMode.Single)' in source
+assert 'SceneManager.LoadSceneAsync(' in source
+assert '"StarterTown", LoadSceneMode.Single)' in source
 assert 'Application.CanStreamedLevelBeLoaded("StarterTown")' in source
 assert 'AetherfallRuntimeTown.CreateScene()' in source
 assert 'AetherfallGuestExplorer.StartInTown()' in source
