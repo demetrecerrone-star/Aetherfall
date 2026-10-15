@@ -43,5 +43,26 @@ for landmark in [
 assert "Application.dataPath" in code
 assert "#if UNITY_EDITOR" in preview
 assert "EditorBuildSettings.scenes =" not in preview
+# Isolated Unity Build Automation preview target uses a pre-export hook.
+# This source review is NOT an actual cloud editor compile or APK build.
+cloud=(root/"Assets/Editor/AetherfallTownPreviewBuild.cs").read_text()
+runtime=(root/"Assets/Scripts/AetherfallTownPreviewRuntime.cs").read_text()
+front=(root/"Assets/Scripts/AetherfallFrontEnd.cs").read_text()
+intro=(root/"Assets/Scripts/AetherfallIntroSequence.cs").read_text()
+assert "public static void PreExport()" in cloud
+assert "AetherfallWorldBuilder.GenerateStarterTown();" in cloud
+assert 'com.demetrecerrone.aetherfall.townpreview' in cloud
+assert "EditorBuildSettings.scenes = new[]" in cloud
+assert 'new EditorBuildSettingsScene(TownScene, true)' in cloud
+assert "UIOrientation.LandscapeLeft" in cloud
+assert "ScreenOrientation.LandscapeLeft" in runtime
+assert 'SceneManager.GetActiveScene().name != "StarterTown"' in runtime
+assert 'SceneManager.GetActiveScene().name == "StarterTown"' in front
+assert 'SceneManager.GetActiveScene().name == "StarterTown"' in intro
+for view in [
+    "Town map", "South gate / market", "Winding road / homes",
+    "Guild hall / town hall", "Lookout over the town"
+]:
+    assert view in runtime, view
 assert "EditorBuildSettings.scenes =" not in code, "do not touch startup build configuration"
 print("PASS: World Builder preset, layout landmarks and safe scene separation")
