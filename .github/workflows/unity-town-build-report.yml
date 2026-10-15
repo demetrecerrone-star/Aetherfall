@@ -10,7 +10,7 @@ on:
       build_number:
         description: 'Town-preview build number or latest'
         required: false
-        default: 'latest'
+        default: '5'
         type: string
 
 permissions:
@@ -41,5 +41,5 @@ jobs:
           UNITY_CLOUD_ORG_ID: '2476066025878'
           UNITY_CLOUD_PROJECT_ID: '92204c56-3bcf-41b8-8eec-43d1069287a1'
           UNITY_CLOUD_TARGET_ID: 'aetherfall-town-preview'
-          REQUESTED_BUILD: ${{ inputs.build_number || 'latest' }}
+          REQUESTED_BUILD: ${{ inputs.build_number || '5' }}
         run: python3 tools/unity_cloud_report.py --build "$REQUESTED_BUILD"
