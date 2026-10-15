@@ -95,7 +95,12 @@ namespace Aetherfall.Preview
             cameraView.orthographicSize = 153f;
             cameraView.fieldOfView = 65f;
             cameraView.transform.position = view.Position;
-            cameraView.transform.LookAt(cameraLookAt, Vector3.up);
+            // Looking exactly downward makes forward/up vectors collinear.
+            // Use a stable explicit north-up map rotation in overhead mode.
+            if (view.Overhead)
+                cameraView.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            else
+                cameraView.transform.LookAt(cameraLookAt, Vector3.up);
         }
 
         private void Update()
