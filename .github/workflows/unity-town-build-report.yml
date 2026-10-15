@@ -1,0 +1,45 @@
+name: Aetherfall Town Preview Build Report
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/unity-town-build-report.yml'
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Town-preview build number or latest'
+        required: false
+        default: 'latest'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aetherfall-town-preview-report
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Check separate Unity Town Preview build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout existing Unity API reporter
+        uses: actions/checkout@v4
+        with:
+          ref: unity-reboot
+          persist-credentials: false
+      - name: Verify reporter without secrets
+        run: |
+          python3 -m py_compile tools/unity_cloud_report.py
+          python3 tools/unity_cloud_report.py --self-test
+      - name: Query Town Preview target (read-only)
+        env:
+          UNITY_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UNITY_SERVICE_ACCOUNT_KEY_ID }}
+          UNITY_SERVICE_ACCOUNT_SECRET_KEY: ${{ secrets.UNITY_SERVICE_ACCOUNT_SECRET_KEY }}
+          UNITY_CLOUD_ORG_ID: '2476066025878'
+          UNITY_CLOUD_PROJECT_ID: '92204c56-3bcf-41b8-8eec-43d1069287a1'
+          UNITY_CLOUD_TARGET_ID: 'aetherfall-town-preview'
+          REQUESTED_BUILD: ${{ inputs.build_number || 'latest' }}
+        run: python3 tools/unity_cloud_report.py --build "$REQUESTED_BUILD"
