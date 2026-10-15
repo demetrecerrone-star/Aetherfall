@@ -45,6 +45,17 @@ scene, or the currently configured `unity-reboot` Android build target.
 Do not add the prototype scene to the Android build until the scene compiles,
 renders and receives visual approval.
 
+## Phone-first Unity Cloud 3D town preview
+The supported next test route is a **separate Android Build Automation
+configuration**, not a change to the production login target. See
+[`Documentation/TOWN_PREVIEW_CLOUD_BUILD.md`](../../Documentation/TOWN_PREVIEW_CLOUD_BUILD.md)
+for the branch, Unity Editor version, unique Android package ID and required
+**Pre-Export Method**. The new `AetherfallTownPreviewBuild.PreExport()`
+generates the scene in Unity and selects it for this isolated APK.
+`AetherfallTownPreviewRuntime` supplies five switchable camera views on
+Android so real gameplay-engine screenshots can be reviewed directly from
+a phone. Neither the build hook nor APK has been tested in Unity Cloud yet.
+
 ## Organic starter town plan
 - Nominal 250 x 240 m town footprint, with an irregular perimeter of 16 angled wall sections rather than rectangular walls.
 - 18 m south gate enters a lively market neighborhood: fountain plaza, market stalls, supply shop, bakery, blacksmith, apothecary, and inn.
